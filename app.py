@@ -71,6 +71,8 @@ from routes import literature, search, structure, qa, upload, feishu, config as 
 from routes import alignment, kg, evaluation
 from routes import auth
 from routes import qa_agent
+from routes import skills
+from routes import pymol
 
 # 注册所有蓝图
 app.register_blueprint(auth.bp)
@@ -86,6 +88,8 @@ app.register_blueprint(alignment.bp, url_prefix='/api/alignment')
 app.register_blueprint(kg.bp, url_prefix='/api/kg')
 app.register_blueprint(evaluation.bp, url_prefix='/api/evaluation')
 app.register_blueprint(qa_agent.bp, url_prefix='/api/qa/agent')
+app.register_blueprint(skills.bp)
+app.register_blueprint(pymol.bp, url_prefix='/api/pymol')
 
 # HTML页面路由 - 需要登录
 @app.route('/')
@@ -405,7 +409,8 @@ def api_index():
             '/api/config',
             '/api/alignment',
             '/api/kg',
-            '/api/evaluation'
+            '/api/evaluation',
+            '/api/pymol'
         ]
     })
 

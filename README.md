@@ -10,6 +10,7 @@
 - **蛋白质知识图谱**：结构-功能-文献关联知识图谱
 - **序列比对**：内置序列比对工具
 - **飞书集成**：支持飞书文档同步和管理
+- **PyMOL 3D 结构分析**：使用 PyMOL 进行蛋白质结构深度分析（需要安装 pymol-open-source）
 
 ## 技术栈
 
@@ -38,6 +39,11 @@ Cryoagent/
 │   ├── structure_manager.py    # 结构管理
 │   ├── structure_database.py   # 结构数据库
 │   ├── structure_knowledge_graph.py  # 知识图谱
+│   ├── pymol_wrapper.py       # PyMOL 封装
+│   ├── skills/                # Skills 系统
+│   │   ├── skill.py
+│   │   ├── registry.py
+│   │   └── default_skills.py
 │   ├── lancedb_rag/           # LanceDB RAG 实现
 │   │   ├── rag.py
 │   │   ├── hybrid.py           # 混合搜索
@@ -53,6 +59,8 @@ Cryoagent/
 │   ├── upload.py
 │   ├── alignment.py
 │   ├── kg.py                   # 知识图谱
+│   ├── pymol.py                # PyMOL API
+│   ├── skills.py                # Skills API
 │   └── ...
 ├── services/                   # 服务层
 │   ├── feishu_document.py      # 飞书文档服务
@@ -63,6 +71,7 @@ Cryoagent/
 │   └── lancedb/               # LanceDB 数据库
 ├── literature/                 # 文献存储
 ├── structure_cache/           # 结构缓存
+├── pymol_data/                 # PyMOL 输出文件
 └── uploads/                    # 上传文件
 ```
 
@@ -131,6 +140,54 @@ python app.py
 ### 知识图谱
 - `GET /api/kg/search` - 搜索知识图谱
 - `GET /api/kg/structure/<id>` - 获取结构关联信息
+
+### PyMOL 3D 结构分析（需要安装 pymol-open-source）
+- `GET /api/pymol/status` - 检查 PyMOL 可用性
+- `POST /api/pymol/analyze` - 执行结构分析
+- `POST /api/pymol/rmsd` - 计算 RMSD
+- `POST /api/pymol/align` - 结构对齐
+- `POST /api/pymol/secondary-structure` - 二级结构分析
+- `POST /api/pymol/image` - 生成结构图像
+- `POST /api/pymol/session` - 保存 PyMOL session
+- `POST /api/pymol/complete-analysis` - 完整分析
+
+#### PyMOL 安装
+
+```bash
+# 使用 Conda 安装（推荐）
+conda install -c conda-forge pymol-open-source
+
+# 或创建新环境
+conda create -n pymol-env pymol-open-source
+conda activate pymol-env
+```
+
+#### PyMOL API 使用示例
+
+```bash
+# 检查 PyMOL 状态
+curl http://localhost:5000/api/pymol/status
+
+# 分析结构
+curl -X POST http://localhost:5000/api/pymol/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"pdb_id": "1CRN", "analysis_type": "info"}'
+
+# 生成结构图像
+curl -X POST http://localhost:5000/api/pymol/image \
+  -H "Content-Type: application/json" \
+  -d '{"pdb_id": "1CRN", "style": "cartoon", "color": "rainbow"}'
+
+# 计算 RMSD
+curl -X POST http://localhost:5000/api/pymol/rmsd \
+  -H "Content-Type: application/json" \
+  -d '{"pdb_id1": "1CRN", "pdb_id2": "4CRN"}'
+
+# 结构对齐
+curl -X POST http://localhost:5000/api/pymol/align \
+  -H "Content-Type: application/json" \
+  -d '{"pdb_id1": "1CRN", "pdb_id2": "4CRN"}'
+```
 
 ## License
 

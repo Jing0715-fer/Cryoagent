@@ -324,6 +324,310 @@ def get_user_history_executor(user_id: str = None, session_id: str = None,
         return {"success": False, "error": str(e)}
 
 
+def compare_structures_executor(structure_id1: str, structure_id2: str, **kwargs) -> Dict:
+    """执行蛋白质结构比较"""
+    try:
+        from core.structure_database import StructureDatabase
+
+        db = StructureDatabase()
+
+        # 获取两个结构的信息
+        struct1 = db.get_structure(structure_id1.upper())
+        struct2 = db.get_structure(structure_id2.upper())
+
+        if not struct1:
+            import requests
+            rcsb_url = f"https://data.rcsb.org/rest/v1/core/entry/{structure_id1.upper()}"
+            resp = requests.get(rcsb_url, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                struct1 = {
+                    "pdb_id": structure_id1.upper(),
+                    "title": data.get("title", ""),
+                    "experimental_method": data.get("exptl_method", ""),
+                    "resolution": data.get("rcsb_entry_info", {}).get("resolution_combined", [None])[0],
+                    "source": "rcsb"
+                }
+
+        if not struct2:
+            import requests
+            rcsb_url = f"https://data.rcsb.org/rest/v1/core/entry/{structure_id2.upper()}"
+            resp = requests.get(rcsb_url, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                struct2 = {
+                    "pdb_id": structure_id2.upper(),
+                    "title": data.get("title", ""),
+                    "experimental_method": data.get("exptl_method", ""),
+                    "resolution": data.get("rcsb_entry_info", {}).get("resolution_combined", [None])[0],
+                    "source": "rcsb"
+                }
+
+        if not struct1 or not struct2:
+            return {"success": False, "error": f"One or both structures not found"}
+
+        # 简单的结构比较（基于元数据）
+        comparison = {
+            "structure1": struct1,
+            "structure2": struct2,
+            "comparison": {
+                "same_method": struct1.get("experimental_method") == struct2.get("experimental_method"),
+                "resolution_diff": abs(struct1.get("resolution", 0) - struct2.get("resolution", 0)) if struct1.get("resolution") and struct2.get("resolution") else None,
+                "method1": struct1.get("experimental_method"),
+                "method2": struct2.get("experimental_method")
+            }
+        }
+
+        return {
+            "success": True,
+            "comparison": comparison
+        }
+    except Exception as e:
+        logger.error(f"Error comparing structures: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def analyze_resolution_executor(structure_id: str, threshold: float = 3.0, **kwargs) -> Dict:
+    """执行分辨率分析"""
+    try:
+        from core.structure_database import StructureDatabase
+
+        db = StructureDatabase()
+        structure = db.get_structure(structure_id.upper())
+
+        if not structure:
+            import requests
+            rcsb_url = f"https://data.rcsb.org/rest/v1/core/entry/{structure_id.upper()}"
+            resp = requests.get(rcsb_url, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                structure = {
+                    "pdb_id": structure_id.upper(),
+                    "resolution": data.get("rcsb_entry_info", {}).get("resolution_combined", [None])[0],
+                    "title": data.get("title", "")
+                }
+
+        if not structure:
+            return {"success": False, "error": f"Structure {structure_id} not found"}
+
+        resolution = structure.get("resolution")
+
+        if resolution is None:
+            return {
+                "success": True,
+                "structure_id": structure_id,
+                "has_resolution": False,
+                "message": "No resolution data available (likely EM structure)"
+            }
+
+        # 分析分辨率质量
+        quality = "high" if resolution <= 2.0 else "medium" if resolution <= 3.0 else "low"
+
+        analysis = {
+            "structure_id": structure_id,
+            "resolution": resolution,
+            "quality": quality,
+            "meets_threshold": resolution <= threshold,
+            "threshold": threshold,
+            "title": structure.get("title", "")
+        }
+
+        return {
+            "success": True,
+            "analysis": analysis
+        }
+    except Exception as e:
+        logger.error(f"Error analyzing resolution: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def find_similar_sequences_executor(sequence: str, database: str = "uniprot",
+                                    limit: int = 10, **kwargs) -> Dict:
+    """查找相似序列"""
+    try:
+        import requests
+
+        # 使用 NCBI BLAST API 或 UniProt 的搜索功能
+        if database.lower() == "uniprot":
+            # 使用 UniProt API 进行序列搜索
+            url = "https://rest.uniprot.org/idrun/ba"
+            data = {
+                "sequence": sequence,
+                "alignments": limit
+            }
+            resp = requests.post(url, json=data, timeout=30)
+            if resp.status_code == 200:
+                results = resp.json()
+                return {
+                    "success": True,
+                    "database": database,
+                    "count": len(results.get("results", [])),
+                    "results": results.get("results", [])
+                }
+            else:
+                # 回退到简单的 FASTA 搜索
+                return _fallback_uniprot_search(sequence, limit)
+
+        return {"success": False, "error": f"Unsupported database: {database}"}
+    except Exception as e:
+        logger.error(f"Error finding similar sequences: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def _fallback_uniprot_search(sequence: str, limit: int) -> Dict:
+    """UniProt 搜索回退方案"""
+    try:
+        # 使用简单的 BLAST 搜索
+        import requests
+
+        url = "https://blast.ncbi.nlm.nih.gov/blast/Blast.cgi"
+        params = {
+            "CMD": "Put",
+            "QUERY": sequence,
+            "DATABASE": "nr",
+            "FORMAT_TYPE": "JSON"
+        }
+        resp = requests.get(url, params=params, timeout=30)
+
+        return {
+            "success": True,
+            "message": "Sequence search initiated",
+            "search_url": resp.url if hasattr(resp, 'url') else "",
+            "note": "Please use NCBI BLAST directly for detailed results"
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def get_publication_info_executor(pmid: str = None, doi: str = None, **kwargs) -> Dict:
+    """获取出版物信息"""
+    try:
+        import requests
+
+        if pmid:
+            # 从 PubMed 获取信息
+            url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+            params = {
+                "db": "pubmed",
+                "id": pmid,
+                "retmode": "json"
+            }
+            resp = requests.get(url, params=params, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                pub_data = data.get("result", {}).get(pmid, {})
+
+                return {
+                    "success": True,
+                    "pmid": pmid,
+                    "title": pub_data.get("title", ""),
+                    "authors": pub_data.get("authors", []),
+                    "journal": pub_data.get("fulljournalname", ""),
+                    "pubdate": pub_data.get("pubdate", ""),
+                    "source": "pubmed"
+                }
+
+        elif doi:
+            # 从 CrossRef 获取信息
+            url = f"https://api.crossref.org/works/{doi}"
+            resp = requests.get(url, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                item = data.get("message", {})
+
+                return {
+                    "success": True,
+                    "doi": doi,
+                    "title": item.get("title", [""])[0] if item.get("title") else "",
+                    "authors": [a.get("given", "") + " " + a.get("family", "") for a in item.get("author", [])],
+                    "journal": item.get("container-title", [""])[0] if item.get("container-title") else "",
+                    "pubdate": item.get("published-print", {}).get("date-parts", [[""]])[0][0] if item.get("published-print") else "",
+                    "source": "crossref"
+                }
+
+        return {"success": False, "error": "Please provide PMID or DOI"}
+
+    except Exception as e:
+        logger.error(f"Error getting publication info: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def run_blast_executor(sequence: str, database: str = "nr", **kwargs) -> Dict:
+    """执行在线 BLAST 分析"""
+    try:
+        import requests
+
+        # NCBI BLAST API
+        url = "https://blast.ncbi.nlm.nih.gov/blast/Blast.cgi"
+        params = {
+            "CMD": "Put",
+            "QUERY": sequence,
+            "DATABASE": database,
+            "FORMAT_TYPE": "JSON",
+            "ALIGNMENTS": 10,
+            "ALIGNMENT_VIEW": "Pairwise"
+        }
+
+        resp = requests.get(url, params=params, timeout=30)
+
+        return {
+            "success": True,
+            "message": "BLAST job submitted",
+            "database": database,
+            "query_length": len(sequence),
+            "blast_url": resp.url if hasattr(resp, 'url') else "",
+            "note": "访问上面的链接查看 BLAST 结果"
+        }
+    except Exception as e:
+        logger.error(f"Error running BLAST: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def fetch_uniprot_executor(uniprot_id: str, **kwargs) -> Dict:
+    """获取 UniProt 数据"""
+    try:
+        from core.uniprot_client import UniProtClient
+
+        client = UniProtClient()
+        data = client.get_sequence(uniprot_id)
+
+        if data:
+            return {
+                "success": True,
+                "uniprot_id": uniprot_id,
+                "sequence": data.get("sequence", ""),
+                "length": data.get("length", 0),
+                "mass": data.get("mass", 0),
+                "protein_name": data.get("protein_name", ""),
+                "organism": data.get("organism", "")
+            }
+
+        # 尝试直接从 UniProt API 获取
+        import requests
+        url = f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.json"
+        resp = requests.get(url, timeout=15)
+
+        if resp.status_code == 200:
+            data = resp.json()
+            seq = data.get("sequence", {})
+
+            return {
+                "success": True,
+                "uniprot_id": uniprot_id,
+                "sequence": seq.get("value", ""),
+                "length": seq.get("length", 0),
+                "mass": seq.get("molWeight", 0),
+                "protein_name": data.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value", ""),
+                "organism": data.get("organism", {}).get("scientificName", "")
+            }
+
+        return {"success": False, "error": f"UniProt ID {uniprot_id} not found"}
+
+    except Exception as e:
+        logger.error(f"Error fetching UniProt: {e}")
+        return {"success": False, "error": str(e)}
+
+
 # ============================================
 # 工具初始化函数
 # ============================================
@@ -412,6 +716,311 @@ def initialize_tools():
     )
     registry.register(history_tool)
     registry.register_executor("get_user_history", get_user_history_executor)
+
+    # 7. 结构比较工具
+    compare_tool = AgentTool(
+        name="compare_structures",
+        description="比较两个蛋白质结构的异同，包括分辨率、实验方法等。",
+        category="analysis",
+        parameters=[
+            ToolParameter(name="structure_id1", description="第一个PDB ID", type="string", required=True),
+            ToolParameter(name="structure_id2", description="第二个PDB ID", type="string", required=True)
+        ]
+    )
+    registry.register(compare_tool)
+    registry.register_executor("compare_structures", compare_structures_executor)
+
+    # 8. 分辨率分析工具
+    resolution_tool = AgentTool(
+        name="analyze_resolution",
+        description="分析蛋白质结构的分辨率质量，判断是否符合给定阈值。",
+        category="analysis",
+        parameters=[
+            ToolParameter(name="structure_id", description="PDB ID", type="string", required=True),
+            ToolParameter(name="threshold", description="分辨率阈值(Å)", type="float", required=False, default=3.0)
+        ]
+    )
+    registry.register(resolution_tool)
+    registry.register_executor("analyze_resolution", analyze_resolution_executor)
+
+    # 9. 相似序列查找工具
+    similar_seq_tool = AgentTool(
+        name="find_similar_sequences",
+        description="在数据库中查找与给定蛋白质序列相似的序列。",
+        category="search",
+        parameters=[
+            ToolParameter(name="sequence", description="蛋白质序列", type="string", required=True),
+            ToolParameter(name="database", description="搜索数据库", type="string", required=False, default="uniprot"),
+            ToolParameter(name="limit", description="返回结果数量", type="integer", required=False, default=10)
+        ]
+    )
+    registry.register(similar_seq_tool)
+    registry.register_executor("find_similar_sequences", find_similar_sequences_executor)
+
+    # 10. 出版物信息查询工具
+    pubinfo_tool = AgentTool(
+        name="get_publication_info",
+        description="根据PMID或DOI获取科学出版物的详细信息。",
+        category="lookup",
+        parameters=[
+            ToolParameter(name="pmid", description="PubMed ID", type="string", required=False),
+            ToolParameter(name="doi", description="DOI", type="string", required=False)
+        ]
+    )
+    registry.register(pubinfo_tool)
+    registry.register_executor("get_publication_info", get_publication_info_executor)
+
+    # 11. BLAST分析工具
+    blast_tool = AgentTool(
+        name="run_blast",
+        description="在NCBI进行在线BLAST序列比对分析。",
+        category="analysis",
+        parameters=[
+            ToolParameter(name="sequence", description="蛋白质序列", type="string", required=True),
+            ToolParameter(name="database", description="BLAST数据库", type="string", required=False, default="nr")
+        ]
+    )
+    registry.register(blast_tool)
+    registry.register_executor("run_blast", run_blast_executor)
+
+    # 12. UniProt数据获取工具
+    uniprot_tool = AgentTool(
+        name="fetch_uniprot",
+        description="根据UniProt ID获取蛋白质序列和详细信息。",
+        category="lookup",
+        parameters=[
+            ToolParameter(name="uniprot_id", description="UniProt ID (如 P0A8V2)", type="string", required=True)
+        ]
+    )
+    registry.register(uniprot_tool)
+    registry.register_executor("fetch_uniprot", fetch_uniprot_executor)
+
+    # ============================================
+    # PyMOL 工具 (蛋白质结构深度分析)
+    # ============================================
+
+    def pymol_analyze_executor(pdb_id: str, analysis_type: str = "info", **kwargs) -> Dict:
+        """执行 PyMOL 结构分析"""
+        try:
+            from core.pymol_wrapper import get_pymol_wrapper
+
+            wrapper = get_pymol_wrapper()
+            if not wrapper.is_available():
+                return {
+                    "success": False,
+                    "error": "PyMOL not available. Install with: pip install pymol-open-source"
+                }
+
+            result = wrapper.analyze_structure(pdb_id, analysis_type)
+            return {
+                "success": True,
+                "pdb_id": pdb_id,
+                "analysis_type": analysis_type,
+                "result": result
+            }
+        except Exception as e:
+            logger.error(f"Error in pymol_analyze: {e}")
+            return {"success": False, "error": str(e)}
+
+    def pymol_rmsd_executor(pdb_id1: str, pdb_id2: str, **kwargs) -> Dict:
+        """计算 RMSD"""
+        try:
+            from core.pymol_wrapper import get_pymol_wrapper
+
+            wrapper = get_pymol_wrapper()
+            if not wrapper.is_available():
+                return {
+                    "success": False,
+                    "error": "PyMOL not available. Install with: pip install pymol-open-source"
+                }
+
+            result = wrapper.calculate_rmsd(pdb_id1, pdb_id2)
+            return {
+                "success": True,
+                "result": result
+            }
+        except Exception as e:
+            logger.error(f"Error in pymol_rmsd: {e}")
+            return {"success": False, "error": str(e)}
+
+    def pymol_align_executor(pdb_id1: str, pdb_id2: str, **kwargs) -> Dict:
+        """对齐结构"""
+        try:
+            from core.pymol_wrapper import get_pymol_wrapper
+
+            wrapper = get_pymol_wrapper()
+            if not wrapper.is_available():
+                return {
+                    "success": False,
+                    "error": "PyMOL not available. Install with: pip install pymol-open-source"
+                }
+
+            result = wrapper.align_structures(pdb_id1, pdb_id2)
+            return {
+                "success": True,
+                "result": result
+            }
+        except Exception as e:
+            logger.error(f"Error in pymol_align: {e}")
+            return {"success": False, "error": str(e)}
+
+    def pymol_ss_executor(pdb_id: str, **kwargs) -> Dict:
+        """分析二级结构"""
+        try:
+            from core.pymol_wrapper import get_pymol_wrapper
+
+            wrapper = get_pymol_wrapper()
+            if not wrapper.is_available():
+                return {
+                    "success": False,
+                    "error": "PyMOL not available. Install with: pip install pymol-open-source"
+                }
+
+            result = wrapper.analyze_secondary_structure(pdb_id)
+            return {
+                "success": True,
+                "result": result
+            }
+        except Exception as e:
+            logger.error(f"Error in pymol_ss: {e}")
+            return {"success": False, "error": str(e)}
+
+    def pymol_image_executor(pdb_id: str, style: str = "cartoon",
+                            color: str = "rainbow", **kwargs) -> Dict:
+        """生成结构图像"""
+        try:
+            from core.pymol_wrapper import get_pymol_wrapper
+
+            wrapper = get_pymol_wrapper()
+            if not wrapper.is_available():
+                return {
+                    "success": False,
+                    "error": "PyMOL not available. Install with: pip install pymol-open-source"
+                }
+
+            image_path = wrapper.generate_image(pdb_id, style, color)
+            if image_path:
+                return {
+                    "success": True,
+                    "pdb_id": pdb_id,
+                    "image_path": image_path
+                }
+            return {
+                "success": False,
+                "error": "Failed to generate image"
+            }
+        except Exception as e:
+            logger.error(f"Error in pymol_image: {e}")
+            return {"success": False, "error": str(e)}
+
+    def pymol_session_executor(pdb_id: str, session_name: str = None, **kwargs) -> Dict:
+        """生成 PyMOL session 文件"""
+        try:
+            from core.pymol_wrapper import get_pymol_wrapper
+
+            wrapper = get_pymol_wrapper()
+            if not wrapper.is_available():
+                return {
+                    "success": False,
+                    "error": "PyMOL not available. Install with: pip install pymol-open-source"
+                }
+
+            session_path = wrapper.save_session(pdb_id, session_name)
+            if session_path:
+                return {
+                    "success": True,
+                    "pdb_id": pdb_id,
+                    "session_path": session_path
+                }
+            return {
+                "success": False,
+                "error": "Failed to save session"
+            }
+        except Exception as e:
+            logger.error(f"Error in pymol_session: {e}")
+            return {"success": False, "error": str(e)}
+
+    # 注册 PyMOL 工具
+    # 13. PyMOL 结构分析工具
+    pymol_analyze_tool = AgentTool(
+        name="pymol_analyze",
+        description="使用 PyMOL 进行蛋白质结构深度分析，包括结构信息、二级结构、表面分析等。",
+        category="analysis",
+        parameters=[
+            ToolParameter(name="pdb_id", description="PDB ID (如 1ABC)", type="string", required=True),
+            ToolParameter(name="analysis_type", description="分析类型: info/secondary_structure/surface/contacts",
+                         type="string", required=False, default="info")
+        ]
+    )
+    registry.register(pymol_analyze_tool)
+    registry.register_executor("pymol_analyze", pymol_analyze_executor)
+
+    # 14. PyMOL RMSD 计算
+    pymol_rmsd_tool = AgentTool(
+        name="pymol_rmsd",
+        description="使用 PyMOL 计算两个蛋白质结构之间的 RMSD (Root Mean Square Deviation)。",
+        category="analysis",
+        parameters=[
+            ToolParameter(name="pdb_id1", description="第一个 PDB ID", type="string", required=True),
+            ToolParameter(name="pdb_id2", description="第二个 PDB ID", type="string", required=True)
+        ]
+    )
+    registry.register(pymol_rmsd_tool)
+    registry.register_executor("pymol_rmsd", pymol_rmsd_executor)
+
+    # 15. PyMOL 结构对齐
+    pymol_align_tool = AgentTool(
+        name="pymol_align",
+        description="使用 PyMOL 对齐两个蛋白质结构。",
+        category="analysis",
+        parameters=[
+            ToolParameter(name="pdb_id1", description="第一个 PDB ID", type="string", required=True),
+            ToolParameter(name="pdb_id2", description="第二个 PDB ID", type="string", required=True)
+        ]
+    )
+    registry.register(pymol_align_tool)
+    registry.register_executor("pymol_align", pymol_align_executor)
+
+    # 16. PyMOL 二级结构分析
+    pymol_ss_tool = AgentTool(
+        name="pymol_ss",
+        description="使用 PyMOL 分析蛋白质二级结构 (α螺旋、β折叠、环区)。",
+        category="analysis",
+        parameters=[
+            ToolParameter(name="pdb_id", description="PDB ID", type="string", required=True)
+        ]
+    )
+    registry.register(pymol_ss_tool)
+    registry.register_executor("pymol_ss", pymol_ss_executor)
+
+    # 17. PyMOL 图像生成
+    pymol_image_tool = AgentTool(
+        name="pymol_image",
+        description="使用 PyMOL 生成蛋白质结构图像。",
+        category="visualization",
+        parameters=[
+            ToolParameter(name="pdb_id", description="PDB ID", type="string", required=True),
+            ToolParameter(name="style", description="可视化风格: cartoon/sticks/spheres/surface",
+                         type="string", required=False, default="cartoon"),
+            ToolParameter(name="color", description="颜色方案: rainbow/chain/structure/hydrophobicity",
+                         type="string", required=False, default="rainbow")
+        ]
+    )
+    registry.register(pymol_image_tool)
+    registry.register_executor("pymol_image", pymol_image_executor)
+
+    # 18. PyMOL Session 生成
+    pymol_session_tool = AgentTool(
+        name="pymol_session",
+        description="保存 PyMOL session 文件 (.pse)，可后续在 PyMOL 中打开进行交互式分析。",
+        category="utility",
+        parameters=[
+            ToolParameter(name="pdb_id", description="PDB ID", type="string", required=True),
+            ToolParameter(name="session_name", description="Session 文件名(可选)", type="string", required=False)
+        ]
+    )
+    registry.register(pymol_session_tool)
+    registry.register_executor("pymol_session", pymol_session_executor)
 
     logger.info(f"Initialized {len(registry.get_all_tools())} agent tools")
     return registry
