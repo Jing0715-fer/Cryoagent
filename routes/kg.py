@@ -17,8 +17,8 @@ bp = Blueprint('kg', __name__, url_prefix='/api/kg')
 
 # Database paths
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-STRUCTURE_DB_PATH = os.path.join(PROJECT_DIR, 'flask_app', 'data', 'structure_offline.db')
-LITERATURE_DB_PATH = os.path.join(PROJECT_DIR, 'flask_app', 'data', 'literature.db')
+STRUCTURE_DB_PATH = os.path.join(PROJECT_DIR, 'data', 'structure_offline.db')
+LITERATURE_DB_PATH = os.path.join(PROJECT_DIR, 'data', 'literature.db')
 KG_DB_PATH = os.path.join(PROJECT_DIR, 'structure_knowledge_graph.db')
 
 
@@ -61,7 +61,7 @@ def get_structure_sequence(structure_id):
 def get_sequence_similarity(structure_id1, structure_id2):
     """Calculate sequence similarity between two structures using BioPython"""
     # Import here to avoid circular imports
-    from flask_app.core.alignment_engine import ProfessionalAlignmentEngine
+    from core.alignment_engine import ProfessionalAlignmentEngine
 
     try:
         # Get sequences for both structures

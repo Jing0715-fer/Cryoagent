@@ -6,6 +6,7 @@ import os
 import json
 import asyncio
 import logging
+from typing import Dict, List, Any
 
 # Add project root to path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,8 +45,12 @@ def get_or_create_session(user_id: str = None) -> str:
 
 
 # 初始化工具注册表和Agent
-def get_agent():
-    """获取Agent实例（延迟初始化）"""
+def get_agent(skill_id: str = None):
+    """获取Agent实例（延迟初始化）
+
+    Args:
+        skill_id: 可选的 Skill ID，用于加载特定 Skill
+    """
     from core.agent_tools import get_tool_registry, initialize_tools
     from core.qa_agent import create_agent
 
@@ -54,13 +59,14 @@ def get_agent():
     if not registry.get_all_tools():
         initialize_tools()
 
-    return create_agent(registry)
+    return create_agent(registry, skill_id=skill_id)
 
 
 @bp.route('', methods=['POST'])
 def agent_process():
     """
     Agent主入口 - 处理用户问题
+    支持 skill_id 参数来指定使用的 Skill
     """
     import uuid
 
@@ -68,13 +74,14 @@ def agent_process():
         data = request.json
         question = data.get('question', '')
         session_id = data.get('session_id')  # 可选
+        skill_id = data.get('skill_id')     # 可选 - 指定使用的 Skill
         user_id = get_current_user_id()
 
         # 如果没有session_id，创建一个新的
         if not session_id:
             session_id = str(uuid.uuid4())
 
-        logger.info(f"[QA Agent] Question: {question[:50]}..., session: {session_id}")
+        logger.info(f"[QA Agent] Question: {question[:50]}..., session: {session_id}, skill: {skill_id}")
 
         # 获取或初始化会话数据
         session_data = _get_session_data(session_id)
@@ -92,12 +99,12 @@ def agent_process():
         # 准备上下文
         context = _get_context(session_id)
 
-        # 异步执行Agent
+        # 异步执行Agent（传入 skill_id）
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(
                 asyncio.run,
-                get_agent().process(question, context, session_data)
+                get_agent(skill_id=skill_id).process(question, context, session_data, skill_id=skill_id)
             )
             result = future.result()
 
@@ -112,11 +119,26 @@ def agent_process():
         # 保存问答历史
         _save_qa_history(user_id, session_id, question, result)
 
-        return jsonify({
+        # 构建响应
+        response = {
             "success": True,
             "session_id": session_id,
             "result": result
-        })
+        }
+
+        # 如果使用了 Skill，添加 Skill 信息
+        if skill_id:
+            from core.skills import get_skill_registry
+            skill_registry = get_skill_registry()
+            skill = skill_registry.get_skill(skill_id)
+            if skill:
+                response["skill"] = {
+                    "id": skill.id,
+                    "name": skill.name,
+                    "description": skill.description
+                }
+
+        return jsonify(response)
 
     except Exception as e:
         logger.error(f"Error in agent_process: {e}", exc_info=True)
@@ -336,7 +358,3 @@ def _save_qa_history(user_id: str, session_id: str, question: str, result: Dict)
             )
     except Exception as e:
         logger.error(f"Error saving QA history: {e}")
-
-
-# 类型注解
-from typing import Dict, List, Any

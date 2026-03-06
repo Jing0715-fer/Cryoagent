@@ -47,3 +47,12 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+# PyMOL
+PyMolAI-master/
+pymol_data/
+pymol_sessions/
+*.pdb
+*.cif
+*.pse
+*.pze

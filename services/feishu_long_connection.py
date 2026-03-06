@@ -122,8 +122,8 @@ class FeishuLongConnection:
         try:
             # 延迟创建客户端
             if not hasattr(self, '_feishu_client'):
-                from flask_app.utils.feishu_client import FeishuClient
-                from flask_app.utils.feishu_client import load_feishu_config
+                from utils.feishu_client import FeishuClient
+                from utils.feishu_client import load_feishu_config
 
                 config = load_feishu_config()
                 self._feishu_client = FeishuClient(config['app_id'], config['app_secret'])
@@ -189,7 +189,7 @@ def start_feishu_long_connection(app_id: str = None, app_secret: str = None):
 
     # 如果没有提供参数，从配置加载
     if not app_id or not app_secret:
-        from flask_app.utils.feishu_client import load_feishu_config
+        from utils.feishu_client import load_feishu_config
         config = load_feishu_config()
         app_id = config.get('app_id')
         app_secret = config.get('app_secret')
@@ -234,7 +234,7 @@ if __name__ == "__main__":
     # 测试用
     logging.basicConfig(level=logging.INFO)
 
-    from flask_app.utils.feishu_client import load_feishu_config
+    from utils.feishu_client import load_feishu_config
 
     config = load_feishu_config()
     if config.get('app_id') and config.get('app_secret'):

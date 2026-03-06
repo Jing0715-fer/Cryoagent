@@ -11,7 +11,7 @@ if PROJECT_ROOT not in sys.path:
 
 from flask import jsonify, request, Blueprint, Response
 from flask_login import current_user
-from flask_app.utils.ai_client import get_ai_client, load_ai_config
+from utils.ai_client import get_ai_client, load_ai_config
 from core.literature_index import EntityType
 from core.literature_db import get_literature_entry
 
@@ -184,7 +184,7 @@ UniProt ID: [例如: P29274]
             try:
                 from core.literature_db import get_literature_entry
                 import sqlite3
-                db_path = os.path.join(PROJECT_ROOT, 'flask_app/data/literature.db')
+                db_path = os.path.join(PROJECT_ROOT, 'data/literature.db')
                 conn = sqlite3.connect(db_path)
                 cursor = conn.cursor()
 
@@ -433,7 +433,7 @@ UniProt ID: [例如: P29274]
             # 通用结构搜索：从多个表和字段搜索
             try:
                 import sqlite3
-                conn = sqlite3.connect(os.path.join(PROJECT_ROOT, 'flask_app/data/structure_offline.db'))
+                conn = sqlite3.connect(os.path.join(PROJECT_ROOT, 'data/structure_offline.db'))
                 cursor = conn.cursor()
 
                 for protein in proteins:
@@ -596,7 +596,7 @@ UniProt ID: [例如: P29274]
         if question_type in ["general", "literature"]:
             print(f"[QA v2] 搜索飞书文档知识库...")
             try:
-                from flask_app.services.feishu_document import FeishuDocumentService
+                from services.feishu_document import FeishuDocumentService
                 feishu_service = FeishuDocumentService()
 
                 # 首先确保飞书文档已索引（如果需要）
@@ -789,7 +789,7 @@ UniProt ID: [例如: P29274]
 
             try:
                 import sqlite3
-                conn = sqlite3.connect(os.path.join(PROJECT_ROOT, 'flask_app/data/structure_offline.db'))
+                conn = sqlite3.connect(os.path.join(PROJECT_ROOT, 'data/structure_offline.db'))
                 cursor = conn.cursor()
 
                 second_round_structures = []

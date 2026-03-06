@@ -122,9 +122,18 @@ class QAAgent:
         self.max_iterations = max_iterations
         self.tools = tool_registry.get_all_tools()
         self.tool_map = {t.name: t for t in self.tools}
+        self.current_skill = None  # 当前激活的 Skill
+
+    def set_skill(self, skill):
+        """设置当前使用的 Skill"""
+        self.current_skill = skill
+        # 根据 Skill 更新工具列表
+        if skill and skill.tools:
+            self.tools = [self.tool_map.get(t) for t in skill.tools if t in self.tool_map]
+            self.tools = [t for t in self.tools if t is not None]
 
     async def process(self, question: str, context: List[Dict],
-                     session_data: Dict = None) -> Dict:
+                     session_data: Dict = None, skill_id: str = None) -> Dict:
         """
         处理用户问题
 
@@ -138,6 +147,15 @@ class QAAgent:
         """
         if session_data is None:
             session_data = {}
+
+        # 加载 Skill（如果指定了 skill_id）
+        if skill_id and not self.current_skill:
+            from core.skills import get_skill_registry
+            skill_registry = get_skill_registry()
+            skill = skill_registry.get_skill(skill_id)
+            if skill:
+                self.set_skill(skill)
+                logger.info(f"Loaded skill: {skill.name}")
 
         # Agent主循环
         iteration = 0
@@ -229,6 +247,7 @@ class QAAgent:
         分析问题，决定下一步行动
 
         使用AI分析问题类型和需要的信息，决定是澄清、调用工具还是生成答案
+        如果设置了 Skill，优先使用 Skill 定义的工具
         """
         from flask import current_app
         from flask_login import current_user
@@ -506,6 +525,9 @@ class QAAgent:
         """生成最终答案"""
         from utils.ai_client import get_ai_client, load_ai_config
 
+        # 如果设置了 Skill，使用 Skill 的 system prompt
+        system_prompt = self.current_skill.system_prompt if self.current_skill else ""
+
         # 准备上下文
         context_parts = []
 
@@ -564,13 +586,24 @@ class QAAgent:
             config = load_ai_config()
             client = get_ai_client(config)
 
-            prompt = f"""基于以下信息回答用户问题：
+            # 构建提示词
+            base_prompt = f"""基于以下信息回答用户问题：
 
 用户问题：{question}
 
 {''.join(context_parts)}
 
 请用中文生成一个简洁、准确的回答。"""
+
+            # 如果有 Skill，添加 Skill 的系统提示
+            if system_prompt:
+                prompt = f"""{system_prompt}
+
+---
+
+{base_prompt}"""
+            else:
+                prompt = base_prompt
 
             response = await client.chat(prompt)
             return response
@@ -599,6 +632,25 @@ class QAAgent:
 # 辅助函数
 # ============================================
 
-def create_agent(tool_registry) -> QAAgent:
-    """创建Agent实例"""
-    return QAAgent(tool_registry, max_iterations=5)
+def create_agent(tool_registry, skill_id: str = None) -> QAAgent:
+    """创建Agent实例
+
+    Args:
+        tool_registry: 工具注册表
+        skill_id: 可选的 Skill ID
+
+    Returns:
+        QAAgent 实例
+    """
+    agent = QAAgent(tool_registry, max_iterations=5)
+
+    # 如果指定了 skill_id，加载对应的 Skill
+    if skill_id:
+        from core.skills import get_skill_registry
+        skill_registry = get_skill_registry()
+        skill = skill_registry.get_skill(skill_id)
+        if skill:
+            agent.set_skill(skill)
+            logger.info(f"Agent created with skill: {skill.name}")
+
+    return agent

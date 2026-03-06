@@ -72,7 +72,7 @@ def get_feishu_client():
     if not config.get("app_id") or not config.get("app_secret"):
         return None
 
-    from flask_app.utils.feishu_client import FeishuClient
+    from utils.feishu_client import FeishuClient
     return FeishuClient(config["app_id"], config["app_secret"])
 
 
@@ -151,7 +151,7 @@ def sync_folders():
         if not client:
             return jsonify({"success": False, "message": "请先配置飞书应用凭证"})
 
-        from flask_app.services.feishu_document import FeishuDocumentService
+        from services.feishu_document import FeishuDocumentService
         doc_service = FeishuDocumentService(client)
 
         synced_count = 0
@@ -284,7 +284,7 @@ def test_connection():
             return jsonify({"success": False, "message": "请输入 App ID 和 App Secret"})
 
         # 创建临时客户端测试连接
-        from flask_app.utils.feishu_client import FeishuClient
+        from utils.feishu_client import FeishuClient
         client = FeishuClient(app_id, app_secret)
 
         # 测试获取token
@@ -330,7 +330,7 @@ def fetch_document():
             return jsonify({"success": False, "message": "请先配置飞书应用凭证"})
 
         # 获取文档
-        from flask_app.services.feishu_document import FeishuDocumentService
+        from services.feishu_document import FeishuDocumentService
         doc_service = FeishuDocumentService(client)
 
         # 获取并解析文档
@@ -389,7 +389,7 @@ def delete_document():
             return jsonify({"success": False, "message": "请指定要删除的文档"})
 
         # 获取文档服务并删除
-        from flask_app.services.feishu_document import FeishuDocumentService
+        from services.feishu_document import FeishuDocumentService
         doc_service = FeishuDocumentService(None)
 
         if doc_service.delete_document(doc_id):
@@ -444,7 +444,7 @@ def webhook():
         encrypt_key = config.get("encrypt_key", "")
         if encrypt_key and data.get("encrypt"):
             try:
-                from flask_app.utils.feishu_client import FeishuClient
+                from utils.feishu_client import FeishuClient
                 decrypted = FeishuClient.decrypt_content(encrypt_key, data.get("encrypt"))
                 data = json.loads(decrypted)
             except Exception as e:
@@ -695,7 +695,7 @@ def config_page():
 def list_documents():
     """获取所有文档列表（包含内容）"""
     try:
-        from flask_app.services.feishu_document import FEISHU_DOCS_DIR
+        from services.feishu_document import FEISHU_DOCS_DIR
         import os
 
         documents = []
@@ -732,7 +732,7 @@ def list_documents():
 def get_document(doc_id):
     """获取单个文档详情"""
     try:
-        from flask_app.services.feishu_document import FEISHU_DOCS_DIR
+        from services.feishu_document import FEISHU_DOCS_DIR
         import os
 
         filepath = None
@@ -768,7 +768,7 @@ def get_document(doc_id):
 def rebuild_index():
     """重建所有飞书文档的索引"""
     try:
-        from flask_app.services.feishu_document import FEISHU_DOCS_DIR
+        from services.feishu_document import FEISHU_DOCS_DIR
         import os
 
         # 获取所有文档
@@ -849,7 +849,7 @@ def search_feishu():
             return jsonify({"success": False, "message": "请先配置飞书应用凭证"})
 
         # 搜索
-        from flask_app.services.feishu_document import FeishuDocumentService
+        from services.feishu_document import FeishuDocumentService
         doc_service = FeishuDocumentService(client)
         results = doc_service.search(query, top_k=top_k)
 

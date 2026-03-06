@@ -40,10 +40,10 @@ ANALYSIS_COMMANDS = {
 
 # 可视化样式
 VISUALIZATION_STYLES = {
-    "cartoon": ["cartoon", "smart", "round", "rectangle"],
+    "cartoon": ["cartoon"],
     "sticks": ["sticks", "radius=0.15"],
     "spheres": ["spheres", "radius=0.5"],
-    "surface": ["surface", "radius=1.0"],
+    "surface": ["surface"],
     "ribbon": ["ribbon"],
     "line": ["lines"],
 }
@@ -151,8 +151,8 @@ class PyMOLWrapper:
             # 清理已有对象
             self.cmd.delete(pdb_id)
 
-            # 获取结构
-            self.cmd.fetch(pdb_id, async_=0)
+            # 获取结构 - 使用 type=pdb 确保下载 PDB 格式而不是 mmCIF
+            self.cmd.fetch(pdb_id, async_=0, type='pdb')
             logger.info(f"Fetched structure: {pdb_id}")
             return True
         except Exception as e:
@@ -183,14 +183,21 @@ class PyMOLWrapper:
             # 获取原子数量
             atom_count = self.cmd.count_atoms(pdb_id)
 
-            # 获取残基数量
-            resi_count = self.cmd.count_resi(pdb_id)
+            # 获取残基数量 - 使用 iterate 替代 count_resi
+            resi_count = 0
+            try:
+                self.cmd.iterate(f"({pdb_id} and name CA)", "resi_count += 1", space=locals())
+            except:
+                resi_count = atom_count // 3  # 估算
 
             # 获取链信息
             chains = list(self.cmd.get_chains(pdb_id))
 
             # 获取序列
-            seq = self.cmd.get_seq(pdb_id)
+            try:
+                seq = self.cmd.get_seq(pdb_id)
+            except:
+                seq = ""
 
             return {
                 "pdb_id": pdb_id,
@@ -219,9 +226,13 @@ class PyMOLWrapper:
             return {"error": "PyMOL not available"}
 
         try:
-            # 获取两个结构
-            self.cmd.fetch(pdb_id1, async_=0)
-            self.cmd.fetch(pdb_id2, async_=0)
+            # 清理已有对象
+            self.cmd.delete(pdb_id1)
+            self.cmd.delete(pdb_id2)
+
+            # 获取两个结构 - 使用 type=pdb 确保下载 PDB 格式
+            self.cmd.fetch(pdb_id1, async_=0, type='pdb')
+            self.cmd.fetch(pdb_id2, async_=0, type='pdb')
 
             # 执行 align
             align_result = self.cmd.align(f"{pdb_id1} and name ca", f"{pdb_id2} and name ca")
@@ -488,8 +499,13 @@ class PyMOLWrapper:
             return {"error": "PyMOL not available"}
 
         try:
-            self.cmd.fetch(pdb_id1, async_=0)
-            self.cmd.fetch(pdb_id2, async_=0)
+            # 清理已有对象
+            self.cmd.delete(pdb_id1)
+            self.cmd.delete(pdb_id2)
+
+            # 获取结构 - 使用 type=pdb
+            self.cmd.fetch(pdb_id1, async_=0, type='pdb')
+            self.cmd.fetch(pdb_id2, async_=0, type='pdb')
 
             # 执行 super 对齐
             super_result = self.cmd.super(f"{pdb_id1} and name ca",

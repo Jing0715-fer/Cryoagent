@@ -7,7 +7,7 @@ Flask API Server for CryoAgent Pro
 import os
 import sys
 
-# 确保 flask_app 目录在 Python 路径中
+# 确保目录在 Python 路径中
 app_dir = os.path.dirname(os.path.abspath(__file__))
 if app_dir not in sys.path:
     sys.path.insert(0, app_dir)
@@ -117,7 +117,7 @@ def structures_page():
 def structure_detail_page(pdb_id):
     """Get structure detail page with data"""
     try:
-        from flask_app.routes.structure import get_main_db
+        from routes.structure import get_main_db
 
         db = get_main_db()
         structure = db.get_structure(pdb_id)
@@ -319,7 +319,7 @@ def structure_detail_page(pdb_id):
 
         # Use structure_relationships table for accurate PDB-EMDB mapping
         try:
-            # Use data directory in flask_app
+            # Use data directory
             db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'structure_offline.db')
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
