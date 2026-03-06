@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - CryoAgent Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --input-bg: #f9fafb;
+            --input-border: #e5e7eb;
+            --input-focus: #6366f1;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.2) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 40%, rgba(99, 102, 241, 0.2) 0%, transparent 40%);
+            animation: bgFloat 20s ease-in-out infinite;
+        }
+
+        @keyframes bgFloat {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(2%, 2%) rotate(1deg); }
+            66% { transform: translate(-1%, 1%) rotate(-1deg); }
+        }
+
+        .register-container {
+            position: relative;
+            width: 100%;
+            max-width: 440px;
+            z-index: 10;
+        }
+
+        .register-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            border: 1px solid var(--glass-border);
+        }
+
+        .register-header {
+            padding: 36px 40px 28px;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(99, 102, 241, 0.05) 0%, transparent 100%);
+        }
+
+        .register-logo {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 16px;
+            background: var(--bg-gradient);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 20px -5px rgba(102, 126, 234, 0.4);
+        }
+
+        .register-logo svg {
+            width: 32px;
+            height: 32px;
+            color: white;
+        }
+
+        .register-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            letter-spacing: -0.5px;
+        }
+
+        .register-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .register-body {
+            padding: 0 40px 36px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 14px;
+            font-family: inherit;
+            color: var(--text-primary);
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: var(--input-focus);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+            background: white;
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Password strength */
+        .password-requirements {
+            margin-top: 8px;
+            padding: 10px 12px;
+            background: #f9fafb;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+        }
+
+        .password-requirements ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .password-requirements li {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 4px;
+            color: var(--text-muted);
+        }
+
+        .password-requirements li:last-child {
+            margin-bottom: 0;
+        }
+
+        .password-requirements li.valid {
+            color: var(--success);
+        }
+
+        .password-requirements li i {
+            font-size: 12px;
+            width: 14px;
+        }
+
+        .btn-register {
+            width: 100%;
+            padding: 13px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            color: white;
+            background: var(--bg-gradient);
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px -3px rgba(102, 126, 234, 0.4);
+            margin-top: 8px;
+        }
+
+        .btn-register:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px -3px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn-register:active {
+            transform: translateY(0);
+        }
+
+        .register-footer {
+            text-align: center;
+            padding-top: 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .register-footer a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+
+        .register-footer a:hover {
+            color: var(--primary-dark);
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 12px 14px;
+            border-radius: var(--radius-md);
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .alert-info {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        /* Animation */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .register-container {
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .register-header {
+                padding: 28px 24px 20px;
+            }
+
+            .register-body {
+                padding: 0 24px 28px;
+            }
+
+            .register-title {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="register-card">
+            <div class="register-header">
+                <div class="register-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 18h8"></path>
+                        <path d="M3 22h18"></path>
+                        <path d="M14 22a7 7 0 1 0 0-14h-1"></path>
+                        <path d="M9 14h2"></path>
+                        <path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2z"></path>
+                        <path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"></path>
+                    </svg>
+                </div>
+                <h1 class="register-title">创建账号</h1>
+                <p class="register-subtitle">加入 CryoAgent Pro</p>
+            </div>
+
+            <div class="register-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }}">
+                                <i class="bi bi-{{ 'exclamation-circle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }}"></i>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <form method="POST" action="{{ url_for('auth.register') }}" id="registerForm">
+                    <div class="form-group">
+                        <label class="form-label" for="username">用户名</label>
+                        <input type="text" class="form-input" id="username" name="username" placeholder="设置用户名" required autofocus>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="email">邮箱</label>
+                        <input type="email" class="form-input" id="email" name="email" placeholder="your@email.com" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">密码</label>
+                        <input type="password" class="form-input" id="password" name="password" placeholder="至少6位" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="confirm_password">确认密码</label>
+                        <input type="password" class="form-input" id="confirm_password" name="confirm_password" placeholder="再次输入密码" required>
+                    </div>
+
+                    <div class="password-requirements">
+                        <ul>
+                            <li id="req-length">
+                                <i class="bi"></i>
+                                密码至少6位
+                            </li>
+                            <li id="req-match">
+                                <i class="bi"></i>
+                                两次密码一致
+                            </li>
+                        </ul>
+                    </div>
+
+                    <button type="submit" class="btn-register">
+                        <i class="bi bi-person-plus me-2"></i>注册账号
+                    </button>
+                </form>
+
+                <div class="register-footer">
+                    已有账号？ <a href="{{ url_for('auth.login') }}">立即登录</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const password = document.getElementById('password');
+        const confirmPassword = document.getElementById('confirm_password');
+        const reqLength = document.getElementById('req-length');
+        const reqMatch = document.getElementById('req-match');
+
+        function validatePassword() {
+            // Length check
+            if (password.value.length >= 6) {
+                reqLength.classList.add('valid');
+                reqLength.querySelector('i').classList.add('bi-check-circle-fill');
+                reqLength.querySelector('i').classList.remove('bi-x-circle');
+            } else {
+                reqLength.classList.remove('valid');
+                reqLength.querySelector('i').classList.remove('bi-check-circle-fill');
+                reqLength.querySelector('i').classList.add('bi-x-circle');
+            }
+
+            // Match check
+            if (password.value && confirmPassword.value && password.value === confirmPassword.value) {
+                reqMatch.classList.add('valid');
+                reqMatch.querySelector('i').classList.add('bi-check-circle-fill');
+                reqMatch.querySelector('i').classList.remove('bi-x-circle');
+            } else {
+                reqMatch.classList.remove('valid');
+                reqMatch.querySelector('i').classList.remove('bi-check-circle-fill');
+                reqMatch.querySelector('i').classList.add('bi-x-circle');
+            }
+        }
+
+        password.addEventListener('input', validatePassword);
+        confirmPassword.addEventListener('input', validatePassword);
+
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+
+            if (!username || !email || !password || !confirmPassword) {
+                e.preventDefault();
+                alert('请填写所有字段');
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                alert('两次输入的密码不一致');
+                return;
+            }
+
+            if (password.length < 6) {
+                e.preventDefault();
+                alert('密码长度至少为6位');
+                return;
+            }
+        });
+    </script>
+</body>
+</html>

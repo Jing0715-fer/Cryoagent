@@ -1,0 +1,2553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ structure_id }} - 结构详情{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-cyberpunk.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-matrix.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-persona5.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-persona4.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-persona3.css') }}">
+    <!-- Theme body background fix -->
+    <style>
+        html[data-theme="cyberpunk"] body {
+            background: #0a0a0f !important;
+        }
+        html[data-theme="matrix"] body {
+            background: #0a0a0a !important;
+        }
+        /* ============================================
+           原始主题 - 结构详情页标题区域
+           与文献详情页风格统一
+           ============================================ */
+        .structure-header {
+            background: white !important;
+            padding: 24px !important;
+            border-radius: 12px !important;
+            margin-bottom: 20px !important;
+            border: 1px solid #e0e0e0 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+        }
+
+        /* 顶部类型徽章 */
+        .structure-header .id-badge {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            padding: 4px 10px !important;
+            border-radius: 4px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            margin-right: 8px !important;
+            background: transparent !important;
+        }
+        .structure-header .type-pdb {
+            color: #4CAF50 !important;
+            border: 1px solid #4CAF50 !important;
+        }
+        .structure-header .type-emdb {
+            color: #FF9800 !important;
+            border: 1px solid #FF9800 !important;
+        }
+
+        /* 标题样式 */
+        .structure-detail-title {
+            color: #333 !important;
+            font-size: 20px !important;
+            font-weight: 600 !important;
+            line-height: 1.4 !important;
+            margin: 12px 0 !important;
+        }
+
+        /* Meta 信息区域 - 简洁风格 */
+        .structure-header .structure-meta {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 20px !important;
+            margin-top: 16px !important;
+            background: transparent !important;
+        }
+        .structure-header .meta-item {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 4px !important;
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            min-width: auto !important;
+        }
+        .structure-header .meta-label {
+            color: #666 !important;
+            font-size: 12px !important;
+        }
+        .structure-header .meta-value {
+            color: #333 !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+        }
+
+        /* 原始主题的结构卡片 - 与主页文献卡片风格一致 */
+        .structure-card {
+            background: white !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+            border: 1px solid #e0e0e0 !important;
+            overflow: hidden !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+        }
+        .structure-card:hover {
+            transform: translateY(-4px) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+            border-color: var(--primary-light) !important;
+            background: white !important;
+        }
+        /* 确保子元素在悬停时也保持背景色 */
+        .structure-card:hover .structure-card-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+        }
+        .structure-card:hover .structure-card-body {
+            background: white !important;
+        }
+        .structure-card:hover .structure-card-footer {
+            background: #f8f9fa !important;
+        }
+        /* 确保文字颜色在悬停时保持清晰 */
+        .structure-card:hover .structure-title,
+        .structure-card:hover .structure-context,
+        .structure-card:hover .structure-meta {
+            color: #333 !important;
+        }
+        .structure-card-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+            padding: 12px 16px !important;
+            border-bottom: 1px solid #e0e0e0 !important;
+        }
+        .structure-card-body {
+            background: white !important;
+            padding: 15px !important;
+        }
+        .structure-card-footer {
+            background: #f8f9fa !important;
+            padding: 12px 15px !important;
+            border-top: 1px solid #e0e0e0 !important;
+        }
+        .structure-title {
+            font-size: 14px !important;
+            line-height: 1.4 !important;
+            margin-bottom: 10px !important;
+            color: #333 !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+        }
+        .structure-context {
+            background: #f5f5f5 !important;
+            color: #666 !important;
+            padding: 10px !important;
+            border-radius: 6px !important;
+            font-size: 12px !important;
+            margin-top: 10px !important;
+            border-left: 3px solid #1976d2 !important;
+        }
+        .meta-tag {
+            background: #f0f4f8 !important;
+            color: #555 !important;
+        }
+        .structure-links {
+            background: #fafafa !important;
+            display: flex !important;
+            gap: 10px !important;
+        }
+        .type-badge {
+            background: #1565C0 !important;
+            color: white !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+        }
+        .id-pdb {
+            color: #1565C0 !important;
+            font-weight: 600 !important;
+        }
+        .id-emdb {
+            color: #E65100 !important;
+            font-weight: 600 !important;
+        }
+        /* 结构卡片的meta信息增加层次感 */
+        .structure-meta {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+            font-size: 12px !important;
+            color: #666 !important;
+            margin-top: 10px !important;
+            padding-top: 10px !important;
+            border-top: 1px dashed #e0e0e0 !important;
+        }
+        .structure-meta .meta-item {
+            display: flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            padding: 4px 8px !important;
+            background: #f5f5f5 !important;
+            border-radius: 4px !important;
+        }
+        .structure-header .id-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        .structure-header .type-pdb { background: #4CAF50; }
+        .structure-header .type-emdb { background: #FF9800; }
+        .structure-header h1 {
+            font-size: 24px;
+            margin: 12px 0;
+            line-height: 1.4;
+        }
+        .structure-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 16px;
+            background: transparent;
+        }
+        .structure-meta .meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .structure-meta .meta-label {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        .structure-meta .meta-value {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .info-card h3 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .info-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .info-item label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .info-item p {
+            font-size: 14px;
+            color: #333;
+            margin: 0;
+            word-break: break-word;
+        }
+
+        .entity-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid #1976D2;
+        }
+        .entity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .entity-id {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .entity-type {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            background: #e3f2fd;
+            color: #1976D2;
+        }
+        .entity-description {
+            color: #555;
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+        .entity-uniprot {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .uniprot-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 4px;
+            font-size: 12px;
+            text-decoration: none;
+        }
+        .uniprot-tag:hover {
+            background: #c8e6c9;
+        }
+        .sequence-box {
+            background: #263238;
+            color: #aed581;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 1.8;
+            overflow-x: auto;
+            white-space: pre;
+            margin-top: 12px;
+        }
+        .seq-stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        /* Expanded Entity Card Styles */
+        .entity-card-expanded {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .entity-card-expanded:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+        .entity-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+            border-bottom: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .entity-card-header:hover {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%);
+        }
+        .entity-card-expanded.expanded .entity-card-header {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%);
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .entity-card-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .entity-icon {
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1976D2, #42a5f5);
+            border-radius: 10px;
+            color: white;
+        }
+        .entity-title-text {
+            display: flex;
+            flex-direction: column;
+        }
+        .entity-title-main {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+        }
+        .entity-title-sub {
+            font-size: 13px;
+            color: #666;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .entity-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .entity-meta-badge {
+            padding: 4px 10px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .expand-icon {
+            font-size: 12px;
+            color: #999;
+            transition: transform 0.3s;
+            margin-left: 8px;
+        }
+        .entity-card-expanded.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        .entity-card-body {
+            padding: 20px;
+            background: white;
+        }
+        .entity-quick-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        .quick-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .quick-info-label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+        }
+        .quick-info-value {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        .entity-section {
+            margin-bottom: 16px;
+        }
+        .entity-section:last-child {
+            margin-bottom: 0;
+        }
+        .entity-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .seq-length {
+            font-size: 12px;
+            color: #999;
+            font-weight: normal;
+        }
+        .gene-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .gene-tag {
+            padding: 4px 10px;
+            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+            color: #e65100;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .chain-info-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .chain-info-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            background: #e3f2fd;
+            border-radius: 6px;
+        }
+        .chain-letter {
+            font-weight: 600;
+            color: #1565c0;
+            font-size: 14px;
+        }
+        .chain-asym {
+            font-size: 12px;
+            color: #666;
+        }
+        .uniprot-links {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .uniprot-link-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #e8f5e9;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #2e7d32;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.2s;
+        }
+        .uniprot-link-btn:hover {
+            background: #c8e6c9;
+            transform: translateX(4px);
+        }
+        .uniprot-icon-small {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #43a047, #66bb6a);
+            border-radius: 4px;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .sequence-container {
+            margin-top: 8px;
+        }
+        .sequence-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .sequence-content {
+            background: #1a237e;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+        }
+        .sequence-text {
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            color: #aed581;
+            word-break: break-all;
+            white-space: pre-wrap;
+        }
+
+        .uniprot-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .uniprot-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #e3f2fd;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #1565c0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.2s;
+        }
+        .uniprot-item:hover {
+            background: #bbdefb;
+            transform: translateY(-1px);
+        }
+        .uniprot-icon {
+            width: 18px;
+            height: 18px;
+            background: linear-gradient(135deg, #1565c0, #42a5f5);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #666;
+            text-decoration: none;
+            margin-bottom: 16px;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        .back-link:hover {
+            color: #1976D2;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 0;
+            position: relative;
+            z-index: 1000;
+        }
+        .tab {
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        .tab:hover {
+            color: #1976D2;
+        }
+        .tab.active {
+            color: #1976D2;
+            border-bottom-color: #1976D2;
+            font-weight: 600;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #666;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e3f2fd;
+            border-top-color: #1976D2;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .action-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .action-btn.primary {
+            background: #1976D2;
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            background: #1565c0;
+        }
+
+        .action-btn.secondary {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .action-btn.secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .refresh-status {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .refresh-status.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            display: block;
+        }
+
+        .refresh-status.error {
+            background: #ffebee;
+            color: #c62828;
+            display: block;
+        }
+
+        .refresh-status.loading {
+            background: #e3f2fd;
+            color: #1565c0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .entity-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .entity-detail-item {
+            font-size: 13px;
+        }
+
+        .entity-detail-item label {
+            display: block;
+            color: #666;
+            font-size: 11px;
+            margin-bottom: 2px;
+        }
+
+        .entity-detail-item span {
+            color: #333;
+            font-weight: 500;
+        }
+
+        .chain-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .chain-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            background: #e3f2fd;
+            color: #1565c0;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+
+        .alignment-container {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .alignment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .alignment-sequence {
+            background: #263238;
+            color: #aed581;
+            padding: 16px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 1.8;
+            overflow-x: auto;
+            white-space: pre;
+        }
+
+        .alignment-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .alignment-controls select,
+        .alignment-controls button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .similarity-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .similarity-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transition: width 0.3s;
+        }
+
+        /* Related structures */
+        .related-structures {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .related-structures h4 {
+            margin: 0 0 16px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        .related-grid {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+        .related-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .related-type {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            background: #f5f5f5;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .related-id {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .related-id.emdb {
+            background: #FFF3E0;
+            color: #E65100;
+            border: 1px solid #FFB74D;
+        }
+        .related-id.emdb:hover {
+            background: #FFE0B2;
+        }
+        .related-id.pdb {
+            background: #E8F5E9;
+            color: #2E7D32;
+            border: 1px solid #81C784;
+        }
+        .related-id.pdb:hover {
+            background: #C8E6C9;
+        }
+    </style>
+</head>
+<body>
+    <!-- SVG Icon Definitions -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+        <symbol id="icon-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </symbol>
+        <symbol id="icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </symbol>
+        <symbol id="icon-molecule" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <circle cx="12" cy="5" r="2"></circle>
+            <circle cx="19" cy="12" r="2"></circle>
+            <circle cx="12" cy="19" r="2"></circle>
+            <circle cx="5" cy="12" r="2"></circle>
+            <line x1="12" y1="7" x2="12" y2="9"></line>
+            <line x1="17" y1="12" x2="15" y2="12"></line>
+            <line x1="12" y1="15" x2="12" y2="17"></line>
+            <line x1="7" y1="12" x2="9" y2="12"></line>
+        </symbol>
+        <symbol id="icon-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+        </symbol>
+        <symbol id="icon-microscope" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 18h8"></path>
+            <path d="M3 22h18"></path>
+            <path d="M14 22a7 7 0 1 0 0-14h-1"></path>
+            <path d="M9 14h2"></path>
+            <path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2z"></path>
+            <path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"></path>
+        </symbol>
+        <symbol id="icon-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"></circle>
+            <circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"></circle>
+            <circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"></circle>
+            <circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"></circle>
+            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"></path>
+        </symbol>
+        <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </symbol>
+        <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </symbol>
+        <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+        </symbol>
+        <symbol id="icon-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <polyline points="19 12 12 19 5 12"></polyline>
+        </symbol>
+        <symbol id="icon-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+        </symbol>
+        <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </symbol>
+        <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </symbol>
+        <symbol id="icon-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+        </symbol>
+        <symbol id="icon-uniprot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 6v6l4 2"></path>
+        </symbol>
+        <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+        </symbol>
+        <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </symbol>
+        <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+        </symbol>
+    </svg>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        {% include 'components/sidebar.html' %}
+        <main class="main-content">
+            <div class="structure-detail-page">
+                <a href="#" onclick="history.back(); return false;" class="back-link"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-arrow-left"></use></svg> 返回</a>
+
+                <!-- Refresh Status -->
+                <div id="refresh-status" class="refresh-status"></div>
+
+                <!-- Action Bar -->
+                <div class="action-bar">
+                    <button class="action-btn primary" id="refresh-btn" onclick="refreshMetadata()">
+                        <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-refresh"></use></svg> 刷新元数据
+                    </button>
+                    <button class="action-btn danger" onclick="deleteStructure('{{ structure.id }}')">
+                        <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-trash"></use></svg> 删除
+                    </button>
+                    {% if structure.id.startswith('EMD-') %}
+                    <button class="action-btn secondary" onclick="window.open('https://www.ebi.ac.uk/emdb/entry/emd-{{ structure.id[4:] }}', '_blank')">
+                        <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-external"></use></svg> 查看 EMDB
+                    </button>
+                    <button class="action-btn secondary" onclick="window.open('https://www.rcsb.org/structure/{{ structure.id }}', '_blank')">
+                        <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-external"></use></svg> 查看 RCSB
+                    </button>
+                    {% else %}
+                    <button class="action-btn secondary" onclick="window.open('https://www.rcsb.org/structure/{{ structure.id }}', '_blank')">
+                        <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-external"></use></svg> 查看 RCSB
+                    </button>
+                    <button class="action-btn secondary" onclick="window.open('https://www.ebi.ac.uk/pdbe/entry/pdb/{{ structure.id.lower() }}', '_blank')">
+                        <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-external"></use></svg> 查看 PDBe
+                    </button>
+                    {% if structure.related_structures and structure.related_structures.emdb_ids %}
+                    {% for emdb_id in structure.related_structures.emdb_ids %}
+                    <button class="action-btn secondary" onclick="window.open('https://www.ebi.ac.uk/emdb/entry/emd-{{ emdb_id.replace('EMD-', '').replace('EMD', '') }}', '_blank')">
+                        <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-external"></use></svg> 查看 EMDB
+                    </button>
+                    {% endfor %}
+                    {% endif %}
+                    {% endif %}
+                </div>
+
+                {% if structure %}
+                <!-- Header -->
+                <div class="structure-header">
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                        <span class="id-badge type-{{ structure.type|lower }}">{{ structure.type|upper }}</span>
+                        {% if structure.related_structures and structure.related_structures.emdb_ids %}
+                        {% for emdb_id in structure.related_structures.emdb_ids %}
+                        <span class="id-badge type-emdb">EMDB</span>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                    <h1 class="structure-detail-title">{{ structure.title }}</h1>
+                    <div class="structure-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">{{ 'EMDB ID' if structure.id.startswith('EMD-') else 'PDB ID' }}</span>
+                            <span class="meta-value">{{ structure.id }}</span>
+                        </div>
+                        {% if structure.resolution %}
+                        <div class="meta-item">
+                            <span class="meta-label">分辨率</span>
+                            <span class="meta-value">{{ structure.resolution }} Å</span>
+                        </div>
+                        {% endif %}
+                        {% if structure.method %}
+                        <div class="meta-item">
+                            <span class="meta-label">方法</span>
+                            <span class="meta-value">{{ structure.method }}</span>
+                        </div>
+                        {% endif %}
+                        {% if structure.organism %}
+                        <div class="meta-item">
+                            <span class="meta-label">生物</span>
+                            <span class="meta-value">{{ structure.organism }}</span>
+                        </div>
+                        {% endif %}
+                        {% if structure.deposition_date %}
+                        <div class="meta-item">
+                            <span class="meta-label">发布日期</span>
+                            <span class="meta-value">{{ structure.deposition_date }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs" id="main-tabs">
+                    <button type="button" class="tab active" onclick="window.switchTab('info')">基本信息</button>
+                    <button type="button" class="tab" onclick="window.switchTab('entities')">实体信息</button>
+                    <button type="button" class="tab" onclick="window.switchTab('proteins')">蛋白质</button>
+                    <button type="button" class="tab" onclick="window.switchTab('sequence')">序列比对</button>
+                </div>
+
+                <!-- Tab Contents -->
+                <div id="tab-info" class="tab-content active">
+                    <div class="info-card">
+                        <h3><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-doc"></use></svg> 结构信息</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <label>{{ 'EMDB ID' if structure.id.startswith('EMD-') else 'PDB ID' }}</label>
+                                <p>{{ structure.id }}</p>
+                            </div>
+                            <div class="info-item">
+                                <label>类型</label>
+                                <p>{{ structure.type|upper }}</p>
+                            </div>
+                            {% if structure.resolution %}
+                            <div class="info-item">
+                                <label>分辨率</label>
+                                <p>{{ structure.resolution }} Å</p>
+                            </div>
+                            {% endif %}
+                            {% if structure.method %}
+                            <div class="info-item">
+                                <label>实验方法</label>
+                                <p>{{ structure.method }}</p>
+                            </div>
+                            {% endif %}
+                            {% if structure.organism %}
+                            <div class="info-item">
+                                <label>来源生物</label>
+                                <p>{{ structure.organism }}</p>
+                            </div>
+                            {% endif %}
+                            {% if structure.deposition_date %}
+                            <div class="info-item">
+                                <label>发布日期</label>
+                                <p>{{ structure.deposition_date }}</p>
+                            </div>
+                            {% endif %}
+                            {% if structure.release_date %}
+                            <div class="info-item">
+                                <label>释放日期</label>
+                                <p>{{ structure.release_date }}</p>
+                            </div>
+                            {% endif %}
+                            {% if structure.citation_count %}
+                            <div class="info-item">
+                                <label>引用次数</label>
+                                <p>{{ structure.citation_count }}</p>
+                            </div>
+                            {% endif %}
+                            {% if structure.molecular_weight %}
+                            <div class="info-item">
+                                <label>分子量</label>
+                                <p>{{ "%.1f"|format(structure.molecular_weight/1000) }} kDa</p>
+                            </div>
+                            {% endif %}
+                            {% if structure.polymer_count %}
+                            <div class="info-item">
+                                <label>聚合体数量</label>
+                                <p>{{ structure.polymer_count }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- PDB/EMDB 关联结构 -->
+                        {% if structure.related_structures %}
+                        {% set related = structure.related_structures %}
+                        {% set has_related = related.emdb_ids or related.pdb_ids %}
+                        {% if has_related %}
+                        <div class="related-structures">
+                            <h4><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-external"></use></svg> 关联结构</h4>
+                            <div class="related-grid">
+                                {% if related.emdb_ids %}
+                                <div class="related-item">
+                                    <span class="related-type">EMDB</span>
+                                    {% for emdb_id in related.emdb_ids[:10] %}
+                                    <a href="/structure/{{ emdb_id }}" class="related-id emdb">{{ emdb_id }}</a>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                {% if related.pdb_ids %}
+                                <div class="related-item">
+                                    <span class="related-type">PDB</span>
+                                    {% for pdb_id in related.pdb_ids[:10] %}
+                                    <a href="/structure/{{ pdb_id }}" class="related-id pdb">{{ pdb_id }}</a>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+
+                    {% if structure.gene or structure.protein_name %}
+                    <div class="info-card">
+                        <h3><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-molecule"></use></svg> 蛋白质信息</h3>
+                        {% if structure.gene %}
+                        <div class="info-item" style="margin-bottom: 12px;">
+                            <label>基因名称</label>
+                            <p>{{ structure.gene }}</p>
+                        </div>
+                        {% endif %}
+                        {% if structure.protein_name %}
+                        <div class="info-item">
+                            <label>蛋白质名称</label>
+                            <p>{{ structure.protein_name }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if structure.authors %}
+                    <div class="info-card">
+                        <h3><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-users"></use></svg> 作者</h3>
+                        <p>
+                        {%- set first_author = structure.authors[0] -%}
+                        {%- if first_author.name -%}
+                            {{ structure.authors|map(attribute='name')|join(', ') }}
+                        {%- elif first_author.valueOf_ -%}
+                            {{ structure.authors|map(attribute='valueOf_')|join(', ') }}
+                        {%- else -%}
+                            {{ structure.authors }}
+                        {%- endif -%}
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div id="tab-entities" class="tab-content">
+                    {% if structure.entities %}
+                        {% for entity in structure.entities %}
+                        <div class="entity-card-expanded">
+                            <!-- Card Header -->
+                            <div class="entity-card-header" onclick="toggleEntityCard(this)">
+                                <div class="entity-card-title">
+                                    <span class="entity-icon"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-uniprot"></use></svg></span>
+                                    <div class="entity-title-text">
+                                        <span class="entity-title-main">
+                                            {%- if entity.description -%}
+                                                {{ entity.description[:60] }}{% if entity.description|length > 60 %}...{% endif %}
+                                            {%- else -%}
+                                                {{ entity.molecule_type or 'Entity ' + entity.entity_id }}
+                                            {%- endif -%}
+                                        </span>
+                                        <span class="entity-title-sub">
+                                            {%- if entity.gene_names -%}
+                                                {{ entity.gene_names|join(', ') }}
+                                            {%- elif entity.molecule_type and entity.molecule_type != 'polypeptide(L)' -%}
+                                                {{ entity.molecule_type }}
+                                            {%- endif -%}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="entity-card-meta">
+                                    {% if entity.molecule_type == 'polypeptide(L)' %}
+                                    <span class="entity-meta-badge">{{ entity.length }} aa</span>
+                                    <span class="entity-meta-badge">{{ "%.1f"|format(entity.weight) if entity.weight else 'N/A' }} Da</span>
+                                    {% else %}
+                                    <span class="entity-meta-badge">{{ entity.molecule_type or 'N/A' }}</span>
+                                    {% if entity.weight %}
+                                    <span class="entity-meta-badge">{{ "%.1f"|format(entity.weight) }} Da</span>
+                                    {% endif %}
+                                    {% endif %}
+                                    <svg class="expand-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-arrow-down"></use></svg>
+                                </div>
+                            </div>
+
+                            <!-- Card Body (expandable) -->
+                            <div class="entity-card-body" style="display: none;">
+                                <!-- Quick Info Bar -->
+                                <div class="entity-quick-info">
+                                    {% if entity.source_organism %}
+                                    <div class="quick-info-item">
+                                        <span class="quick-info-label">物种</span>
+                                        <span class="quick-info-value">{{ entity.source_organism }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if entity.taxon_id %}
+                                    <div class="quick-info-item">
+                                        <span class="quick-info-label">Tax ID</span>
+                                        <span class="quick-info-value">{{ entity.taxon_id }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if entity.expression_host %}
+                                    <div class="quick-info-item">
+                                        <span class="quick-info-label">表达系统</span>
+                                        <span class="quick-info-value">{{ entity.expression_host }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if entity.weight %}
+                                    <div class="quick-info-item">
+                                        <span class="quick-info-label">分子量</span>
+                                        <span class="quick-info-value">{{ "%.1f"|format(entity.weight) }} Da</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if entity.molecule_type and entity.molecule_type != 'polypeptide(L)' %}
+                                    <div class="quick-info-item">
+                                        <span class="quick-info-label">类型</span>
+                                        <span class="quick-info-value">{{ entity.molecule_type }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Gene Names -->
+                                {% if entity.gene_names %}
+                                <div class="entity-section">
+                                    <div class="entity-section-header">基因名称</div>
+                                    <div class="gene-tags">
+                                        {% for gene in entity.gene_names %}
+                                        <span class="gene-tag">{{ gene }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Chains -->
+                                {% if entity.in_chains %}
+                                <div class="entity-section">
+                                    <div class="entity-section-header">链信息</div>
+                                    <div class="chain-info-grid">
+                                        {% for chain in entity.in_chains %}
+                                        <div class="chain-info-item">
+                                            <span class="chain-letter">{{ chain }}</span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- UniProt Links - Only for polypeptide entities -->
+                                {% if entity.molecule_type == 'polypeptide(L)' and (structure.uniprot_ids or entity.description) %}
+                                {% set entity_uniprot = [] %}
+                                {% if structure.uniprot_ids %}
+                                    {% for mapping in structure.uniprot_ids %}
+                                        {% if mapping.entity_id == entity.entity_id %}
+                                            {% set _ = entity_uniprot.append(mapping) %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                <div class="entity-section">
+                                    <div class="entity-section-header">UniProt 蛋白质</div>
+                                    {% set protein_info = entity.description if entity.description else '' %}
+                                    {% if entity_uniprot and entity_uniprot|length > 0 %}
+                                    <div class="uniprot-links">
+                                        {% for up in entity_uniprot[:5] %}
+                                        <a href="https://www.uniprot.org/uniprotkb/{{ up.uniprot_id if up.uniprot_id else protein_info.split()[0] }}" target="_blank" class="uniprot-link-btn" style="{{ 'pointer-events: none; opacity: 0.6;' if not up.uniprot_id else '' }}">
+                                            <span class="uniprot-icon-small">UP</span>
+                                            <span>
+                                                {% if up.uniprot_id %}{{ up.uniprot_id }}{% endif %}
+                                                Chain {{ up.chain_id }} ({{ up.start }}-{{ up.end }})
+                                                {% if protein_info %}| {{ protein_info }}{% endif %}
+                                            </span>
+                                        </a>
+                                        {% endfor %}
+                                    </div>
+                                    {% elif protein_info %}
+                                    <div class="uniprot-links">
+                                        <a href="https://rest.uniprot.org/uniprotkb?query={{ protein_info | urlencode }}&format=list" target="_blank" class="uniprot-link-btn">
+                                            <span class="uniprot-icon-small">UP</span>
+                                            <span>{{ protein_info }}</span>
+                                        </a>
+                                    </div>
+                                    {% else %}
+                                    <p style="color: #999; font-size: 13px;">无蛋白质信息</p>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                <!-- Sequence Section - Display directly on card -->
+                                {% if entity.sequence %}
+                                <div class="entity-section">
+                                    <div class="entity-section-header">
+                                        <span>序列</span>
+                                        <span class="seq-length">{{ entity.sequence|length }} aa</span>
+                                    </div>
+                                    <div class="sequence-container">
+                                        <div class="sequence-header">
+                                            <button class="action-btn secondary" onclick="toggleSequence(this, '{{ entity.entity_id }}')">
+                                                <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-eye"></use></svg> <span class="seq-toggle-text">显示</span>
+                                            </button>
+                                            <button class="action-btn secondary" onclick="copySequence('{{ entity.sequence }}')">
+                                                <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-copy"></use></svg> 复制
+                                            </button>
+                                            <!-- UniProt Comparison Button -->
+                                            {% set entity_uniprot_ids = [] %}
+                                            {% if entity.uniprot_ids %}
+                                                {% for uid in entity.uniprot_ids %}
+                                                    {% set _ = entity_uniprot_ids.append({'uniprot_id': uid, 'entity_id': entity.entity_id}) %}
+                                                {% endfor %}
+                                            {% elif structure.uniprot_ids %}
+                                                {% for mapping in structure.uniprot_ids %}
+                                                    {% if mapping.entity_id|string == entity.entity_id|string and mapping.uniprot_id %}
+                                                        {% set _ = entity_uniprot_ids.append(mapping) %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                            {% if entity_uniprot_ids and entity_uniprot_ids|length > 0 %}
+                                            <button class="action-btn primary" onclick="showUniprotCompare('{{ structure.id }}', '{{ entity.entity_id }}', '{{ entity.sequence|escape }}')">
+                                                <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-search"></use></svg> 与UniProt比对
+                                            </button>
+                                            <select id="uniprot-select-{{ entity.entity_id }}" style="margin-left: 8px; padding: 6px; border-radius: 4px; border: 1px solid #ddd;">
+                                                {% for mapping in entity_uniprot_ids %}
+                                                <option value="{{ mapping.uniprot_id }}">{{ mapping.uniprot_id }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            {% endif %}
+                                        </div>
+                                        <div class="sequence-content" id="seq-{{ entity.entity_id }}" style="display: none;">
+                                            <div class="sequence-text">{{ entity.sequence }}</div>
+                                        </div>
+                                        <!-- Alignment Result Container -->
+                                        <div id="alignment-{{ entity.entity_id }}" style="display: none; margin-top: 16px;"></div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="empty-state">
+                        <p>暂无实体信息</p>
+                        <button class="action-btn primary" onclick="refreshMetadata()" style="margin-top: 16px;">
+                            <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-refresh"></use></svg> 点击获取实体信息
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div id="tab-proteins" class="tab-content">
+                    {% if structure.unique_uniprots %}
+                    <div class="info-card">
+                        <h3 style="margin: 0 0 16px 0;"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-uniprot"></use></svg> UniProt 蛋白质</h3>
+                        <div id="uniprot-cards-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px;">
+                            {% for uid, info in structure.unique_uniprots.items() %}
+                            <div class="uniprot-card" data-uniprot-id="{{ info.uniprot_id }}" style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 12px; padding: 0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <!-- Card Header -->
+                                <div style="background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%); color: white; padding: 16px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; font-family: monospace;">
+                                            {{ info.uniprot_id }}
+                                        </span>
+                                        <span style="font-size: 12px; opacity: 0.9;">UniProt Entry</span>
+                                    </div>
+                                </div>
+
+                                <!-- Card Body -->
+                                <div style="padding: 16px;">
+                                    <!-- Loading State -->
+                                    <div class="uniprot-loading" style="text-align: center; padding: 20px; color: #666;">
+                                        <span style="font-size: 24px;"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-search"></use></svg></span>
+                                        <p style="margin: 8px 0 0 0; font-size: 13px;">正在加载UniProt元数据...</p>
+                                    </div>
+
+                                    <!-- Content (hidden initially) -->
+                                    <div class="uniprot-content" style="display: none;">
+                                        <div style="margin-bottom: 12px;">
+                                            <span style="font-size: 11px; color: #666; text-transform: uppercase;">蛋白质名称</span>
+                                            <p style="margin: 4px 0; font-size: 14px; font-weight: 500;" class="protein-name">加载中...</p>
+                                        </div>
+
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                                            <div>
+                                                <span style="font-size: 11px; color: #666; text-transform: uppercase;">基因名</span>
+                                                <p style="margin: 4px 0; font-size: 13px;" class="gene-names">-</p>
+                                            </div>
+                                            <div>
+                                                <span style="font-size: 11px; color: #666; text-transform: uppercase;">物种</span>
+                                                <p style="margin: 4px 0; font-size: 13px;" class="organism">-</p>
+                                            </div>
+                                        </div>
+
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                                            <div>
+                                                <span style="font-size: 11px; color: #666; text-transform: uppercase;">序列长度</span>
+                                                <p style="margin: 4px 0; font-size: 13px;" class="seq-length">-</p>
+                                            </div>
+                                            <div>
+                                                <span style="font-size: 11px; color: #666; text-transform: uppercase;">分子量</span>
+                                                <p style="margin: 4px 0; font-size: 13px;" class="mass">-</p>
+                                            </div>
+                                        </div>
+
+                                        <!-- PDB区域 -->
+                                        <div style="background: rgba(25, 118, 210, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+                                            <span style="font-size: 11px; color: #1976d2; text-transform: uppercase;"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-copy"></use></svg> PDB映射区域</span>
+                                            <p style="margin: 4px 0; font-size: 13px;">
+                                                <strong>Chain:</strong> {% if info.chains %}{{ info.chains|join(', ') }}{% else %}N/A{% endif %}
+                                            </p>
+                                            <p style="margin: 4px 0; font-size: 13px;">
+                                                <strong>范围:</strong> {% if info.ranges %}{{ info.ranges|join(', ') }}{% else %}N/A{% endif %}
+                                            </p>
+                                        </div>
+
+                                        <!-- PDB IDs -->
+                                        <div class="pdb-ids-container" style="margin-bottom: 12px; display: none;">
+                                            <span style="font-size: 11px; color: #666; text-transform: uppercase;"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-folder"></use></svg> 相关PDB结构</span>
+                                            <div class="pdb-ids" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;"></div>
+                                        </div>
+
+                                        <!-- Keywords -->
+                                        <div class="keywords-container" style="margin-bottom: 12px; display: none;">
+                                            <span style="font-size: 11px; color: #666; text-transform: uppercase;"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-tag"></use></svg> 关键词</span>
+                                            <div class="keywords" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;"></div>
+                                        </div>
+
+                                        <!-- Function -->
+                                        <div class="function-container" style="margin-bottom: 12px; display: none;">
+                                            <span style="font-size: 11px; color: #666; text-transform: uppercase;"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-lightbulb"></use></svg> 功能描述</span>
+                                            <p class="function" style="margin: 6px 0; font-size: 12px; color: #444; max-height: 60px; overflow: hidden; text-overflow: ellipsis;"></p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Link -->
+                                    <a href="https://www.uniprot.org/uniprotkb/{{ info.uniprot_id }}" target="_blank"
+                                       style="display: block; text-align: center; margin-top: 12px; padding: 10px; background: #1976d2; color: white; border-radius: 6px; text-decoration: none; font-size: 13px;">
+                                        <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-external"></use></svg> 在UniProt查看详情
+                                    </a>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <script>
+                    // Global cache for UniProt metadata
+                    window.uniprotMetadataCache = {};
+
+                    function loadUniProtMetadata() {
+                        const uniprotIds = [{% for uid, info in structure.unique_uniprots.items() %}'{{ info.uniprot_id }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+
+                        // Show loading state
+                        document.querySelectorAll('.uniprot-loading').forEach(el => el.style.display = 'none');
+                        document.querySelectorAll('.uniprot-content').forEach(el => el.style.display = 'block');
+
+                        fetch('/api/structure/uniprot/batch', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({uniprot_ids: uniprotIds})
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success && data.results) {
+                                window.uniprotMetadataCache = data.results;
+                                updateUniProtCards(data.results);
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Failed to load UniProt metadata:', err);
+                        });
+                    }
+
+                    function updateUniProtCards(results) {
+                        for (const [uid, info] of Object.entries(results)) {
+                            const card = document.querySelector(`.uniprot-card[data-uniprot-id="${uid}"]`);
+                            if (!card) continue;
+
+                            if (info.error) {
+                                card.querySelector('.protein-name').textContent = '加载失败: ' + info.error;
+                                continue;
+                            }
+
+                            // Update protein name
+                            if (info.protein_name) {
+                                card.querySelector('.protein-name').textContent = info.protein_name.length > 80
+                                    ? info.protein_name.substring(0, 80) + '...'
+                                    : info.protein_name;
+                            } else {
+                                card.querySelector('.protein-name').textContent = '-';
+                            }
+
+                            // Gene names
+                            if (info.gene_names && info.gene_names.length > 0) {
+                                card.querySelector('.gene-names').textContent = info.gene_names.join(', ');
+                            }
+
+                            // Organism
+                            if (info.organism) {
+                                card.querySelector('.organism').textContent = info.organism;
+                            }
+
+                            // Sequence length
+                            if (info.sequence_length) {
+                                card.querySelector('.seq-length').textContent = info.sequence_length + ' aa';
+                            }
+
+                            // Mass
+                            if (info.mass) {
+                                card.querySelector('.mass').textContent = (info.mass / 1000).toFixed(1) + ' kDa';
+                            }
+
+                            // PDB IDs
+                            if (info.pdb_ids && info.pdb_ids.length > 0) {
+                                const pdbContainer = card.querySelector('.pdb-ids-container');
+                                const pdbIdsDiv = card.querySelector('.pdb-ids');
+                                pdbContainer.style.display = 'block';
+                                info.pdb_ids.slice(0, 10).forEach(pdbId => {
+                                    const span = document.createElement('span');
+                                    span.style.cssText = 'padding: 3px 8px; background: #e3f2fd; color: #1976d2; border-radius: 4px; font-size: 12px; font-family: monospace;';
+                                    span.textContent = pdbId;
+                                    pdbIdsDiv.appendChild(span);
+                                });
+                            }
+
+                            // Keywords
+                            if (info.keywords && info.keywords.length > 0) {
+                                const kwContainer = card.querySelector('.keywords-container');
+                                const keywordsDiv = card.querySelector('.keywords');
+                                kwContainer.style.display = 'block';
+                                info.keywords.slice(0, 6).forEach(kw => {
+                                    const span = document.createElement('span');
+                                    span.style.cssText = 'padding: 2px 8px; background: #f3e5f5; color: #7b1fa2; border-radius: 12px; font-size: 11px;';
+                                    span.textContent = kw;
+                                    keywordsDiv.appendChild(span);
+                                });
+                            }
+
+                            // Function
+                            if (info.function) {
+                                const funcContainer = card.querySelector('.function-container');
+                                const funcP = card.querySelector('.function');
+                                funcContainer.style.display = 'block';
+                                funcP.textContent = info.function;
+                            }
+                        }
+                    }
+
+                    // Auto-load UniProt metadata on page load
+                    document.addEventListener('DOMContentLoaded', function() {
+                        loadUniProtMetadata();
+                    });
+                    </script>
+                    {% else %}
+                    <div class="empty-state">
+                        <p>暂无 UniProt 蛋白质信息</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div id="tab-sequence" class="tab-content">
+                    <!-- Sequence Comparison -->
+                    <div class="info-card">
+                        <h3><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-chart"></use></svg> 序列比对</h3>
+                        <p style="color: #666; margin-bottom: 16px;">与PDB结构或UniProt序列进行序列比对</p>
+
+                        <!-- Comparison Type Toggle -->
+                        <div style="margin-bottom: 16px; padding: 12px; background: #e3f2fd; border-radius: 8px;">
+                            <div style="display: flex; gap: 20px; align-items: center;">
+                                <label style="font-weight: 500;">比对类型:</label>
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                    <input type="radio" name="compare-type" value="pdb" checked onchange="toggleCompareType()">
+                                    <span style="color: #7b1fa2;"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-folder"></use></svg> PDB结构比对</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                    <input type="radio" name="compare-type" value="uniprot" onchange="toggleCompareType()">
+                                    <span style="color: #00897b;"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-search"></use></svg> UniProt序列比对</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- PDB Comparison Controls -->
+                        <div id="pdb-compare-controls" style="display: block;">
+                            <div class="alignment-controls" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; background: #f8f9fa; border-radius: 12px;">
+                                <!-- Source Structure -->
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <label style="min-width: 80px; font-weight: 500; color: #1976D2;">源结构:</label>
+                                    <span style="font-weight: 600; color: #1976D2; background: #e3f2fd; padding: 4px 12px; border-radius: 20px;">{{ structure.id }}</span>
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <label style="min-width: 80px; font-weight: 500;">源实体:</label>
+                                    <select id="entity-selector" style="flex:1; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                                        {% for entity in structure.entities %}
+                                        {% if entity.sequence and (entity.entity_type == 'polypeptide(L)' or 'polypeptide' in (entity.entity_type|lower) or 'protein' in (entity.molecule_type|lower) or not entity.entity_type) %}
+                                        <option value="{{ entity.entity_id }}">{{ entity.entity_id }} - {{ (entity.description or entity.molecule_type or 'Entity ' + entity.entity_id|string)[:40] }} ({{ entity.length }} aa)</option>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <hr style="border: none; border-top: 1px solid #ddd; margin: 8px 0;">
+
+                                <!-- Target Structure -->
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <label style="min-width: 80px; font-weight: 500; color: #7b1fa2;">目标结构:</label>
+                                    <select id="compare-structure-1" onchange="handleTargetStructureChange()" style="flex:1; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                                        <option value="">搜索PDB结构...</option>
+                                    </select>
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <label style="min-width: 80px; font-weight: 500;">目标实体:</label>
+                                    <select id="target-entity-selector" style="flex:1; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                                        <option value="">请先选择目标结构</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- UniProt Comparison Controls -->
+                        <div id="uniprot-compare-controls" style="display: none; margin-top: 16px;">
+                            <div class="alignment-controls" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; background: #e0f2f1; border-radius: 12px;">
+                                <!-- Source Structure -->
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <label style="min-width: 80px; font-weight: 500; color: #1976D2;">源结构:</label>
+                                    <span style="font-weight: 600; color: #1976D2; background: #e3f2fd; padding: 4px 12px; border-radius: 20px;">{{ structure.id }}</span>
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <label style="min-width: 80px; font-weight: 500;">源实体:</label>
+                                    <select id="entity-selector-uniprot" style="flex:1; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                                        {% for entity in structure.entities %}
+                                        {% if entity.sequence and (entity.entity_type == 'polypeptide(L)' or 'polypeptide' in (entity.entity_type|lower) or 'protein' in (entity.molecule_type|lower) or not entity.entity_type) %}
+                                        <option value="{{ entity.entity_id }}">{{ entity.entity_id }} - {{ (entity.description or entity.molecule_type or 'Entity ' + entity.entity_id|string)[:40] }} ({{ entity.length }} aa)</option>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <hr style="border: none; border-top: 1px solid #b2dfdb; margin: 8px 0;">
+
+                                <!-- UniProt Selection -->
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <label style="min-width: 80px; font-weight: 500; color: #00897b;">UniProt:</label>
+                                    <select id="compare-uniprot" style="flex:1; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                                        <option value="">选择UniProt...</option>
+                                        {% if structure.unique_uniprots %}
+                                        {% for uid, info in structure.unique_uniprots.items() %}
+                                        <option value="{{ info.uniprot_id }}">{{ info.uniprot_id }} - {{ (info.protein_name or 'Unknown')[:50] }}</option>
+                                        {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Compare Button -->
+                        <div style="margin-top: 16px;">
+                            <button class="action-btn primary" onclick="compareSequences()" style="width: 100%;">
+                                <svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24"><use href="#icon-search"></use></svg> 开始比对
+                            </button>
+                        </div>
+
+                        <!-- Results Container -->
+                        <div id="comparison-results" style="display: none; margin-top: 20px;">
+                            <div id="comparison-info" style="margin-bottom: 16px;"></div>
+                            <div id="comparison-sequences" style="display: flex; flex-direction: column; gap: 16px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                {% else %}
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>加载中...</p>
+                </div>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+    <script>
+    // Global error handler
+    window.onerror = function(msg, url, line, col, error) {
+        console.error('JS Error:', msg, 'Line:', line);
+        return false;
+    };
+    console.log('structure_detail page loaded');
+
+    // Global switchTab function for onclick handlers
+    window.switchTab = function(tabId) {
+        // Hide all contents
+        var contents = document.getElementsByClassName('tab-content');
+        for (var i = 0; i < contents.length; i++) {
+            contents[i].style.display = 'none';
+            contents[i].classList.remove('active');
+        }
+        // Show selected
+        var content = document.getElementById('tab-' + tabId);
+        if (content) {
+            content.style.display = 'block';
+            content.classList.add('active');
+        }
+        // Update buttons
+        var tabs = document.getElementsByClassName('tab');
+        for (var i = 0; i < tabs.length; i++) {
+            tabs[i].classList.remove('active');
+            if (tabs[i].getAttribute('onclick') === "window.switchTab('" + tabId + "')") {
+                tabs[i].classList.add('active');
+            }
+        }
+    };
+    console.log('switchTab function defined');
+
+    function toggleEntityCard(header) {
+        const card = header.parentElement;
+        const body = card.querySelector('.entity-card-body');
+        const isExpanded = card.classList.contains('expanded');
+
+        // Close all other cards
+        document.querySelectorAll('.entity-card-expanded.expanded').forEach(c => {
+            if (c !== card) {
+                c.classList.remove('expanded');
+                c.querySelector('.entity-card-body').style.display = 'none';
+            }
+        });
+
+        // Toggle current card
+        if (isExpanded) {
+            card.classList.remove('expanded');
+            body.style.display = 'none';
+        } else {
+            card.classList.add('expanded');
+            body.style.display = 'block';
+        }
+    }
+
+    function toggleSequence(btn, entityId) {
+        const seqContent = document.getElementById('seq-' + entityId);
+        const toggleText = btn.querySelector('.seq-toggle-text');
+        if (seqContent) {
+            if (seqContent.style.display === 'none') {
+                seqContent.style.display = 'block';
+                if (toggleText) toggleText.textContent = '隐藏';
+            } else {
+                seqContent.style.display = 'none';
+                if (toggleText) toggleText.textContent = '显示';
+            }
+        }
+    }
+
+    // Show UniProt comparison for entity
+    async function showUniprotCompare(pdbId, entityId, pdbSequence) {
+        const uniprotSelect = document.getElementById('uniprot-select-' + entityId);
+        const uniprotId = uniprotSelect ? uniprotSelect.value : null;
+
+        if (!uniprotId) {
+            alert('请选择要比较的 UniProt ID');
+            return;
+        }
+
+        const container = document.getElementById('alignment-' + entityId);
+        if (!container) return;
+
+        // Show loading
+        container.style.display = 'block';
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">正在获取并比对序列...</div>';
+
+        try {
+            const response = await fetch('/api/structure/sequences/compare-uniprot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pdb_id: pdbId,
+                    entity_id: entityId,
+                    uniprot_id: uniprotId
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                container.innerHTML = `<div style="padding: 20px; color: #d32f2f;">错误: ${data.error}</div>`;
+                return;
+            }
+
+            // Parse sequences from response - use FULL aligned sequences with gaps
+            const sequences = data.sequences || [];
+            const pdbData = sequences.find(s => s.pdb_id);
+            const uniprotData = sequences.find(s => s.uniprot_id);
+            // Use full_aligned which includes gaps for unmapped regions
+            const pdbSeq = pdbData?.full_aligned || pdbData?.aligned || pdbData?.segment || pdbData?.sequence || '';
+            const uniprotSeq = uniprotData?.full_aligned || uniprotData?.aligned || uniprotData?.segment || uniprotData?.sequence || '';
+            // Actual PDB sequence length (not aligned length)
+            const pdbLength = pdbData?.length || 0;
+            // Actual UniProt sequence length
+            const uniprotLength = uniprotData?.length || 0;
+            const identity = data.comparisons?.[0]?.identity || 0;
+            const matches = data.comparisons?.[0]?.matches || 0;
+            const alignedLength = data.comparisons?.[0]?.aligned_length || 0;
+            const mappingRanges = data.comparisons?.[0]?.mapping_ranges || [];
+
+            // Generate visual alignment
+            container.innerHTML = generateAlignmentHTML(pdbSeq, uniprotSeq, pdbId, uniprotId, identity, matches, alignedLength, mappingRanges, pdbLength, uniprotLength);
+
+        } catch (e) {
+            console.error('Alignment error:', e);
+            container.innerHTML = `<div style="padding: 20px; color: #d32f2f;">获取比对数据失败: ${e.message}<br>Stack: ${e.stack}</div>`;
+        }
+    }
+
+    // Generate alignment visualization HTML
+    function generateAlignmentHTML(pdbSeq, uniprotSeq, pdbId, uniprotId, identity, matches, alignedLength, mappingRanges, pdbLength, uniprotLength) {
+        if (!pdbSeq || !uniprotSeq) {
+            return '<div style="padding: 20px; color: #666;">无法获取序列数据</div>';
+        }
+
+        const chunkSize = 50;
+        // Use actual lengths if provided, otherwise fall back to sequence lengths
+        const displayPdbLength = pdbLength || pdbSeq.length;
+        const displayUniprotLength = uniprotLength || uniprotSeq.length;
+
+        let html = `
+            <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <h4 style="margin: 0 0 12px 0;">比对结果: ${pdbId} (Entity 1) vs UniProt ${uniprotId}</h4>
+                <div style="font-size: 12px; color: #666; margin-bottom: 12px;">基于UniProt多范围映射比对 (${(mappingRanges || []).map(r => 'PDB:' + r.pdb_start + '-' + r.pdb_end).join(', ')})</div>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div style="background: #e8f5e9; padding: 12px; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #666;">序列一致性</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #2e7d32;">${identity.toFixed(1)}%</div>
+                    </div>
+                    <div style="background: #e3f2fd; padding: 12px; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #666;">匹配残基</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #1565c0;">${matches}</div>
+                    </div>
+                    <div style="background: #fff3e0; padding: 12px; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #666;">PDB序列长度</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #e65100;">${displayPdbLength}</div>
+                    </div>
+                    <div style="background: #f3e5f5; padding: 12px; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #666;">UniProt完整序列</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #7b1fa2;">${displayUniprotLength}</div>
+                    </div>
+                </div>
+            </div>
+            <div style="font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; background: #263238; color: #aed581; padding: 16px; border-radius: 8px; overflow-x: auto;">
+                <div style="margin-bottom: 8px; color: #90caf9; font-weight: bold;">图例: <span style="color: #4caf50; font-weight: normal;">绿色=匹配</span> | <span style="color: #e57373; font-weight: normal;">红色=不匹配</span> | <span style="color: #777;">-=空位</span></div>
+        `;
+
+        const minLen = Math.min(pdbSeq.length, uniprotSeq.length);
+
+        const cellWidth = 16; // Fixed width for each amino acid cell
+
+        for (let i = 0; i < minLen; i += chunkSize) {
+            const pdbChunk = pdbSeq.slice(i, i + chunkSize);
+            const uniprotChunk = uniprotSeq.slice(i, i + chunkSize);
+            const posStart = i + 1;
+
+            // PDB row
+            html += `<div style="margin-bottom: 4px; display: flex; align-items: center;"><span style="color: #90caf9; min-width: 60px; flex-shrink: 0;">PDB:</span><span style="font-variant-numeric: tabular-nums;">`;
+            for (let j = 0; j < pdbChunk.length; j++) {
+                const aa = pdbChunk[j];
+                const unipAa = uniprotChunk[j];
+                const globalPos = posStart + j;
+                // Only color if both are not gaps
+                const isMatch = (aa === unipAa && aa !== '-' && unipAa !== '-');
+                const isBothGaps = (aa === '-' && unipAa === '-');
+                const color = isMatch ? '#4caf50' : (isBothGaps ? '#555' : '#e57373');
+                const bg = isMatch ? 'rgba(76,175,80,0.3)' : (isBothGaps ? 'transparent' : 'rgba(229,115,115,0.3)');
+                html += `<span style="display: inline-block; width: ${cellWidth}px; text-align: center; color: ${color}; background: ${bg}; border-radius: 2px; cursor: help;" title="PDB位置: ${globalPos}">${aa}</span>`;
+            }
+            html += `</span></div>`;
+
+            // Match row
+            html += `<div style="margin-bottom: 4px; display: flex; align-items: center;"><span style="color: #90caf9; min-width: 60px; flex-shrink: 0;"></span><span style="font-variant-numeric: tabular-nums;">`;
+            for (let j = 0; j < pdbChunk.length; j++) {
+                const aa = pdbChunk[j];
+                const unipAa = uniprotChunk[j];
+                const globalPos = posStart + j;
+                let symbol = ' ';
+                if (aa === '-' && unipAa === '-') {
+                    // Both gaps - use space
+                    symbol = ' ';
+                } else if (aa === '-' || unipAa === '-') {
+                    // One has gap - show gap symbol
+                    symbol = '-';
+                } else if (aa === unipAa) {
+                    // Exact match
+                    symbol = '|';
+                } else {
+                    // Mismatch
+                    symbol = ':';
+                }
+                const symColor = (symbol === '|') ? '#4caf50' : ((symbol === ':') ? '#ff9800' : '#555');
+                html += `<span style="display: inline-block; width: ${cellWidth}px; text-align: center; color: ${symColor}; cursor: help;" title="位置: ${globalPos}">${symbol}</span>`;
+            }
+            html += `</span></div>`;
+
+            // UniProt row
+            html += `<div style="margin-bottom: 12px; display: flex; align-items: center;"><span style="color: #ce93d8; min-width: 60px; flex-shrink: 0;">UniProt:</span><span style="font-variant-numeric: tabular-nums;">`;
+            for (let j = 0; j < uniprotChunk.length; j++) {
+                const aa = uniprotChunk[j];
+                const pdbAa = pdbChunk[j];
+                const globalPos = posStart + j;
+                // Only color if both are not gaps
+                const isMatch = (aa === pdbAa && aa !== '-' && pdbAa !== '-');
+                const isBothGaps = (aa === '-' && pdbAa === '-');
+                const color = isMatch ? '#4caf50' : (isBothGaps ? '#555' : '#e57373');
+                const bg = isMatch ? 'rgba(76,175,80,0.3)' : (isBothGaps ? 'transparent' : 'rgba(229,115,115,0.3)');
+                html += `<span style="display: inline-block; width: ${cellWidth}px; text-align: center; color: ${color}; background: ${bg}; border-radius: 2px; cursor: help;" title="UniProt位置: ${globalPos}">${aa}</span>`;
+            }
+            html += `</span></div>`;
+        }
+
+        // Handle remaining characters if sequences have different lengths
+        if (pdbSeq.length > uniprotSeq.length) {
+            html += `<div style="margin-bottom: 4px; color: #90caf9;">PDB (剩余): ${pdbSeq.slice(minLen)}</div>`;
+        } else if (uniprotSeq.length > pdbSeq.length) {
+            html += `<div style="margin-bottom: 4px; color: #ce93d8;">UniProt (剩余): ${uniprotSeq.slice(minLen)}</div>`;
+        }
+
+        html += '</div>';
+
+        return html;
+    }
+
+    async function refreshMetadata() {
+        const statusEl = document.getElementById('refresh-status');
+        const btn = document.getElementById('refresh-btn');
+
+        statusEl.className = 'refresh-status loading';
+        statusEl.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> 正在从 RCSB/PDBe 获取元数据...';
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(`/api/structure/${STRUCTURE_ID}/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                statusEl.className = 'refresh-status success';
+                statusEl.innerHTML = `<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" style="color: green;"><use href="#icon-check"></use></svg> 元数据已更新! ${data.metadata.entity_count} 个实体, ${data.metadata.uniprot_mapping_count} 个UniProt映射`;
+
+                // Refresh page after 2 seconds
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                throw new Error(data.error || '更新失败');
+            }
+        } catch (error) {
+            statusEl.className = 'refresh-status error';
+            statusEl.innerHTML = `<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" style="color: red;"><use href="#icon-x"></use></svg> 更新失败: ${error.message}`;
+            btn.disabled = false;
+        }
+    }
+
+    function copySequence(sequence) {
+        navigator.clipboard.writeText(sequence).then(() => {
+            alert('序列已复制到剪贴板');
+        }).catch(() => {
+            // Fallback
+            const textarea = document.createElement('textarea');
+            textarea.value = sequence;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            alert('序列已复制到剪贴板');
+        });
+    }
+
+    async function compareSequences() {
+        const compareType = document.querySelector('input[name="compare-type"]:checked').value;
+        let comparePdbId = '';
+        let compareUniprot = '';
+        let selectedEntityId = '1';
+        let targetEntityId = '1';
+
+        if (compareType === 'pdb') {
+            comparePdbId = document.getElementById('compare-structure-1').value;
+            const entitySelector = document.getElementById('entity-selector');
+            selectedEntityId = entitySelector ? entitySelector.value : '1';
+
+            if (!comparePdbId) {
+                alert('请选择目标PDB结构');
+                return;
+            }
+
+            const targetEntitySelector = document.getElementById('target-entity-selector');
+            targetEntityId = targetEntitySelector ? targetEntitySelector.value : '';
+
+            if (!targetEntityId) {
+                alert('请选择目标实体的蛋白质');
+                return;
+            }
+        } else {
+            compareUniprot = document.getElementById('compare-uniprot').value.trim();
+            const entitySelector = document.getElementById('entity-selector-uniprot');
+            selectedEntityId = entitySelector ? entitySelector.value : '1';
+
+            if (!compareUniprot) {
+                alert('请选择UniProt进行比对');
+                return;
+            }
+        }
+
+        const resultsEl = document.getElementById('comparison-results');
+        const infoEl = document.getElementById('comparison-info');
+        const seqEl = document.getElementById('comparison-sequences');
+
+        resultsEl.style.display = 'block';
+        infoEl.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="spinner"></div><p style="color: #666; margin-top: 16px;">正在比对序列...</p></div>';
+        seqEl.innerHTML = '';
+
+        try {
+            let data;
+
+            if (compareType === 'pdb' && comparePdbId) {
+                // PDB vs PDB 比对
+                const response = await fetch('/api/structure/sequences/compare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        structures: [
+                            { pdb_id: STRUCTURE_ID, entity_id: selectedEntityId },
+                            { pdb_id: comparePdbId, entity_id: targetEntityId }
+                        ]
+                    })
+                });
+                data = await response.json();
+            } else {
+                // PDB vs UniProt 比对
+                const response = await fetch('/api/structure/sequences/compare-uniprot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pdb_id: STRUCTURE_ID,
+                        entity_id: selectedEntityId,
+                        uniprot_id: compareUniprot
+                    })
+                });
+                data = await response.json();
+            }
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            // Show comparison results with improved visualization
+            if (data.comparisons && data.comparisons.length > 0 && data.sequences) {
+                const comp = data.comparisons[0];
+                const seq1Label = comparePdbId ? `${STRUCTURE_ID}` : `${STRUCTURE_ID}`;
+                const seq2Label = comparePdbId ? `${comparePdbId}` : `UniProt ${compareUniprot}`;
+
+                // Determine color based on identity
+                let identityColor = '#c62828'; // red for low
+                if (comp.identity >= 90) identityColor = '#2e7d32'; // green for high
+                else if (comp.identity >= 70) identityColor = '#f57c00'; // orange for medium
+
+                infoEl.innerHTML = `
+                    <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 12px; border: 1px solid #dee2e6;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
+                            <div>
+                                <h4 style="margin: 0 0 8px 0; color: #333; font-size: 16px; display: flex; align-items: center; gap: 8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-microscope"></use></svg> 比对结果</h4>
+                                <p style="margin: 0; color: #666; font-size: 14px;">
+                                    <span style="background: #e3f2fd; color: #1976d2; padding: 2px 8px; border-radius: 4px; font-weight: 500;">${seq1Label}</span>
+                                    <span style="color: #999; margin: 0 8px;">⟷</span>
+                                    <span style="background: #f3e5f5; color: #7b1fa2; padding: 2px 8px; border-radius: 4px; font-weight: 500;">${seq2Label}</span>
+                                </p>
+                            </div>
+                            <div style="text-align: center; background: linear-gradient(135deg, ${identityColor}22 0%, ${identityColor}11 100%); padding: 16px 24px; border-radius: 12px; border: 2px solid ${identityColor};">
+                                <div style="font-size: 32px; font-weight: 800; color: ${identityColor}; line-height: 1;">${comp.identity}%</div>
+                                <div style="font-size: 12px; color: #666; margin-top: 4px; font-weight: 500;">序列一致性</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 24px; padding: 12px; background: white; border-radius: 8px; font-size: 13px;">
+                            <div style="flex: 1; text-align: center;">
+                                <div style="color: #2e7d32; font-weight: bold; font-size: 18px;">${comp.matches || 'N/A'}</div>
+                                <div style="color: #666;">✓ 匹配残基</div>
+                            </div>
+                            <div style="width: 1px; background: #dee2e6;"></div>
+                            <div style="flex: 1; text-align: center;">
+                                <div style="color: #c62828; font-weight: bold; font-size: 18px;">${(comp.aligned_length || 0) - (comp.matches || 0)}</div>
+                                <div style="color: #666;">✗ 不匹配</div>
+                            </div>
+                            <div style="width: 1px; background: #dee2e6;"></div>
+                            <div style="flex: 1; text-align: center;">
+                                <div style="color: #1976d2; font-weight: bold; font-size: 18px;">${comp.aligned_length || 'N/A'}</div>
+                                <div style="color: #666;">▭ 比对长度</div>
+                            </div>
+                        </div>
+                    </div>`;
+
+                // Display aligned sequences together
+                seqEl.innerHTML = '';
+
+                if (data.sequences.length >= 2) {
+                    const seq1 = data.sequences[0];
+                    const seq2 = data.sequences[1];
+                    // Use full_aligned for proper alignment with gaps, fallback to sequence
+                    const seq1Str = seq1.full_aligned || seq1.sequence || '';
+                    const seq2Str = seq2.full_aligned || seq2.sequence || '';
+
+                    // Use API's comparison data
+                    const alignedLength = comp.aligned_length || Math.min(seq1Str.length, seq2Str.length);
+                    const matchCount = comp.matches || 0;
+
+                    // Generate full alignment visualization
+                    const fullAlignmentHtml = generateFullAlignmentHtml(seq1Str, seq2Str, seq1Label, seq2Label, matchCount, alignedLength);
+
+                    const card = document.createElement('div');
+                    card.style.cssText = 'background: #f8f9fa; border-radius: 12px; padding: 16px; margin-top: 16px;';
+                    card.innerHTML = `
+                        <div style="font-size: 14px; font-weight: 500; margin-bottom: 12px; color: #333;">
+                            <span style="color: #1976d2;">${seq1Label}</span>
+                            <span style="color: #999; margin: 0 8px;">⟷</span>
+                            <span style="color: #7b1fa2;">${seq2Label}</span>
+                        </div>
+                        ${fullAlignmentHtml}
+                    `;
+                    seqEl.appendChild(card);
+                } else {
+                    infoEl.innerHTML += '<div style="background: #fff3e0; padding: 16px; border-radius: 8px; margin-top: 16px;"><p style="margin: 0; color: #e65100;">序列数据不足</p></div>';
+                }
+
+            } else {
+                infoEl.innerHTML = '<div style="background: #fff3e0; padding: 16px; border-radius: 8px; border-left: 4px solid #ff9800;"><p style="margin: 0; color: #e65100;">未能计算比对结果</p></div>';
+            }
+
+        } catch (error) {
+            infoEl.innerHTML = `<div style="background: #ffebee; padding: 16px; border-radius: 8px; border-left: 4px solid #c62828;"><p style="margin: 0; color: #c62828;">比对失败: ${error.message}</p></div>`;
+        }
+    }
+
+    // Generate full alignment visualization HTML
+    function generateFullAlignmentHtml(seq1, seq2, label1, label2, matchCount, alignedLength) {
+        if (!seq1 || !seq2) return '<p>无序列数据</p>';
+
+        const minLen = Math.min(seq1.length, seq2.length);
+        const chunkSize = 100; // 100 residues per line
+
+        // Use provided match count or calculate
+        const matches = matchCount || 0;
+        const mismatches = (alignedLength || minLen) - matches;
+
+        // Use table for proper alignment
+        let html = `<div style="font-family: monospace; font-size: 10px; max-height: 600px; overflow-y: auto; background: white; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0;">`;
+
+        for (let i = 0; i < minLen; i += chunkSize) {
+            const pos = i + 1;
+            const endPos = Math.min(i + chunkSize, minLen);
+
+            // Build rows with table cells for proper alignment
+            let seq1Row = '';
+            let matchRow = '';
+            let seq2Row = '';
+
+            for (let j = i; j < Math.min(i + chunkSize, minLen); j++) {
+                const aa1 = seq1[j];
+                const aa2 = seq2[j];
+                const isMatch = (aa1 === aa2 && aa1 !== '-');
+
+                // Calculate actual PDB and UniProt positions (excluding gaps in original sequences)
+                let pdbPos = '', unpPos = '';
+                if (aa1 !== '-') {
+                    // Count non-gap positions before this in seq1
+                    pdbPos = (j + 1) - (seq1.substring(0, j + 1).split('-').length - 1);
+                }
+                if (aa2 !== '-') {
+                    unpPos = (j + 1) - (seq2.substring(0, j + 1).split('-').length - 1);
+                }
+
+                // Tooltip shows PDB position and UniProt position
+                const tooltipTitle = `P:${pdbPos || '-'} U:${unpPos || '-'}`;
+
+                // Fixed width span for each character with hover tooltip
+                const style = 'display:inline-block; width:9px; text-align:center;';
+                seq1Row += `<span title="${tooltipTitle}" style="${style} ${isMatch ? 'color:#1976d2;background:#e3f2fd;' : 'color:#c62828;background:#ffebee;'}">${aa1 === '-' ? '-' : aa1}</span>`;
+                matchRow += `<span title="${tooltipTitle}" style="${style} ${isMatch ? 'color:#2e7d32;font-weight:bold;' : 'color:#e0e0e0;'}">${isMatch ? '|' : (aa1 === '-' || aa2 === '-' ? '-' : ':')}</span>`;
+                seq2Row += `<span title="${tooltipTitle}" style="${style} ${isMatch ? 'color:#7b1fa2;background:#f3e5f5;' : 'color:#c62828;background:#ffebee;'}">${aa2 === '-' ? '-' : aa2}</span>`;
+            }
+
+            html += `<table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
+                <tr><td style="color:#666;font-size:11px;padding-bottom:4px;font-weight:bold;">${pos} - ${endPos}</td></tr>
+                <tr><td style="white-space:nowrap;overflow-x:auto;letter-spacing:0;">${seq1Row}</td></tr>
+                <tr><td style="white-space:nowrap;overflow-x:auto;letter-spacing:0;">${matchRow}</td></tr>
+                <tr><td style="white-space:nowrap;overflow-x:auto;letter-spacing:0;">${seq2Row}</td></tr>
+            </table>`;
+        }
+
+        // Summary statistics
+        html += `<div style="margin-top: 16px; padding-top: 12px; border-top: 2px solid #e0e0e0; display: flex; gap: 20px; font-size: 12px;">
+            <div><span style="color: #2e7d32; font-weight: bold;">■</span> 匹配: ${matches}</div>
+            <div><span style="color: #c62828; font-weight: bold;">■</span> 不匹配: ${mismatches}</div>
+            <div>比对长度: ${alignedLength || minLen}</div>
+        </div>`;
+
+        html += '</div>';
+        return html;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Set structure ID for JavaScript
+    const STRUCTURE_ID = '{{ structure.id }}';
+
+    // 加载结构列表用于序列比对下拉菜单（只加载PDB，忽略EMDB）
+    let allPDBStructures = [];
+
+    async function loadStructureList() {
+        try {
+            const response = await fetch('/api/structure/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: '', limit: 500 })
+            });
+            const data = await response.json();
+
+            if (data.structures) {
+                // 只保留PDB类型
+                allPDBStructures = data.structures.filter(s => s.type && s.type.toUpperCase() === 'PDB');
+                updateSelectOptions('');
+            }
+        } catch (error) {
+            console.error('加载结构列表失败:', error);
+        }
+    }
+
+    // 更新下拉菜单选项（带搜索过滤）
+    function updateSelectOptions(filterText) {
+        const select1 = document.getElementById('compare-structure-1');
+        const filter = filterText.toLowerCase();
+
+        // 保存当前选中值
+        const selected1 = select1.value;
+
+        // 清空选项
+        select1.innerHTML = '<option value="">搜索PDB结构...</option>';
+
+        // 添加过滤后的选项（排除当前结构）
+        allPDBStructures.forEach(s => {
+            if (s.id === STRUCTURE_ID) return;
+
+            const displayText = `${s.id} - ${(s.title || '').substring(0, 50)}`;
+            if (!filter || displayText.toLowerCase().includes(filter)) {
+                const option1 = new Option(displayText, s.id);
+                select1.add(option1);
+            }
+        });
+
+        // 恢复选中值
+        select1.value = selected1;
+    }
+
+    // Toggle between PDB and UniProt comparison
+    function toggleCompareType() {
+        const compareType = document.querySelector('input[name="compare-type"]:checked').value;
+        const pdbControls = document.getElementById('pdb-compare-controls');
+        const uniprotControls = document.getElementById('uniprot-compare-controls');
+
+        if (compareType === 'pdb') {
+            pdbControls.style.display = 'block';
+            uniprotControls.style.display = 'none';
+        } else {
+            pdbControls.style.display = 'none';
+            uniprotControls.style.display = 'block';
+        }
+
+        // Clear previous results
+        document.getElementById('comparison-results').style.display = 'none';
+    }
+
+    // 搜索输入事件处理（带延迟以优化性能）
+    let searchTimeout;
+    function handleSearchInput(event) {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            updateSelectOptions(event.target.value);
+        }, 300);
+    }
+
+    // 目标结构改变时加载其实体
+    async function handleTargetStructureChange() {
+        const targetPdbId = document.getElementById('compare-structure-1').value;
+        const targetEntitySelect = document.getElementById('target-entity-selector');
+
+        if (!targetPdbId) {
+            targetEntitySelect.innerHTML = '<option value="">请先选择目标结构</option>';
+            return;
+        }
+
+        targetEntitySelect.innerHTML = '<option value="">加载中...</option>';
+
+        try {
+            // 获取目标结构的实体信息
+            const response = await fetch(`/api/structure/${targetPdbId}/detail`);
+            const data = await response.json();
+
+            if (data.entities && data.entities.length > 0) {
+                let options = '<option value="">选择目标蛋白质实体...</option>';
+
+                // 只显示有多肽序列的实体
+                data.entities.forEach(entity => {
+                    if (entity.sequence) {
+                        const desc = entity.description || entity.molecule_type || `Entity ${entity.entity_id}`;
+                        options += `<option value="${entity.entity_id}">${entity.entity_id} - ${desc.substring(0, 40)} (${entity.length || entity.sequence.length} aa)</option>`;
+                    }
+                });
+
+                targetEntitySelect.innerHTML = options;
+            } else {
+                targetEntitySelect.innerHTML = '<option value="">该结构暂无实体信息</option>';
+            }
+        } catch (error) {
+            console.error('获取目标结构实体失败:', error);
+            targetEntitySelect.innerHTML = '<option value="">加载失败</option>';
+        }
+    }
+
+    // 页面加载时获取结构列表
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page loaded, checking theme...');
+        loadStructureList();
+        if (typeof loadStats === 'function') {
+            loadStats();
+        }
+        // 初始化主题系统
+        if (typeof ThemeManager !== 'undefined') {
+            ThemeManager.init();
+        }
+    });
+    </script>
+
+    <!-- Digital Rain (cyberpunk + matrix) -->
+    <canvas id="matrix-canvas" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; pointer-events:none;"></canvas>
+    <script>
+    (function() {
+        var canvas = document.getElementById('matrix-canvas');
+        var ctx = canvas.getContext('2d');
+        var animId = null, columns = [], colColors = [], colPhrases = [], colCharIndex = [], currentMode = null;
+        var fontSize = 16, lineHeight = 24, colCount = 0;
+        var cyColors = ['rgba(0,255,245,0.85)','rgba(255,0,255,0.7)','rgba(255,255,0,0.5)'];
+
+        var cyberPhrases = [
+            // 中文
+            '赛博','朋克','未来','科技','数据','网络','智能','系统','代码','程序',
+            '算法','芯片','电路','电子','光子','量子','原子','分子','细胞','基因',
+            '蛋白','病毒','细菌','真菌','植物','动物','人类','文明','城市','国家',
+            '世界','宇宙','星空','月光','日光','时分','光影','色彩','声音','频率',
+            '人工智能','机器学习','深度学习','神经网络','数据流','云计算','大数据','物联网',
+            '虚拟现实','增强现实','自动驾驶','无人机','机器人','生物技术','量子计算',
+            '智能手机','无线通信','卫星导航','深海探测','太空站','空间站','国际空间站',
+            '核聚变','核裂变','新能源','可再生能源','太阳能','风能','潮汐能','地热能',
+            '智慧城市','数字孪生','元宇宙','区块链','数字货币','比特币','以太坊',
+            // 英文
+            'Cyber','Punk','Future','Tech','Data','Network','AI','Code','Sys','Algo',
+            'Quantum','Neural','Cloud','BigData','IoT','Blockchain','Crypto','VR','AR',
+            'Matrix','Hacker','Binary','Byte','Pixel','Vector','Tensor','Python','Java',
+            'Script','Type','React','Vue','Node','Docker','Git','DevOps','Swift','Kotlin',
+            // 日文
+            '未来','技術','電子','光子','量子','人工','知能','学習','神経','ネット',
+            'ネットワーク','人工智能','機械学習','深層学習','科學','技術','情報','通信',
+            '再生可能エネルギー','太陽光','風力発電','潮汐力','地熱','原子力','核融合',
+            // 韩文
+            '미래','기술','데이터','네트워크','인공지능','기계학습','심층학습','양자',
+            '양자컴퓨터','양자역학','핵융합','핵분열','재생에너지','태양광','풍력','조력',
+            '자율주행','스마트시티','디지털트윈','메타버스','블록체인','암호화폐',
+            // 俄文
+            'Данные','Сеть','Техника','Искусственный','Интеллект','Квантовый','Кибер','Хакер'
+        ];
+        var matrixPhrases = ['0','1','2','3','4','5','6','7','8','9'];
+
+        function initCols() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            colCount = Math.floor(canvas.width / fontSize); columns = []; colColors = []; colPhrases = []; colCharIndex = [];
+            for (var i = 0; i < colCount; i++) {
+                columns[i] = Math.floor(Math.random() * -20);
+                colPhrases[i] = currentMode === 'matrix' ? matrixPhrases[Math.floor(Math.random() * matrixPhrases.length)] : cyberPhrases[Math.floor(Math.random() * cyberPhrases.length)];
+                colCharIndex[i] = 0;
+                var r = Math.random(); colColors[i] = r < 0.6 ? 0 : (r < 0.85 ? 1 : 2);
+            }
+        }
+        function draw() {
+            var phrases = currentMode === 'matrix' ? matrixPhrases : cyberPhrases;
+            if (!phrases || phrases.length === 0) return;
+            ctx.fillStyle = currentMode === 'cyberpunk' ? 'rgba(10,10,15,0.07)' : 'rgba(0,0,0,0.06)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = fontSize + 'px monospace';
+            for (var i = 0; i < colCount; i++) {
+                // Validate column data
+                if (!colPhrases[i] || typeof colPhrases[i] !== 'string' || colPhrases[i].length === 0) {
+                    colPhrases[i] = phrases[Math.floor(Math.random() * phrases.length)];
+                    colCharIndex[i] = 0;
+                }
+                if (colCharIndex[i] === undefined) colCharIndex[i] = 0;
+
+                if (columns[i] > 0 && columns[i] % 2 === 0 && Math.random() < 0.5) {
+                    colPhrases[i] = phrases[Math.floor(Math.random() * phrases.length)];
+                    colCharIndex[i] = 0;
+                }
+                var y = columns[i] * lineHeight;
+                if (y > 0 && colPhrases[i] && typeof colPhrases[i] === 'string' && colPhrases[i].length > 0) {
+                    var phrase = colPhrases[i];
+                    var charIndex = colCharIndex[i] % phrase.length;
+                    if (charIndex < 0) charIndex = 0;
+                    var c = phrase[charIndex];
+                    if (c) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillText(c, i * fontSize, y);
+                        // Trail
+                        for (var j = 1; j <= 3; j++) {
+                            if (y - j * lineHeight > 0) {
+                                var trailIdx = (colCharIndex[i] - j + phrase.length) % phrase.length;
+                                if (trailIdx < 0) trailIdx = 0;
+                                var trailChar = phrase[trailIdx];
+                                if (trailChar && colColors[i] !== undefined) {
+                                    ctx.fillStyle = currentMode === 'cyberpunk' ? cyColors[colColors[i]] : 'rgba(0,255,65,0.9)';
+                                    ctx.fillText(trailChar, i * fontSize, y - j * lineHeight);
+                                }
+                            }
+                        }
+                    }
+                }
+                columns[i]++;
+                if (colCharIndex[i] !== undefined) colCharIndex[i]++;
+                else colCharIndex[i] = 1;
+                if (y > canvas.height && Math.random() > 0.98) {
+                    columns[i] = Math.floor(Math.random() * -20);
+                    colPhrases[i] = phrases[Math.floor(Math.random() * phrases.length)];
+                    colCharIndex[i] = 0;
+                    var r = Math.random(); colColors[i] = r < 0.6 ? 0 : (r < 0.85 ? 1 : 2);
+                }
+            }
+            animId = requestAnimationFrame(draw);
+        }
+
+        function start(m) {
+            currentMode = m;
+            if (m === 'matrix' || m === 'cyberpunk') {
+                // Enable digital rain for Matrix/Cyberpunk theme
+                canvas.style.display = '';
+                initCols();
+                draw();
+            }
+        }
+        function stop() {
+            canvas.style.display = 'none';
+            // Stop animation
+            currentMode = null;
+            if (animId) { cancelAnimationFrame(animId); animId = null; }
+            window.removeEventListener('resize', initCols);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        function check() {
+            var t = document.documentElement.getAttribute('data-theme');
+            if (t === 'matrix' || t === 'cyberpunk') { if (currentMode !== t) { stop(); start(t); } }
+            else { if (currentMode) stop(); }
+        }
+        var obs = new MutationObserver(function() { check(); });
+        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        setTimeout(check, 100);
+        setTimeout(check, 300);
+        if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', function() { setTimeout(check, 300); }); }
+    })();
+    </script>
+</body>

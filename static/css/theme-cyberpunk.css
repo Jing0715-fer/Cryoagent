@@ -1,0 +1,2351 @@
+/* ============================================
+   Cyberpunk Theme - 赛博朋克风格 (Enhanced) - 青粉融合
+   ============================================ */
+
+/* Base styles for grid and scanlines - hidden by default */
+html .grid-bg,
+html .scanlines {
+    display: none;
+}
+
+/* Show grid and scanlines when cyberpunk theme is active */
+html[data-theme="cyberpunk"] .grid-bg,
+html[data-theme="cyberpunk"] .scanlines {
+    display: block !important;
+}
+
+/* Base body background for cyberpunk - transparent to show grid behind */
+html[data-theme="cyberpunk"] body {
+    background: transparent !important;
+    background-image: none !important;
+}
+
+/* Base theme styles */
+html[data-theme="cyberpunk"] body {
+    background-color: #0a0a0f !important;
+    background: #0a0a0f !important;
+    color: #00fff5 !important;
+}
+
+/* Keep content areas readable with dark backgrounds */
+html[data-theme="cyberpunk"] .sidebar,
+html[data-theme="cyberpunk"] .main-content,
+html[data-theme="cyberpunk"] .card,
+html[data-theme="cyberpunk"] .panel,
+html[data-theme="cyberpunk"] .modal-content,
+html[data-theme="cyberpunk"] .dropdown-menu,
+html[data-theme="cyberpunk"] .literature-card,
+html[data-theme="cyberpunk"] .structure-card {
+    background-color: transparent !important;
+    backdrop-filter: blur(10px);
+}
+
+/* 特效容器 - 不设置背景，保持自己的背景不被 body * 规则影响 */
+/* 注意：.grid-bg 和 .scanlines 的背景在后面单独定义，这里不需要设置 */
+html[data-theme="cyberpunk"] #cyberpunk-meteors .cyber-meteor {
+    background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 245, 0.7) 20%, rgba(0, 255, 245, 0.3) 70%, transparent 100%) !important;
+    box-shadow: 0 0 3px 1px rgba(0, 255, 245, 0.3) !important;
+}
+html[data-theme="cyberpunk"] #cyberpunk-meteors .cyber-meteor.magenta {
+    background: linear-gradient(to bottom, transparent 0%, rgba(255, 0, 255, 0.6) 20%, rgba(255, 0, 255, 0.2) 70%, transparent 100%) !important;
+    box-shadow: 0 0 3px 1px rgba(255, 0, 255, 0.3) !important;
+}
+html[data-theme="cyberpunk"] #cyberpunk-meteors .cyber-meteor.yellow {
+    background: linear-gradient(to bottom, transparent 0%, rgba(255, 255, 0, 0.5) 20%, rgba(255, 255, 0, 0.2) 70%, transparent 100%) !important;
+    box-shadow: 0 0 3px 1px rgba(255, 255, 0, 0.2) !important;
+}
+html[data-theme="cyberpunk"] #cyberpunk-meteors .cyber-sparkle {
+    background: rgba(0, 255, 245, 0.9) !important;
+    box-shadow: 0 0 6px 2px rgba(0, 255, 245, 0.6) !important;
+}
+html[data-theme="cyberpunk"] #cyberpunk-meteors .cyber-sparkle.magenta {
+    background: rgba(255, 0, 255, 0.8) !important;
+    box-shadow: 0 0 6px 2px rgba(255, 0, 255, 0.5) !important;
+}
+html[data-theme="cyberpunk"] #cyberpunk-meteors .cyber-sparkle.yellow {
+    background: rgba(255, 255, 0, 0.7) !important;
+    box-shadow: 0 0 6px 2px rgba(255, 255, 0, 0.4) !important;
+}
+
+/* ========== 3D透视网格背景 ========== */
+html[data-theme="cyberpunk"] .grid-bg {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background:
+        linear-gradient(rgba(0, 255, 245, 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 245, 0.3) 1px, transparent 1px) !important;
+    background-color: rgba(10, 10, 15, 0.95) !important;
+    background-size: 40px 40px !important;
+    animation: gridMove 20s linear infinite !important;
+    z-index: 0 !important;
+    pointer-events: none !important;
+}
+
+@keyframes gridMove {
+    0% { transform: perspective(500px) rotateX(60deg) translateY(0); }
+    100% { transform: perspective(500px) rotateX(60deg) translateY(50px); }
+}
+
+/* ========== CRT扫描线效果 ========== */
+html[data-theme="cyberpunk"] .scanlines {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.05) 0px,
+        rgba(0, 0, 0, 0.05) 1px,
+        transparent 1px,
+        transparent 3px
+    ) !important;
+    background-color: transparent !important;
+    pointer-events: none !important;
+    z-index: 10000 !important;
+    animation: scanMove 0.1s linear infinite !important;
+}
+
+@keyframes scanMove {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(3px); }
+}
+
+/* 让主体背景透明以显示网格背景 */
+html[data-theme="cyberpunk"] .app-container {
+    background: transparent !important;
+}
+
+html[data-theme="cyberpunk"] .main-content {
+    background: transparent !important;
+}
+
+/* ========== 漂浮粒子 ========== */
+html[data-theme="cyberpunk"] .particle {
+    position: fixed;
+    width: 2px;
+    height: 2px;
+    background: #00ffff;
+    box-shadow: 0 0 10px #00ffff;
+    animation: float 10s infinite;
+    z-index: 1;
+    pointer-events: none;
+}
+
+html[data-theme="cyberpunk"] .particle.magenta {
+    background: #ff00ff;
+    box-shadow: 0 0 10px #ff00ff;
+}
+
+html[data-theme="cyberpunk"] .particle.yellow {
+    background: #ffff00;
+    box-shadow: 0 0 10px #ffff00;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+}
+
+/* Override white backgrounds */
+html[data-theme="cyberpunk"] [style*="background: white"],
+html[data-theme="cyberpunk"] [style*="background:#fff"],
+html[data-theme="cyberpunk"] [style*="background: #fff"],
+html[data-theme="cyberpunk"] [style*="background-color: white"],
+html[data-theme="cyberpunk"] [style*="background-color: #fff"],
+html[data-theme="cyberpunk"] [style*="background-color:#fff"],
+html[data-theme="cyberpunk"] [style*="background: rgb(255"],
+html[data-theme="cyberpunk"] [style*="background: linear-gradient(135deg, #f"],
+html[data-theme="cyberpunk"] [style*="background: linear-gradient(to right"],
+html[data-theme="cyberpunk"] [style*="background-image: linear-gradient"] {
+    background-color: #0a0a0f !important;
+    background: #0a0a0f !important;
+}
+
+:root[data-theme="cyberpunk"] {
+    /* 赛博朋克 - 青色渐变风格 */
+    --primary-color: #00fff5;
+    --primary-hover: #66fffd;
+    --secondary-color: #00fff5;
+    --accent-color: #ffff00;
+    --danger-color: #ff3366;
+    --warning-color: #ff9900;
+    --success-color: #00ff66;
+
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-tertiary: #1a1a25;
+
+    --text-primary: #00fff5;  /* 青色主色调 */
+    --text-secondary: #b0b0cc;
+    --text-muted: #aaaaaa;
+
+    --border-color: #00fff5;
+    --border-radius: 2px;
+    --border-radius-lg: 4px;
+
+    --shadow-sm: 0 0 5px rgba(0, 255, 245, 0.3);
+    --shadow-md: 0 0 10px rgba(0, 255, 245, 0.4);
+    --shadow-lg: 0 0 20px rgba(0, 255, 245, 0.5);
+
+    --transition-fast: 0.1s ease;
+    --transition-normal: 0.2s ease;
+
+    --sidebar-width: 280px;
+    --header-height: 60px;
+
+    --font-family: 'Courier New', monospace;
+}
+
+/* Base cyberpunk overrides */
+[data-theme="cyberpunk"] {
+    color: var(--text-primary);
+}
+
+/* Cyberpunk glow effects */
+[data-theme="cyberpunk"] * {
+    text-shadow: 0 0 2px rgba(0, 255, 245, 0.3);
+}
+
+[data-theme="cyberpunk"] body {
+    background: linear-gradient(135deg, #0a0a0f 0%, #0a1215 30%, #0f0a15 60%, #0a0a0f 100%) !important;
+    background-attachment: fixed !important;
+    font-family: var(--font-family);
+    color: var(--text-primary) !important;
+    position: relative;
+}
+
+/* 赛博朋克网格背景 + 扫描线效果 - 合并版 */
+html[data-theme="cyberpunk"] body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image:
+        linear-gradient(rgba(0, 255, 245, 0.15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 245, 0.15) 1px, transparent 1px),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 255, 245, 0.03) 2px,
+            rgba(0, 255, 245, 0.03) 4px
+        );
+    background-size: 40px 40px, 40px 40px, 100% 100%;
+    pointer-events: none;
+    z-index: 0;
+    animation: gridPulse 4s ease-in-out infinite;
+}
+
+@keyframes gridPulse {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+}
+
+/* 随机光点效果 - 增强版 */
+html[data-theme="cyberpunk"] body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+        radial-gradient(circle at 15% 85%, rgba(0, 255, 245, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 15%, rgba(255, 0, 255, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(0, 255, 245, 0.08) 0%, transparent 30%),
+        radial-gradient(circle at 70% 80%, rgba(255, 255, 0, 0.05) 0%, transparent 25%),
+        radial-gradient(circle at 25% 25%, rgba(255, 0, 128, 0.06) 0%, transparent 35%);
+    pointer-events: none;
+    z-index: -1;
+    animation: lightSpots 15s ease-in-out infinite;
+}
+
+@keyframes lightSpots {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* 浮动数据流效果 - 使用伪元素 */
+[data-theme="cyberpunk"] .main-content::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 300px;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(0, 255, 245, 0.1) 20%,
+        rgba(0, 255, 245, 0.2) 50%,
+        rgba(0, 255, 245, 0.1) 80%,
+        transparent 100%
+    );
+    pointer-events: none;
+    z-index: -1;
+    animation: dataFlow 3s ease-in-out infinite;
+}
+
+@keyframes dataFlow {
+    0%, 100% { opacity: 0.3; transform: scaleY(0.9); }
+    50% { opacity: 0.6; transform: scaleY(1); }
+}
+
+/* 左侧装饰线 */
+[data-theme="cyberpunk"] .main-content::before {
+    content: '';
+    position: fixed;
+    top: 100px;
+    left: 280px;
+    width: 1px;
+    height: calc(100% - 120px);
+    background: linear-gradient(180deg, transparent 0%, rgba(0, 255, 245, 0.2) 20%, rgba(0, 255, 245, 0.2) 80%, transparent 100%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* 卡片发光角落 */
+[data-theme="cyberpunk"] .card::before,
+[data-theme="cyberpunk"] .info-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    border-top: 2px solid rgba(0, 255, 245, 0.5);
+    border-left: 2px solid rgba(0, 255, 245, 0.5);
+}
+
+[data-theme="cyberpunk"] .card::after,
+[data-theme="cyberpunk"] .info-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    border-bottom: 2px solid rgba(0, 255, 245, 0.5);
+    border-right: 2px solid rgba(0, 255, 245, 0.5);
+}
+
+/* 确保卡片有position relative */
+[data-theme="cyberpunk"] .card,
+[data-theme="cyberpunk"] .info-card,
+[data-theme="cyberpunk"] .structure-card,
+[data-theme="cyberpunk"] .literature-card {
+    position: relative;
+}
+
+/* Layout */
+[data-theme="cyberpunk"] .sidebar {
+    background: linear-gradient(180deg, #0d0d15 0%, #0a1515 100%) !important;
+    border-right: 2px solid #00fff5;
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.4), inset 0 0 50px rgba(0, 255, 245, 0.08);
+    position: relative;
+}
+
+/* 侧边栏发光边框动画 */
+[data-theme="cyberpunk"] .sidebar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: -2px;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(180deg, #00fff5 0%, transparent 30%, transparent 70%, #00fff5 100%);
+    animation: sidebarGlow 3s ease-in-out infinite;
+    opacity: 0.6;
+}
+
+@keyframes sidebarGlow {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+}
+
+/* 移除按钮发光效果 - 用户要求取消动画 */
+
+/*[data-theme="cyberpunk"] .btn {
+    position: relative;
+    overflow: hidden;
+}
+
+[data-theme="cyberpunk"] .btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 245, 0.3), transparent);
+    animation: btnShine 3s ease-in-out infinite;
+}
+
+@keyframes btnShine {
+    0%, 100% { left: -100%; }
+    50% { left: 100%; }
+}*/
+
+[data-theme="cyberpunk"] .main-content {
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .app-container {
+    background: transparent !important;
+    position: relative;
+    z-index: 1;
+}
+
+/* All cards with neon glow and gradient */
+[data-theme="cyberpunk"] .card,
+[data-theme="cyberpunk"] .info-card,
+[data-theme="cyberpunk"] .structure-card,
+[data-theme="cyberpunk"] .literature-card,
+[data-theme="cyberpunk"] .detail-card,
+[data-theme="cyberpunk"] .entity-card-expanded,
+[data-theme="cyberpunk"] .uniprot-card {
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.95) 0%, rgba(15, 20, 30, 0.9) 100%) !important;
+    background-color: var(--bg-primary) !important;
+    border: 1px solid var(--primary-color) !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.25), inset 0 0 20px rgba(0, 255, 245, 0.03);
+    transition: all 0.2s ease !important;
+}
+
+[data-theme="cyberpunk"] .entity-card-header,
+[data-theme="cyberpunk"] .entity-card-body,
+[data-theme="cyberpunk"] .entity-card-title,
+[data-theme="cyberpunk"] .entity-card-meta,
+[data-theme="cyberpunk"] .entity-title-text,
+[data-theme="cyberpunk"] .entity-title-main,
+[data-theme="cyberpunk"] .entity-title-sub,
+[data-theme="cyberpunk"] .entity-meta-badge {
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.95) 0%, rgba(15, 20, 30, 0.9) 100%) !important;
+    background-color: var(--bg-primary) !important;
+    border: none !important;
+    color: var(--text-primary) !important;
+    box-shadow: none !important;
+    transition: all 0.2s ease !important;
+}
+
+/* Cards hover - 只保留可交互卡片的悬停效果 */
+[data-theme="cyberpunk"] .literature-card:hover {
+    background: linear-gradient(135deg, rgba(25, 25, 45, 0.95) 0%, rgba(20, 25, 40, 0.9) 100%) !important;
+    box-shadow: 0 0 25px rgba(0, 255, 245, 0.5), 0 0 50px rgba(0, 255, 245, 0.2), inset 0 0 30px rgba(0, 255, 245, 0.05) !important;
+    transform: translateY(-2px);
+    border-color: var(--primary-hover) !important;
+}
+
+/* 不可交互卡片移除悬停效果 - 覆盖components.css */
+[data-theme="cyberpunk"] .card:hover,
+[data-theme="cyberpunk"] .info-card:hover,
+[data-theme="cyberpunk"] .detail-card:hover,
+[data-theme="cyberpunk"] .entity-card:hover,
+html[data-theme="cyberpunk"] .info-card:hover,
+html[data-theme="cyberpunk"] .entity-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: inherit !important;
+    cursor: default !important;
+}
+
+/* Override inline white backgrounds from template */
+[data-theme="cyberpunk"] .entity-card-expanded,
+[data-theme="cyberpunk"] .entity-card-header {
+    background: rgba(20, 20, 30, 0.9) !important;
+    background-color: var(--bg-primary) !important;
+    border: none !important;
+}
+
+/* Override info-card header gradient */
+[data-theme="cyberpunk"] .info-card .card-header {
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.95) 0%, rgba(15, 15, 25, 0.9) 100%) !important;
+    background-color: var(--bg-primary) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.2);
+}
+
+[data-theme="cyberpunk"] .card:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.4) !important;
+    border-color: var(--primary-hover) !important;
+}
+
+[data-theme="cyberpunk"] .card-header,
+[data-theme="cyberpunk"] .card-content,
+[data-theme="cyberpunk"] .card-footer {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="cyberpunk"] .card-title {
+    background: linear-gradient(90deg, #00fff5, #ff00ff, #00fff5) !important;
+    background-size: 200% 100% !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+    animation: titleGradient 4s ease infinite;
+}
+
+[data-theme="cyberpunk"] .card-subtitle {
+    color: var(--text-secondary) !important;
+}
+
+/* Modals */
+[data-theme="cyberpunk"] .modal-content {
+    background: linear-gradient(135deg, rgba(15, 15, 25, 0.98) 0%, rgba(10, 10, 18, 0.95) 100%) !important;
+    border: 2px solid var(--primary-color) !important;
+    box-shadow: 0 0 40px rgba(0, 255, 245, 0.4), inset 0 0 30px rgba(0, 255, 245, 0.05);
+    color: var(--text-primary) !important;
+}
+
+[data-theme="cyberpunk"] .modal-header,
+[data-theme="cyberpunk"] .modal-body,
+[data-theme="cyberpunk"] .modal-footer {
+    background: rgba(10, 10, 15, 0.95) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="cyberpunk"] .modal-overlay {
+    background: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Forms */
+[data-theme="cyberpunk"] input,
+[data-theme="cyberpunk"] select,
+[data-theme="cyberpunk"] textarea {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border: 1px solid var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    font-family: var(--font-family);
+}
+
+[data-theme="cyberpunk"] input:focus,
+[data-theme="cyberpunk"] select:focus,
+[data-theme="cyberpunk"] textarea:focus {
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.5) !important;
+    outline: none;
+}
+
+[data-theme="cyberpunk"] input::placeholder,
+[data-theme="cyberpunk"] textarea::placeholder {
+    color: var(--text-muted) !important;
+}
+
+/* Buttons - all transparent background */
+[data-theme="cyberpunk"] .btn {
+    border: 1px solid var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    font-family: var(--font-family);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: transparent !important;
+    transition: all 0.2s ease !important;
+}
+
+[data-theme="cyberpunk"] .btn:hover {
+    background: rgba(0, 255, 245, 0.15) !important;
+    color: #00fff5 !important;
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.5) !important;
+}
+
+[data-theme="cyberpunk"] .btn-primary {
+    background: transparent !important;
+    border: 1px solid #00fff5 !important;
+    color: #00fff5 !important;
+}
+
+/* Button SVG icons - cyan color for visibility on transparent buttons */
+[data-theme="cyberpunk"] .btn,
+[data-theme="cyberpunk"] .btn-primary,
+[data-theme="cyberpunk"] .btn-secondary,
+[data-theme="cyberpunk"] .btn-danger,
+[data-theme="cyberpunk"] .action-btn,
+[data-theme="cyberpunk"] button {
+    color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .btn svg,
+[data-theme="cyberpunk"] .btn-primary svg,
+[data-theme="cyberpunk"] .btn-secondary svg,
+[data-theme="cyberpunk"] .btn-danger svg,
+[data-theme="cyberpunk"] .action-btn svg,
+[data-theme="cyberpunk"] button svg {
+    background: transparent !important;
+}
+
+/* Search and Upload buttons - transparent background */
+[data-theme="cyberpunk"] .search-btn,
+[data-theme="cyberpunk"] .upload-btn {
+    background: transparent !important;
+    border: 1px solid #00fff5 !important;
+    color: #00fff5 !important;
+    box-shadow: none !important;
+}
+
+[data-theme="cyberpunk"] .search-btn:hover,
+[data-theme="cyberpunk"] .upload-btn:hover {
+    background: rgba(0, 255, 245, 0.15) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.4) !important;
+}
+
+/* Send button - cyberpunk cyan */
+[data-theme="cyberpunk"] .send-btn {
+    background: transparent !important;
+    border: 1px solid #00fff5 !important;
+    color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .send-btn:hover {
+    background: rgba(0, 255, 245, 0.2) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.4) !important;
+}
+
+/* Nav item active - single left border */
+[data-theme="cyberpunk"] .nav-item.active a {
+    background: rgba(0, 255, 245, 0.1) !important;
+    border: none !important;
+    border-left: 3px solid #00fff5 !important;
+    padding-left: 17px;
+}
+
+/* Chat avatar - cyan */
+[data-theme="cyberpunk"] .message-avatar {
+    background: linear-gradient(135deg, rgba(0, 255, 245, 0.3), rgba(255, 0, 255, 0.2)) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.4) !important;
+}
+
+[data-theme="cyberpunk"] .message.user .message-avatar {
+    background: linear-gradient(135deg, rgba(255, 0, 255, 0.3), rgba(0, 255, 245, 0.2)) !important;
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.4) !important;
+}
+
+/* Welcome message checkmarks - cyan */
+[data-theme="cyberpunk"] .welcome-message li::before {
+    background: linear-gradient(135deg, rgba(0, 255, 245, 0.4), rgba(255, 0, 255, 0.3)) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.4) !important;
+}
+
+[data-theme="cyberpunk"] .welcome-message li::after {
+    border-color: #000 !important;
+}
+
+/* Tab border fix - complete border for all tabs */
+html[data-theme="cyberpunk"] .detail-tabs {
+    border-bottom: 2px solid rgba(0, 255, 245, 0.5) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 0 10px 0 !important;
+    margin-bottom: 15px !important;
+}
+
+html[data-theme="cyberpunk"] .detail-tabs .tab-btn {
+    border-bottom: 2px solid transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #00fff5 !important;
+    transition: all 0.2s ease !important;
+}
+
+html[data-theme="cyberpunk"] .detail-tabs .tab-btn:hover {
+    border-bottom-color: rgba(0, 255, 245, 0.7) !important;
+    background: rgba(0, 255, 245, 0.1) !important;
+}
+
+html[data-theme="cyberpunk"] .detail-tabs .tab-btn.active {
+    border-bottom-color: #00fff5 !important;
+    background: rgba(0, 255, 245, 0.15) !important;
+}
+
+/* Navigation */
+[data-theme="cyberpunk"] .nav-item {
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+[data-theme="cyberpunk"] .nav-item:hover {
+    background: linear-gradient(90deg, rgba(0, 255, 245, 0.1) 0%, rgba(0, 255, 245, 0.15) 50%, rgba(0, 255, 245, 0.1) 100%) !important;
+    box-shadow: inset 0 0 20px rgba(0, 255, 245, 0.1) !important;
+}
+
+[data-theme="cyberpunk"] .nav-item.active {
+    background: rgba(0, 255, 245, 0.1) !important;
+    box-shadow: none !important;
+}
+
+/* 导航项 - 图标青色，文字渐变 */
+[data-theme="cyberpunk"] .nav-item a {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+[data-theme="cyberpunk"] .nav-item a .nav-icon {
+    color: #00fff5 !important;
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    -webkit-text-fill-color: #00fff5 !important;
+    text-shadow: 0 0 5px #00fff5 !important;
+    flex-shrink: 0 !important;
+}
+
+/* 侧栏导航标题 - 纯青色 */
+[data-theme="cyberpunk"] .nav-item a span:not(.nav-icon),
+[data-theme="cyberpunk"] .nav-item span:not(.nav-icon),
+html[data-theme="cyberpunk"] .sidebar-nav .nav-item a span {
+    color: #00fff5 !important;
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    -webkit-text-fill-color: #00fff5 !important;
+    text-shadow: 0 0 8px rgba(0, 255, 245, 0.5) !important;
+    animation: none !important;
+}
+
+/* Stats */
+[data-theme="cyberpunk"] .stats-grid {
+    background: linear-gradient(135deg, rgba(10, 10, 20, 0.8) 0%, rgba(15, 15, 30, 0.7) 100%) !important;
+    border: 1px solid var(--primary-color) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.3), inset 0 0 20px rgba(0, 255, 245, 0.05);
+}
+
+[data-theme="cyberpunk"] .stat-value {
+    color: var(--accent-color) !important;
+    text-shadow: 0 0 5px var(--accent-color);
+}
+
+[data-theme="cyberpunk"] .stat-label {
+    color: var(--text-secondary) !important;
+}
+
+/* Badges */
+[data-theme="cyberpunk"] .badge {
+    border: none !important;
+    color: var(--primary-color) !important;
+    text-transform: uppercase !important;
+    background: linear-gradient(135deg, rgba(0, 255, 245, 0.1) 0%, rgba(0, 255, 245, 0.05) 100%) !important;
+}
+
+/* Tables */
+[data-theme="cyberpunk"] table {
+    border: none !important;
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.85) 0%, rgba(15, 15, 25, 0.8) 100%) !important;
+}
+
+[data-theme="cyberpunk"] th,
+[data-theme="cyberpunk"] td {
+    border: none !important;
+    color: var(--text-primary) !important;
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.85) 0%, rgba(15, 15, 25, 0.8) 100%) !important;
+}
+
+[data-theme="cyberpunk"] thead th {
+    background: linear-gradient(180deg, rgba(0, 255, 245, 0.15) 0%, rgba(0, 255, 245, 0.08) 100%) !important;
+    color: var(--primary-color) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.2);
+}
+
+/* Tabs */
+[data-theme="cyberpunk"] .tabs {
+    border-bottom: 2px solid var(--primary-color) !important;
+}
+
+[data-theme="cyberpunk"] .tab {
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="cyberpunk"] .tab:hover {
+    color: var(--primary-color) !important;
+    border-bottom-color: rgba(0, 255, 245, 0.5) !important;
+}
+
+[data-theme="cyberpunk"] .tab.active {
+    border: none !important;
+    border-bottom: 2px solid var(--primary-color) !important;
+    background: linear-gradient(180deg, rgba(0, 255, 245, 0.15) 0%, rgba(0, 255, 245, 0.05) 100%) !important;
+    color: var(--primary-color) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.3);
+}
+
+[data-theme="cyberpunk"] .tab-content {
+    background: transparent !important;
+    border: 1px solid rgba(0, 255, 245, 0.15) !important;
+    box-shadow: none !important;
+    margin-top: 10px !important;
+}
+
+/* tab与content之间的分割线 */
+[data-theme="cyberpunk"] .detail-tabs {
+    border-bottom: 2px solid rgba(0, 255, 245, 0.3) !important;
+    padding-bottom: 5px !important;
+}
+
+/* Info Grid */
+[data-theme="cyberpunk"] .info-grid {
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.85) 0%, rgba(15, 15, 25, 0.8) 100%) !important;
+    border: 1px solid var(--primary-color) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.25);
+}
+
+[data-theme="cyberpunk"] .info-item {
+    background: transparent !important;
+    border: none !important;
+}
+
+[data-theme="cyberpunk"] .info-item label {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="cyberpunk"] .info-item p {
+    color: var(--text-primary) !important;
+}
+
+/* Search */
+[data-theme="cyberpunk"] .search-box {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.4) 100%) !important;
+    border: 1px solid var(--primary-color) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.2);
+    transition: all 0.3s ease !important;
+}
+
+[data-theme="cyberpunk"] .search-box:focus-within {
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.4), 0 0 40px rgba(0, 255, 245, 0.1) !important;
+    border-color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .search-input {
+    background: transparent !important;
+    color: var(--primary-color) !important;
+}
+
+[data-theme="cyberpunk"] .search-input::placeholder {
+    color: rgba(0, 255, 245, 0.5) !important;
+}
+
+[data-theme="cyberpunk"] .search-input:focus {
+    outline: none !important;
+}
+
+/* Chat History Drawer */
+[data-theme="cyberpunk"] .chat-history-panel {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 20, 40, 0.95) 100%) !important;
+    backdrop-filter: blur(12px) !important;
+    border-left: 1px solid #00fff5 !important;
+    box-shadow: -4px 0 30px rgba(0, 255, 245, 0.2) !important;
+}
+
+[data-theme="cyberpunk"] .chat-history-header {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-bottom: 1px solid rgba(0, 255, 245, 0.3) !important;
+}
+
+[data-theme="cyberpunk"] .chat-history-toggle {
+    background: linear-gradient(135deg, #00fff5 0%, #00b8b8 100%) !important;
+    box-shadow: 0 4px 20px rgba(0, 255, 245, 0.4) !important;
+}
+
+[data-theme="cyberpunk"] .chat-history-toggle:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 245, 0.6), 0 6px 28px rgba(0, 255, 245, 0.3) !important;
+}
+
+[data-theme="cyberpunk"] .chat-history-overlay {
+    background: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Chat Sidebar - Left sidebar for conversation history */
+[data-theme="cyberpunk"] .chat-sidebar {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 20, 40, 0.9) 100%) !important;
+    border-right: 1px solid rgba(0, 255, 245, 0.3) !important;
+}
+
+[data-theme="cyberpunk"] .sidebar-header {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-bottom: 1px solid rgba(0, 255, 245, 0.2) !important;
+}
+
+[data-theme="cyberpunk"] .sidebar-conversations {
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .sidebar-footer {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-top: 1px solid rgba(0, 255, 245, 0.2) !important;
+}
+
+/* History items in sidebar */
+[data-theme="cyberpunk"] .history-item {
+    background: rgba(0, 20, 40, 0.6) !important;
+    border: 1px solid rgba(0, 255, 245, 0.15) !important;
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
+}
+
+[data-theme="cyberpunk"] .history-item:hover {
+    background: rgba(0, 255, 245, 0.1) !important;
+    border-color: rgba(0, 255, 245, 0.4) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.2) !important;
+}
+
+[data-theme="cyberpunk"] .history-item.active {
+    background: rgba(0, 255, 245, 0.15) !important;
+    border-color: #00fff5 !important;
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.3) !important;
+}
+
+[data-theme="cyberpunk"] .history-question {
+    color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .history-time {
+    color: rgba(0, 255, 245, 0.6) !important;
+}
+
+[data-theme="cyberpunk"] .history-date {
+    color: #ff00ff !important;
+    border-bottom: 1px solid rgba(255, 0, 255, 0.3) !important;
+}
+
+/* Chat main area */
+[data-theme="cyberpunk"] .chat-main {
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .chat-header {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border-bottom: 1px solid rgba(0, 255, 245, 0.2) !important;
+}
+
+[data-theme="cyberpunk"] .chat-title {
+    color: #00fff5 !important;
+    text-shadow: 0 0 10px rgba(0, 255, 245, 0.5) !important;
+}
+
+[data-theme="cyberpunk"] .chat-messages-container {
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .welcome-screen {
+    background: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(0, 255, 245, 0.2) !important;
+    border-radius: 16px !important;
+}
+
+[data-theme="cyberpunk"] .welcome-title {
+    color: #00fff5 !important;
+    text-shadow: 0 0 15px rgba(0, 255, 245, 0.5) !important;
+}
+
+[data-theme="cyberpunk"] .welcome-subtitle {
+    color: rgba(0, 255, 245, 0.7) !important;
+}
+
+[data-theme="cyberpunk"] .welcome-prompt {
+    background: rgba(0, 20, 40, 0.8) !important;
+    border: 1px solid rgba(0, 255, 245, 0.3) !important;
+    color: #00fff5 !important;
+    border-radius: 8px !important;
+}
+
+[data-theme="cyberpunk"] .welcome-prompt:hover {
+    background: rgba(0, 255, 245, 0.15) !important;
+    border-color: #00fff5 !important;
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.3) !important;
+}
+
+/* Chat input area */
+[data-theme="cyberpunk"] .chat-input-area {
+    background: rgba(0, 0, 0, 0.6) !important;
+    border-top: 1px solid rgba(0, 255, 245, 0.2) !important;
+}
+
+[data-theme="cyberpunk"] .input-container {
+    background: rgba(0, 20, 40, 0.8) !important;
+    border: 1px solid rgba(0, 255, 245, 0.3) !important;
+    border-radius: 12px !important;
+}
+
+[data-theme="cyberpunk"] #chat-input {
+    background: transparent !important;
+    color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] #chat-input::placeholder {
+    color: rgba(0, 255, 245, 0.5) !important;
+}
+
+[data-theme="cyberpunk"] .model-select-wrapper select {
+    background: rgba(0, 0, 0, 0.6) !important;
+    border: 1px solid rgba(0, 255, 245, 0.3) !important;
+    color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .rag-btn {
+    background: transparent !important;
+    border: 1px solid rgba(0, 255, 245, 0.3) !important;
+    color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .rag-btn.active {
+    background: #00fff5 !important;
+    color: #0a0a0f !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.5) !important;
+}
+
+[data-theme="cyberpunk"] .send-btn {
+    background: linear-gradient(135deg, #00fff5 0%, #00b8b8 100%) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.4) !important;
+}
+
+[data-theme="cyberpunk"] .send-btn:hover {
+    background: linear-gradient(135deg, #00ffff 0%, #00d4d4 100%) !important;
+    box-shadow: 0 0 25px rgba(0, 255, 245, 0.6) !important;
+}
+
+[data-theme="cyberpunk"] .input-hint {
+    color: rgba(0, 255, 245, 0.5) !important;
+}
+
+/* Right panel - Search results */
+[data-theme="cyberpunk"] .chat-right-panel {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 20, 40, 0.95) 100%) !important;
+    border-left: 1px solid rgba(0, 255, 245, 0.3) !important;
+}
+
+[data-theme="cyberpunk"] .right-panel-header h3 {
+    color: #00fff5 !important;
+    border-bottom: 1px solid rgba(0, 255, 245, 0.2) !important;
+}
+
+[data-theme="cyberpunk"] .search-result-item {
+    background: rgba(0, 20, 40, 0.6) !important;
+    border: 1px solid rgba(0, 255, 245, 0.15) !important;
+    border-radius: 8px !important;
+}
+
+[data-theme="cyberpunk"] .result-title {
+    color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .result-abstract {
+    color: rgba(0, 255, 245, 0.7) !important;
+}
+
+/* User and AI messages */
+[data-theme="cyberpunk"] .message.user {
+    background: rgba(0, 255, 245, 0.1) !important;
+    border: 1px solid rgba(0, 255, 245, 0.3) !important;
+}
+
+[data-theme="cyberpunk"] .message.ai {
+    background: rgba(255, 0, 255, 0.1) !important;
+    border: 1px solid rgba(255, 0, 255, 0.3) !important;
+}
+
+/* Pagination */
+[data-theme="cyberpunk"] .pagination {
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .page-btn {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.4) 100%) !important;
+    border: 1px solid var(--primary-color) !important;
+    color: var(--primary-color) !important;
+}
+
+[data-theme="cyberpunk"] .page-btn:hover {
+    background: linear-gradient(135deg, rgba(0, 255, 245, 0.3) 0%, rgba(0, 255, 245, 0.15) 100%) !important;
+    color: var(--bg-primary) !important;
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.5) !important;
+}
+
+[data-theme="cyberpunk"] .page-info {
+    color: var(--text-secondary) !important;
+}
+
+/* Empty state */
+[data-theme="cyberpunk"] .empty-state {
+    color: var(--text-muted) !important;
+    border: 1px dashed var(--primary-color) !important;
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.85) 0%, rgba(15, 15, 25, 0.8) 100%) !important;
+}
+
+/* Toast */
+[data-theme="cyberpunk"] .toast {
+    border: 1px solid var(--primary-color) !important;
+    background: linear-gradient(135deg, rgba(15, 15, 25, 0.95) 0%, rgba(10, 10, 18, 0.9) 100%) !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.3);
+}
+
+/* Upload */
+[data-theme="cyberpunk"] .upload-zone {
+    border: 2px dashed var(--primary-color) !important;
+    background: linear-gradient(135deg, rgba(0, 255, 245, 0.05) 0%, rgba(0, 255, 245, 0.02) 100%) !important;
+}
+
+[data-theme="cyberpunk"] .upload-zone:hover {
+    border-color: var(--secondary-color) !important;
+    background: linear-gradient(135deg, rgba(0, 255, 245, 0.15) 0%, rgba(0, 255, 245, 0.08) 100%) !important;
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.3), inset 0 0 20px rgba(0, 255, 245, 0.1) !important;
+}
+
+[data-theme="cyberpunk"] .upload-icon {
+    color: var(--text-muted) !important;
+}
+
+/* Action items */
+[data-theme="cyberpunk"] .action-item {
+    color: var(--primary-color) !important;
+}
+
+[data-theme="cyberpunk"] .action-item:hover,
+[data-theme="cyberpunk"] .action-item.active {
+    background: rgba(25, 118, 210, 0.15) !important;
+    border-left: 3px solid var(--primary-color) !important;
+}
+
+[data-theme="cyberpunk"] .action-icon {
+    color: var(--primary-color) !important;
+}
+
+[data-theme="cyberpunk"] .action-text {
+    color: var(--primary-color) !important;
+}
+
+[data-theme="cyberpunk"] .action-item:first-child .action-icon {
+    font-size: 18px !important;
+    margin-right: 4px !important;
+}
+
+/* Related structures */
+[data-theme="cyberpunk"] .related-id {
+    border: none !important;
+    color: var(--secondary-color) !important;
+    text-shadow: 0 0 5px var(--secondary-color) !important;
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .related-id.emdb {
+    color: #00fff5 !important;
+    text-shadow: 0 0 8px #00fff5 !important;
+    background: linear-gradient(135deg, rgba(0, 255, 245, 0.1) 0%, rgba(0, 255, 245, 0.05) 100%) !important;
+}
+
+[data-theme="cyberpunk"] .related-id.pdb {
+    color: #00ff66 !important;
+    text-shadow: 0 0 8px #00ff66 !important;
+}
+
+/* PDF Viewer */
+[data-theme="cyberpunk"] .pdf-viewer {
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.85) 0%, rgba(15, 15, 25, 0.8) 100%) !important;
+    border: 1px solid var(--primary-color) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.25);
+}
+
+[data-theme="cyberpunk"] .pdf-placeholder {
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.85) 0%, rgba(15, 15, 25, 0.8) 100%) !important;
+    border: 1px solid var(--primary-color) !important;
+    color: var(--text-muted) !important;
+}
+
+[data-theme="cyberpunk"] .pdf-toolbar {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.4) 100%) !important;
+    border-bottom: 1px solid var(--primary-color) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.2);
+}
+
+[data-theme="cyberpunk"] .pdf-filename {
+    color: var(--primary-color) !important;
+}
+
+/* Headings and text */
+[data-theme="cyberpunk"] h1, [data-theme="cyberpunk"] h2, [data-theme="cyberpunk"] h3,
+[data-theme="cyberpunk"] h4, [data-theme="cyberpunk"] h5, [data-theme="cyberpunk"] h6 {
+    background: linear-gradient(90deg, #00fff5, #ff00ff) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+}
+
+[data-theme="cyberpunk"] p {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="cyberpunk"] a {
+    color: var(--primary-color) !important;
+    text-shadow: 0 0 3px var(--primary-color);
+}
+
+[data-theme="cyberpunk"] a:hover {
+    color: var(--secondary-color) !important;
+    text-shadow: 0 0 5px var(--secondary-color);
+}
+
+/* Toggle */
+[data-theme="cyberpunk"] .toggle-label {
+    color: var(--primary-color) !important;
+}
+
+/* Action buttons - transparent background */
+[data-theme="cyberpunk"] .action-btn {
+    border: 1px solid var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .action-btn:hover {
+    background: rgba(0, 255, 245, 0.15) !important;
+    color: #00fff5 !important;
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.5) !important;
+}
+
+/* Grid layouts */
+[data-theme="cyberpunk"] .literature-grid,
+[data-theme="cyberpunk"] .structure-grid,
+[data-theme="cyberpunk"] .card-grid {
+    background: transparent !important;
+}
+
+/* Sidebar sections */
+[data-theme="cyberpunk"] .sidebar-header {
+    border-bottom: 1px solid var(--primary-color);
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.4), inset 0 0 20px rgba(0, 255, 245, 0.05);
+}
+
+/* Logo text - 动态渐变效果 - 强制应用 - 覆盖main.css */
+html[data-theme="cyberpunk"] .logo-text,
+html[data-theme="cyberpunk"] .sidebar .logo-text,
+[data-theme="cyberpunk"] .sidebar .logo-text,
+body.cyberpunk-logo .logo-text,
+.logo-text.cyberpunk-gradient {
+    background: linear-gradient(90deg, #00fff5, #ff00ff, #00fff5, #ffff00, #00fff5) !important;
+    background-size: 300% 100% !important;
+    background-clip: text !important;
+    -webkit-background-clip: text !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+    animation: logoGradient 2s linear infinite !important;
+    font-weight: bold !important;
+    font-size: 18px !important;
+    letter-spacing: 3px !important;
+    display: inline-block !important;
+    -webkit-animation: logoGradient 2s linear infinite !important;
+}
+
+@keyframes logoGradient {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+}
+
+/* 赛博主题logo - 直接样式不依赖data-theme */
+body.cyberpunk-logo .logo-text,
+body.cyberpunk-logo .sidebar .logo-text,
+body.theme-cyberpunk .logo-text {
+    background: linear-gradient(90deg, #00fff5, #ff00ff, #00fff5, #ffff00, #00fff5) !important;
+    background-size: 300% 100% !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    animation: logoGradient 2s linear infinite !important;
+    -webkit-animation: logoGradient 2s linear infinite !important;
+}
+
+/* 确保logo区域可见 */
+[data-theme="cyberpunk"] .logo {
+    background: transparent !important;
+    padding: 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+[data-theme="cyberpunk"] .logo-icon {
+    font-size: 24px !important;
+    color: #00fff5 !important;
+    text-shadow: 0 0 10px #00fff5, 0 0 20px #00fff5 !important;
+    animation: iconPulse 2s ease-in-out infinite !important;
+}
+
+@keyframes iconPulse {
+    0%, 100% { opacity: 1; text-shadow: 0 0 10px #00fff5, 0 0 20px #00fff5; }
+    50% { opacity: 0.8; text-shadow: 0 0 15px #00fff5, 0 0 30px #ff00ff; }
+}
+
+@keyframes titleGradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+[data-theme="cyberpunk"] .logo-icon,
+[data-theme="cyberpunk"] .nav-icon {
+    color: #00fff5 !important;
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    -webkit-text-fill-color: #00fff5 !important;
+    text-shadow: 0 0 5px #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .sidebar-stats,
+[data-theme="cyberpunk"] .sidebar-upload,
+[data-theme="cyberpunk"] .sidebar-settings,
+[data-theme="cyberpunk"] #theme-switcher {
+    border-top: 1px solid rgba(0, 255, 245, 0.3);
+    padding: 15px 20px;
+}
+
+/* Upload log container */
+[data-theme="cyberpunk"] #upload-log-container {
+    background: rgba(0, 0, 0, 0.7) !important;
+    border: 1px solid rgba(0, 255, 245, 0.3);
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.2);
+}
+
+[data-theme="cyberpunk"] #upload-logs {
+    color: #00fff5 !important;
+    text-shadow: 0 0 3px #00fff5;
+}
+
+[data-theme="cyberpunk"] .sidebar-stats h4,
+[data-theme="cyberpunk"] .sidebar-upload h4,
+[data-theme="cyberpunk"] .sidebar-settings h4,
+[data-theme="cyberpunk"] #theme-switcher h4 {
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    margin: 0 0 12px 0 !important;
+    padding: 0 !important;
+    background: linear-gradient(90deg, #00fff5, #ff00ff) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+}
+
+/* Title section */
+[data-theme="cyberpunk"] .page-title {
+    background: linear-gradient(90deg, #00fff5, #ff00ff) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+}
+
+/* Filters */
+[data-theme="cyberpunk"] .filter-group {
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.85) 0%, rgba(15, 15, 25, 0.8) 100%) !important;
+    border: none !important;
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.15);
+}
+
+[data-theme="cyberpunk"] .filter-label {
+    color: var(--text-secondary) !important;
+}
+
+/* Logo - 动态渐变 */
+[data-theme="cyberpunk"] .logo-text {
+    background: linear-gradient(90deg, #00fff5, #ff00ff, #00fff5, #ffff00, #00fff5) !important;
+    background-size: 300% 100% !important;
+    background-clip: text !important;
+    -webkit-background-clip: text !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+    animation: logoGradient 2s linear infinite !important;
+    font-weight: bold !important;
+    letter-spacing: 3px !important;
+    font-size: 18px !important;
+}
+
+/* Scrollbar */
+[data-theme="cyberpunk"] ::-webkit-scrollbar {
+    background: rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-theme="cyberpunk"] ::-webkit-scrollbar-thumb {
+    background: var(--primary-color) !important;
+    box-shadow: 0 0 5px var(--primary-color);
+}
+
+/* Catch-all: Force cyberpunk background on all common elements */
+[data-theme="cyberpunk"] div,
+[data-theme="cyberpunk"] section,
+[data-theme="cyberpunk"] article,
+[data-theme="cyberpunk"] main,
+[data-theme="cyberpunk"] header,
+[data-theme="cyberpunk"] footer {
+    background-color: transparent !important;
+}
+
+/* Override inline white backgrounds */
+[data-theme="cyberpunk"] [style*="#f5f7fa"],
+[data-theme="cyberpunk"] [style*="#e4e8ec"],
+[data-theme="cyberpunk"] [style*="#f5f5f5"],
+[data-theme="cyberpunk"] [style*="#f8f9fa"],
+[data-theme="cyberpunk"] [style*="#e9ecef"],
+[data-theme="cyberpunk"] [style*="#dee2e6"],
+[data-theme="cyberpunk"] [style*="background: #fff"],
+[data-theme="cyberpunk"] [style*="background:#fff"],
+[data-theme="cyberpunk"] [style*="background: white"],
+[data-theme="cyberpunk"] [style*="background:white"],
+[data-theme="cyberpunk"] [style*="background-color: white"],
+[data-theme="cyberpunk"] [style*="background-color:#fff"],
+[data-theme="cyberpunk"] [style*="background-color: #fff"],
+[data-theme="cyberpunk"] [style*="linear-gradient(135deg, #f5f7fa"],
+[data-theme="cyberpunk"] [style*="linear-gradient(135deg, #f8f9fa"],
+[data-theme="cyberpunk"] [style*="linear-gradient(135deg, #1976d2"],
+[data-theme="cyberpunk"] [style*="rgba(25, 118, 210, 0.1)"],
+[data-theme="cyberpunk"] [style*="rgba(255,255,255,0.2)"],
+[data-theme="cyberpunk"] [style*="#e8f5e9"],
+[data-theme="cyberpunk"] [style*="#e3f2fd"],
+[data-theme="cyberpunk"] [style*="#fff3e0"],
+[data-theme="cyberpunk"] [style*="#f3e5f5"],
+[data-theme="cyberpunk"] [style*="#ffebee"] {
+    background-color: var(--bg-primary) !important;
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.92) 0%, rgba(15, 15, 25, 0.88) 100%) !important;
+}
+
+/* Entity card styles - 隐藏边框，与大背景融合，但保留直角装饰 */
+[data-theme="cyberpunk"] .entity-card-expanded {
+    background: transparent !important;
+    border: 1px solid rgba(0, 255, 245, 0.15) !important;
+    box-shadow: none !important;
+}
+
+[data-theme="cyberpunk"] .entity-card-header {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+[data-theme="cyberpunk"] .entity-card-body,
+[data-theme="cyberpunk"] .entity-card-title,
+[data-theme="cyberpunk"] .entity-card-meta {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* UniProt card - 隐藏边框，与大背景融合 */
+[data-theme="cyberpunk"] .uniprot-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Sequence alignment boxes */
+[data-theme="cyberpunk"] [style*="background: linear-gradient(135deg, #f8f9fa"],
+[data-theme="cyberpunk"] [style*="background: #e3f2fd"],
+[data-theme="cyberpunk"] [style*="background: #f3e5f5"],
+[data-theme="cyberpunk"] [style*="background: #fff3e0"],
+[data-theme="cyberpunk"] [style*="background: #ffebee"] {
+    background-color: var(--bg-primary) !important;
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.92) 0%, rgba(15, 15, 25, 0.88) 100%) !important;
+}
+
+/* Comparison results boxes - 隐藏边框，与大背景融合 */
+[data-theme="cyberpunk"] .comparison-results,
+[data-theme="cyberpunk"] .alignment-box {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Structure card components - 结构卡片隐藏边框但保留直角装饰，literature-card保留外边框 */
+[data-theme="cyberpunk"] .structure-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    position: relative !important;
+}
+
+/* literature-card 保留外边框 */
+[data-theme="cyberpunk"] .literature-card {
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.85) 0%, rgba(15, 15, 25, 0.8) 100%) !important;
+    border: 1px solid rgba(0, 255, 245, 0.2) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.15) !important;
+}
+
+[data-theme="cyberpunk"] .structure-card-header,
+[data-theme="cyberpunk"] .structure-card-body,
+[data-theme="cyberpunk"] .structure-card-footer,
+[data-theme="cyberpunk"] .structure-badges,
+[data-theme="cyberpunk"] .structure-context,
+[data-theme="cyberpunk"] .meta-tag,
+[data-theme="cyberpunk"] .structure-links,
+[data-theme="cyberpunk"] .info-grid,
+[data-theme="cyberpunk"] .info-item,
+[data-theme="cyberpunk"] .structure-title,
+[data-theme="cyberpunk"] .resolution-badge,
+[data-theme="cyberpunk"] .id-pdb,
+[data-theme="cyberpunk"] .id-emdb,
+[data-theme="cyberpunk"] .id-badge,
+[data-theme="cyberpunk"] .structure-link {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* structure-link colors for cyberpunk theme */
+[data-theme="cyberpunk"] .structure-link:first-child {
+    color: #00fff5 !important;
+    border: 1px solid #00fff5 !important;
+}
+[data-theme="cyberpunk"] .structure-link:last-child {
+    color: #ff00ff !important;
+    border: 1px solid #ff00ff !important;
+}
+
+[data-theme="cyberpunk"] .structure-context,
+[data-theme="cyberpunk"] .meta-tag,
+[data-theme="cyberpunk"] .structure-links,
+[data-theme="cyberpunk"] .info-grid,
+[data-theme="cyberpunk"] .info-item,
+[data-theme="cyberpunk"] .structure-title,
+[data-theme="cyberpunk"] .resolution-badge,
+[data-theme="cyberpunk"] .id-pdb,
+[data-theme="cyberpunk"] .id-emdb,
+[data-theme="cyberpunk"] .id-badge,
+[data-theme="cyberpunk"] .structure-header,
+[data-theme="cyberpunk"] .structure-meta,
+[data-theme="cyberpunk"] .meta-item {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Structure Pair Styles for Cyberpunk Theme */
+[data-theme="cyberpunk"] .structure-pair {
+    gap: 10px;
+}
+
+[data-theme="cyberpunk"] .structure-item {
+    background: rgba(255, 0, 255, 0.1);
+    border: 1px solid rgba(255, 0, 255, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 100px;
+}
+
+[data-theme="cyberpunk"] .structure-item:hover {
+    border-color: #ff00ff;
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.4);
+}
+
+[data-theme="cyberpunk"] .structure-item .card-title {
+    color: #ff00ff;
+}
+
+[data-theme="cyberpunk"] .structure-item .structure-title {
+    color: #ff88ff;
+}
+
+[data-theme="cyberpunk"] .structure-item .resolution-value,
+[data-theme="cyberpunk"] .structure-item .meta-item {
+    color: #cc00cc;
+}
+
+[data-theme="cyberpunk"] .structure-item.pdb {
+    border-left: 3px solid #00ffff;
+}
+
+[data-theme="cyberpunk"] .structure-item.emdb {
+    border-left: 3px solid #ff00ff;
+}
+
+[data-theme="cyberpunk"] .popup-hint {
+    color: #880088;
+}
+
+/* Structure Popup Styles for Cyberpunk Theme */
+[data-theme="cyberpunk"] .popup-header {
+    background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+    border-bottom-color: rgba(255,0,255,0.2);
+}
+
+[data-theme="cyberpunk"] .popup-title {
+    color: #ff00ff;
+}
+
+[data-theme="cyberpunk"] .popup-label {
+    color: #cc00cc;
+}
+
+[data-theme="cyberpunk"] .popup-value {
+    color: #ff88ff;
+}
+
+[data-theme="cyberpunk"] .popup-link {
+    background: rgba(255,0,255,0.1);
+    border-color: rgba(255,0,255,0.3);
+    color: #ff00ff;
+}
+
+[data-theme="cyberpunk"] .popup-link:hover {
+    background: rgba(255,0,255,0.2);
+    box-shadow: 0 0 15px rgba(255,0,255,0.4);
+}
+
+[data-theme="cyberpunk"] .popup-detail-btn {
+    background: linear-gradient(135deg, #00ffff 0%, #ff00ff 100%);
+    color: #000;
+}
+
+[data-theme="cyberpunk"] .popup-loading .spinner {
+    border-color: rgba(255,0,255,0.2);
+    border-top-color: #ff00ff;
+}
+
+/* Meta label and value colors for cyberpunk theme */
+[data-theme="cyberpunk"] .meta-label {
+    color: #888 !important;
+}
+[data-theme="cyberpunk"] .meta-value {
+    color: #00fff5 !important;
+}
+
+/* Badge transparent backgrounds */
+[data-theme="cyberpunk"] .type-badge {
+    background: transparent !important;
+    border: 1px solid #00fff5 !important;
+    color: #00fff5 !important;
+}
+
+/* All cards and content areas - transparent background */
+[data-theme="cyberpunk"] .card-header,
+[data-theme="cyberpunk"] .card-body,
+[data-theme="cyberpunk"] .card-footer {
+    background: transparent !important;
+}
+
+/* Text colors - ensure readability */
+[data-theme="cyberpunk"] .entity-title-main,
+[data-theme="cyberpunk"] .entity-title-sub,
+[data-theme="cyberpunk"] .entity-meta-badge,
+[data-theme="cyberpunk"] .entity-icon,
+[data-theme="cyberpunk"] .expand-icon,
+[data-theme="cyberpunk"] .uniprot-card-title,
+[data-theme="cyberpunk"] .uniprot-card-subtitle,
+[data-theme="cyberpunk"] .structure-title,
+[data-theme="cyberpunk"] .resolution-value,
+[data-theme="cyberpunk"] .meta-item,
+[data-theme="cyberpunk"] .info-item p {
+    color: var(--text-primary) !important;
+    text-shadow: 0 0 2px rgba(0, 255, 245, 0.3);
+}
+
+/* Title gradient effect */
+[data-theme="cyberpunk"] .entity-title-main,
+[data-theme="cyberpunk"] .entity-title-sub,
+[data-theme="cyberpunk"] .uniprot-card-title,
+[data-theme="cyberpunk"] .structure-title,
+[data-theme="cyberpunk"] .card-title,
+[data-theme="cyberpunk"] .page-title,
+[data-theme="cyberpunk"] .title-text,
+[data-theme="cyberpunk"] #lit-title,
+[data-theme="cyberpunk"] h1,
+[data-theme="cyberpunk"] h2,
+[data-theme="cyberpunk"] h3,
+[data-theme="cyberpunk"] h4 {
+    background: linear-gradient(90deg, #00fff5, #ff00ff) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+}
+
+/* 作者、文献信息、摘要等区域 - 透明背景融入背景 */
+[data-theme="cyberpunk"] #literature-header,
+[data-theme="cyberpunk"] #literature-header .card-content {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 10px !important;
+}
+
+/* 结构详情页标题区域 - 与文献详情页一致 */
+[data-theme="cyberpunk"] .structure-header {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 10px !important;
+    border-radius: 0 !important;
+    margin-bottom: 20px !important;
+}
+
+[data-theme="cyberpunk"] .structure-detail-title {
+    background: linear-gradient(90deg, #00fff5, #ff00ff, #00fff5) !important;
+    background-size: 200% 100% !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+    animation: titleGradient 3s ease infinite;
+    font-size: 24px !important;
+    font-weight: bold !important;
+    margin-bottom: 15px !important;
+    display: block !important;
+}
+
+[data-theme="cyberpunk"] #lit-title {
+    background: linear-gradient(90deg, #00fff5, #ff00ff, #00fff5) !important;
+    background-size: 200% 100% !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+    animation: titleGradient 3s ease infinite;
+    font-size: 24px !important;
+    font-weight: bold !important;
+    margin-bottom: 15px !important;
+    display: block !important;
+}
+
+[data-theme="cyberpunk"] .authors-text {
+    color: #00fff5 !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    margin-bottom: 15px !important;
+    text-shadow: 0 0 3px rgba(0, 255, 245, 0.2) !important;
+    background: transparent !important;
+    padding: 5px 0 !important;
+}
+
+[data-theme="cyberpunk"] .meta-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 15px !important;
+    background: transparent !important;
+    padding: 5px 0 !important;
+}
+
+[data-theme="cyberpunk"] .meta-item {
+    color: #8080a0 !important;
+    font-size: 13px !important;
+    background: transparent !important;
+    padding: 3px 8px !important;
+    border-left: 2px solid rgba(0, 255, 245, 0.3) !important;
+}
+
+[data-theme="cyberpunk"] .status-badge {
+    background: rgba(0, 255, 245, 0.1) !important;
+    border: 1px solid rgba(0, 255, 245, 0.3) !important;
+    color: #00fff5 !important;
+    font-size: 12px !important;
+    padding: 3px 10px !important;
+    border-radius: 3px !important;
+}
+
+/* 摘要区域 */
+[data-theme="cyberpunk"] .abstract-text,
+[data-theme="cyberpunk"] #lit-abstract {
+    color: #00fff5 !important;
+    font-size: 14px !important;
+    line-height: 1.8 !important;
+    text-align: justify !important;
+    background: transparent !important;
+    padding: 10px 0 !important;
+    border-left: 3px solid rgba(0, 255, 245, 0.3) !important;
+    padding-left: 15px !important;
+    text-shadow: 0 0 5px rgba(0, 255, 245, 0.3) !important;
+}
+
+/* 文献信息卡片 */
+[data-theme="cyberpunk"] .card-header h3,
+[data-theme="cyberpunk"] .card-title {
+    background: linear-gradient(90deg, #00fff5, #ff00ff) !important;
+    background-size: 200% 100% !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+    font-size: 16px !important;
+    margin-bottom: 10px !important;
+}
+
+/* Sidebar nav text gradient */
+[data-theme="cyberpunk"] .sidebar-nav .nav-item a {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+
+/* Ensure all containers are themed */
+[data-theme="cyberpunk"] .container,
+[data-theme="cyberpunk"] .wrapper,
+[data-theme="cyberpunk"] .content-wrapper,
+[data-theme="cyberpunk"] .page-content,
+[data-theme="cyberpunk"] .main-wrapper {
+    background: transparent !important;
+}
+
+/* All input wrappers */
+[data-theme="cyberpunk"] .input-group,
+[data-theme="cyberpunk"] .form-group {
+    background-color: transparent !important;
+}
+
+/* Select dropdowns */
+[data-theme="cyberpunk"] select option {
+    background-color: var(--bg-primary) !important;
+    color: var(--primary-color) !important;
+}
+
+/* Modal specific */
+[data-theme="cyberpunk"] .modal-dialog {
+    background-color: var(--bg-primary) !important;
+}
+
+/* Chat/QA specific */
+[data-theme="cyberpunk"] .chat-container,
+[data-theme="cyberpunk"] .chat-messages,
+[data-theme="cyberpunk"] .chat-input-area {
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .message,
+[data-theme="cyberpunk"] .user-message,
+[data-theme="cyberpunk"] .assistant-message {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.4) 100%) !important;
+    border: 1px solid var(--primary-color) !important;
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.2);
+}
+
+/* Structure detail specific - 隐藏边框，与大背景融合 */
+[data-theme="cyberpunk"] .detail-header,
+[data-theme="cyberpunk"] .detail-body,
+[data-theme="cyberpunk"] .detail-section {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Entity list - 隐藏边框，与大背景融合 */
+[data-theme="cyberpunk"] .entity-list,
+[data-theme="cyberpunk"] .entity-item {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Alignment viewer - 隐藏边框，与大背景融合 */
+[data-theme="cyberpunk"] .alignment-container,
+[data-theme="cyberpunk"] .alignment-sequence {
+    background: transparent !important;
+    border: none !important;
+}
+
+/* Protein selector */
+[data-theme="cyberpunk"] .protein-selector,
+[data-theme="cyberpunk"] .dropdown-menu {
+    background: linear-gradient(135deg, rgba(20, 20, 35, 0.98) 0%, rgba(15, 15, 25, 0.95) 100%) !important;
+    border: 1px solid var(--primary-color) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.3);
+}
+
+/* ULTRA AGGRESSIVE: Override ALL headings with gradient - 包括内联样式 */
+html[data-theme="cyberpunk"] h1,
+html[data-theme="cyberpunk"] h2,
+html[data-theme="cyberpunk"] h3,
+html[data-theme="cyberpunk"] h4,
+html[data-theme="cyberpunk"] h5,
+html[data-theme="cyberpunk"] h6,
+html[data-theme="cyberpunk"] .structure-title,
+html[data-theme="cyberpunk"] .card-title,
+html[data-theme="cyberpunk"] .page-title,
+html[data-theme="cyberpunk"] .entity-title-main,
+html[data-theme="cyberpunk"] .entity-title-sub,
+html[data-theme="cyberpunk"] .detail-header h1,
+html[data-theme="cyberpunk"] .detail-header h2,
+html[data-theme="cyberpunk"] div[style*="color: #333"] h4,
+html[data-theme="cyberpunk"] div[style*="color: #333"] h3 {
+    background: linear-gradient(90deg, #00fff5, #ff00ff, #00fff5) !important;
+    background-size: 200% 100% !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+    animation: titleGradient 4s ease infinite;
+}
+
+/* 结构详情页大标题 */
+html[data-theme="cyberpunk"] .detail-header > h1,
+html[data-theme="cyberpunk"] .detail-header h1,
+html[data-theme="cyberpunk"] .structure-detail-header h1,
+html[data-theme="cyberpunk"] .structure-detail-title {
+    background: linear-gradient(90deg, #00fff5, #ff00ff) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    text-shadow: none !important;
+    color: transparent !important;
+    display: inline-block !important;
+}
+
+/* 确保侧边栏图标是纯青色 */
+html[data-theme="cyberpunk"] .nav-icon,
+html[data-theme="cyberpunk"] .logo-icon {
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    -webkit-text-fill-color: #00fff5 !important;
+    color: #00fff5 !important;
+    text-shadow: 0 0 5px #00fff5 !important;
+}
+
+/* ==================== 额外赛博朋克装饰效果 ==================== */
+
+/* 浮动粒子效果 - 使用CSS伪元素在侧边栏 */
+[data-theme="cyberpunk"] .sidebar::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    background: linear-gradient(to top, rgba(0, 255, 245, 0.05), transparent);
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* 页面加载时的扫描线进入动画 */
+@keyframes scanlineEntry {
+    0% { transform: scaleY(0); transform-origin: top; }
+    50% { transform: scaleY(1); transform-origin: top; }
+    50.1% { transform: scaleY(1); transform-origin: bottom; }
+    100% { transform: scaleY(0); transform-origin: bottom; }
+}
+
+/* 关键发现区域 */
+[data-theme="cyberpunk"] .findings-content,
+[data-theme="cyberpunk"] #lit-key-findings {
+    background: transparent !important;
+    padding: 10px !important;
+}
+
+[data-theme="cyberpunk"] .findings-content p {
+    color: #00fff5 !important;
+    line-height: 1.6 !important;
+    padding: 8px 0 !important;
+    border-bottom: 1px solid rgba(0, 255, 245, 0.1) !important;
+    text-shadow: 0 0 5px rgba(0, 255, 245, 0.3) !important;
+}
+
+[data-theme="cyberpunk"] .findings-content p:last-child {
+    border-bottom: none !important;
+}
+
+/* info-grid 内部样式 */
+[data-theme="cyberpunk"] .info-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+    gap: 15px !important;
+    padding: 15px !important;
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .info-item {
+    padding: 10px !important;
+    background: transparent !important;
+    border-left: none !important;
+}
+
+[data-theme="cyberpunk"] .info-item label {
+    color: #8080a0 !important;
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    display: block !important;
+    margin-bottom: 5px !important;
+}
+
+[data-theme="cyberpunk"] .info-item p {
+    color: #00fff5 !important;
+    font-size: 14px !important;
+    word-break: break-word !important;
+}
+
+/* tab切换内容区 */
+[data-theme="cyberpunk"] .tab-content {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 10px 0 !important;
+}
+
+/* 文献信息、摘要、关键发现 - 与大背景融合 */
+[data-theme="cyberpunk"] .tab-content .card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+[data-theme="cyberpunk"] .tab-content .card-header {
+    background: transparent !important;
+    border: none !important;
+}
+
+[data-theme="cyberpunk"] .tab-content .card-content {
+    background: transparent !important;
+}
+
+/* ==================== 强制覆盖内联样式 ==================== */
+
+/* 强制覆盖 uniprot-card - 需要完整外边框 */
+html[data-theme="cyberpunk"] .uniprot-card,
+html[data-theme="cyberpunk"] div.uniprot-card,
+html[data-theme="cyberpunk"] .uniprot-card {
+    background: rgba(20, 20, 35, 0.8) !important;
+    background-color: rgba(20, 20, 35, 0.8) !important;
+    background-image: none !important;
+    border: 1px solid rgba(0, 255, 245, 0.15) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transition: all 0.3s ease !important;
+}
+
+/* 强制覆盖 info-card 样式 - 无边框，无悬停 */
+html[data-theme="cyberpunk"] .info-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+}
+
+/* 强制覆盖 structure-card 样式 - 完整边框，有悬停效果 */
+html[data-theme="cyberpunk"] .structure-card,
+html[data-theme="cyberpunk"] a.structure-card,
+html[data-theme="cyberpunk"] div.structure-card {
+    background: rgba(20, 20, 35, 0.6) !important;
+    border: 1px solid rgba(0, 255, 245, 0.15) !important;
+    box-shadow: none !important;
+    position: relative !important;
+    border-radius: 0 !important;
+    transition: all 0.3s ease !important;
+}
+
+/* structure-card 悬停效果 - 边框变粗并产生光晕 */
+html[data-theme="cyberpunk"] .structure-card:hover,
+html[data-theme="cyberpunk"] a.structure-card:hover,
+html[data-theme="cyberpunk"] .structure-card:hover,
+div.structure-card:hover {
+    background: rgba(25, 25, 45, 0.85) !important;
+    border: 2px solid rgba(0, 255, 245, 0.5) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 245, 0.4), 0 0 25px rgba(0, 255, 245, 0.2), inset 0 0 10px rgba(0, 255, 245, 0.08) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* entity-card 强制覆盖 - 完整外边框，无直角装饰 */
+html[data-theme="cyberpunk"] .entity-card-expanded {
+    background: transparent !important;
+    border: 1px solid rgba(0, 255, 245, 0.15) !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+}
+
+/* literature-card 保留边框 */
+html[data-theme="cyberpunk"] .literature-card {
+    background: transparent !important;
+    border: 1px solid rgba(0, 255, 245, 0.2) !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+}
+
+/* 序列比对tab页无边框 */
+html[data-theme="cyberpunk"] .alignment-box,
+html[data-theme="cyberpunk"] .comparison-results {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* 不可交互的卡片移除悬停效果 - info-card, structure-card, entity-card */
+html[data-theme="cyberpunk"] .info-card:hover,
+html[data-theme="cyberpunk"] .structure-card:hover,
+html[data-theme="cyberpunk"] .entity-card-expanded:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: inherit !important;
+    cursor: default !important;
+}
+
+/* UniProt卡片悬停效果 - 边框变粗并产生光晕 */
+html[data-theme="cyberpunk"] .uniprot-card:hover,
+div.uniprot-card:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 0 12px rgba(0, 255, 245, 0.35), 0 0 20px rgba(0, 255, 245, 0.15), inset 0 0 8px rgba(0, 255, 245, 0.06) !important;
+    border: 2px solid rgba(0, 255, 245, 0.5) !important;
+    cursor: pointer !important;
+    background: rgba(25, 25, 45, 0.85) !important;
+    background-image: none !important;
+}
+
+/* 结构详情页标题部分 - 添加直角装饰 */
+html[data-theme="cyberpunk"] .structure-header {
+    position: relative !important;
+    padding: 20px !important;
+    background: transparent !important;
+}
+
+/* 左上角装饰 */
+html[data-theme="cyberpunk"] .structure-header::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 40px !important;
+    height: 40px !important;
+    border-top: 3px solid rgba(0, 255, 245, 0.5) !important;
+    border-left: 3px solid rgba(0, 255, 245, 0.5) !important;
+    pointer-events: none !important;
+}
+
+/* 右下角装饰 */
+html[data-theme="cyberpunk"] .structure-header::after {
+    content: '' !important;
+    position: absolute !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    width: 40px !important;
+    height: 40px !important;
+    border-bottom: 3px solid rgba(0, 255, 245, 0.5) !important;
+    border-right: 3px solid rgba(0, 255, 245, 0.5) !important;
+    pointer-events: none !important;
+}
+
+/* 可交互卡片悬停效果 - 边框变粗并产生光晕 */
+html[data-theme="cyberpunk"] .literature-card:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 0 12px rgba(0, 255, 245, 0.35), 0 0 20px rgba(0, 255, 245, 0.15), inset 0 0 8px rgba(0, 255, 245, 0.06) !important;
+    border: 2px solid rgba(0, 255, 245, 0.5) !important;
+    cursor: pointer !important;
+    background: rgba(25, 25, 45, 0.85) !important;
+}
+
+/* tab分割线强制显示 - 完整横线 */
+html[data-theme="cyberpunk"] .detail-tabs,
+html[data-theme="cyberpunk"] div.detail-tabs,
+html[data-theme="cyberpunk"] .tabs {
+    border-bottom: 2px solid rgba(0, 255, 245, 0.5) !important;
+    margin-bottom: 15px !important;
+    padding-bottom: 10px !important;
+    display: block !important;
+    width: 100% !important;
+    background: transparent !important;
+}
+
+html[data-theme="cyberpunk"] .detail-tabs::after {
+    content: '' !important;
+    display: block !important;
+    width: 100% !important;
+    height: 2px !important;
+    background: rgba(0, 255, 245, 0.5) !important;
+    margin-top: 5px !important;
+}
+
+/* 强制覆盖卡片内联样式 */
+html[data-theme="cyberpunk"] div[style*="border-radius"] {
+    border-radius: 0 !important;
+}
+
+/* ============================================
+   竖线划过 / 闪烁粒子效果
+   ============================================ */
+
+/* 流星粒子容器 - 在背景之上、内容之下 */
+#cyberpunk-meteors {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: -1;
+    overflow: hidden;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* 竖线流星 - 短距离出现并消失 */
+.cyber-meteor {
+    position: absolute;
+    width: 1px;
+    height: 30px;
+    border-radius: 0;
+    opacity: 0;
+    animation: meteorFall linear forwards;
+}
+
+/* 短距离下落动画 - 出现后移动一小段就消失 */
+@keyframes meteorFall {
+    0% {
+        opacity: 0;
+        transform: translateY(0);
+    }
+    10% {
+        opacity: 0.8;
+    }
+    60% {
+        opacity: 0.4;
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(150px);
+    }
+}
+
+/* 闪烁光点 */
+.cyber-sparkle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    opacity: 0;
+    animation: sparkle ease-in-out infinite;
+}
+
+@keyframes sparkle {
+    0%, 100% { opacity: 0; transform: scale(0.5); }
+    50% { opacity: 0.7; transform: scale(1.2); }
+}
+
+/* ============================================
+   最终覆盖 - 确保悬停效果生效
+   ============================================ */
+
+/* structure-card 最终悬停效果 - 光晕再缩小 */
+html[data-theme="cyberpunk"] a.structure-card:hover,
+html[data-theme="cyberpunk"] div.structure-card:hover {
+    background: rgba(25, 25, 45, 0.9) !important;
+    border: 2px solid rgba(0, 255, 245, 0.5) !important;
+    box-shadow: 0 0 12px rgba(0, 255, 245, 0.35), 0 0 20px rgba(0, 255, 245, 0.15), inset 0 0 8px rgba(0, 255, 245, 0.06) !important;
+    transform: translateY(-2px) !important;
+    transition: all 0.3s ease !important;
+}
+
+/* 飞书文档卡片 - 边框和悬停光晕效果 */
+html[data-theme="cyberpunk"] .doc-card,
+[data-theme="cyberpunk"] .doc-card {
+    background: rgba(20, 20, 35, 0.95) !important;
+    border: 1px solid rgba(0, 255, 245, 0.3) !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+html[data-theme="cyberpunk"] .doc-card:hover,
+[data-theme="cyberpunk"] .doc-card:hover {
+    background: rgba(25, 25, 45, 0.95) !important;
+    border: 2px solid rgba(0, 255, 245, 0.5) !important;
+    box-shadow: 0 0 12px rgba(0, 255, 245, 0.35), 0 0 20px rgba(0, 255, 245, 0.15), inset 0 0 8px rgba(0, 255, 245, 0.06) !important;
+    transform: translateY(-4px) !important;
+    transition: all 0.3s ease !important;
+}
+
+/* 飞书卡片按钮不需要动画 - 使用更广泛的选择器 */
+.doc-card .btn,
+.doc-card .btn:hover,
+.doc-card .btn:focus,
+.doc-card .btn:active,
+body .doc-card .btn,
+body .doc-card .btn:hover,
+body .doc-card .btn:focus,
+body .doc-card .btn:active {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Feishu Documents Page - Cyan styling */
+[data-theme="cyberpunk"] .feishu-config-page h1,
+[data-theme="cyberpunk"] .feishu-config-page h2 {
+    background: linear-gradient(90deg, #00fff5, #ff00ff) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    color: transparent !important;
+}
+
+[data-theme="cyberpunk"] .feishu-config-page h1 svg,
+[data-theme="cyberpunk"] .feishu-config-page h2 svg {
+    color: #00fff5 !important;
+    fill: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .feishu-config-page .btn {
+    color: #00fff5 !important;
+    border-color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .feishu-config-page .btn-secondary {
+    color: #00fff5 !important;
+    border-color: #00fff5 !important;
+    background: transparent !important;
+}
+
+[data-theme="cyberpunk"] .feishu-config-page .btn-primary {
+    background: linear-gradient(135deg, rgba(0, 255, 245, 0.2), rgba(255, 0, 255, 0.1)) !important;
+    border-color: #00fff5 !important;
+    color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .feishu-config-page .doc-card {
+    background: rgba(0, 0, 0, 0.8) !important;
+    border: 1px solid rgba(0, 255, 245, 0.3) !important;
+}
+
+[data-theme="cyberpunk"] .feishu-config-page .doc-card-title {
+    color: #00fff5 !important;
+}
+
+[data-theme="cyberpunk"] .feishu-config-page .doc-card-actions .btn {
+    color: #00fff5 !important;
+    border-color: #00fff5 !important;
+    font-size: 12px !important;
+    padding: 4px 8px !important;
+}
+
+/* Section titles with icons - cyan color */
+[data-theme="cyberpunk"] h2 svg,
+[data-theme="cyberpunk"] h3 svg,
+[data-theme="cyberpunk"] .section-title svg {
+    color: #00fff5 !important;
+    fill: #00fff5 !important;
+}
+
+/* Detail page section headers */
+[data-theme="cyberpunk"] .detail-header h1 svg,
+[data-theme="cyberpunk"] .detail-header h2 svg {
+    color: #00fff5 !important;
+}

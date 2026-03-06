@@ -1,0 +1,1617 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="config-page">
+    <div class="page-header">
+        <h1>系统配置</h1>
+        <div class="header-actions">
+            <a href="/" class="btn btn-secondary">返回首页</a>
+        </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-navigation" id="tab-nav">
+        <button type="button" class="tab-btn active" data-tab="ai">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            AI 配置
+        </button>
+        <button type="button" class="tab-btn" data-tab="vector">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+            </svg>
+            向量引擎
+        </button>
+        <button type="button" class="tab-btn" data-tab="feishu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+            </svg>
+            飞书配置
+        </button>
+    </div>
+
+    <div class="config-container">
+        <!-- AI Config Tab -->
+        <div id="tab-ai" class="tab-content active">
+            <div class="config-card">
+                <div class="config-header-row">
+                    <div>
+                        <h2>AI 模型配置</h2>
+                        <p class="config-description">管理 AI 对话和嵌入模型的 API 配置，支持多模型切换</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-add-model" onclick="openModelModal()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-plus"></use></svg>添加模型
+                    </button>
+                </div>
+
+                <!-- Models List - Card Style -->
+                <div id="models-list" class="models-list">
+                    <!-- Models will be loaded here -->
+                </div>
+
+                <!-- Test Result Display -->
+                <div id="test-result" class="test-result" style="display: none; margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <!-- Vector Engine Tab -->
+        <div id="tab-vector" class="tab-content">
+            <div class="config-card">
+                <h2>向量搜索引擎配置</h2>
+                <p class="config-description">配置向量数据库、Embedding模型和搜索策略</p>
+
+                <form id="vector-config-form">
+                    <div class="form-group">
+                        <label for="vector-engine">向量引擎</label>
+                        <select id="vector-engine" name="vector_engine">
+                            <option value="faiss" {{ 'selected' if vector_engine == 'faiss' else '' }}>FAISS</option>
+                            <option value="lancedb" {{ 'selected' if vector_engine == 'lancedb' else '' }}>LanceDB</option>
+                        </select>
+                        <span class="form-hint">选择向量搜索引擎（LanceDB 支持混合搜索）</span>
+                    </div>
+
+                    <!-- Embedding Model Section -->
+                    <div class="form-group">
+                        <label for="embedding-provider">Embedding 模型</label>
+                        <select id="embedding-provider" name="embedding_provider" onchange="toggleEmbeddingConfig()">
+                            <option value="local" {{ 'selected' if embedding_provider == 'local' else '' }}>本地模型 (all-MiniLM-L6-v2)</option>
+                            <option value="jina" {{ 'selected' if embedding_provider == 'jina' else '' }}>Jina AI</option>
+                            <option value="openai" {{ 'selected' if embedding_provider == 'openai' else '' }}>OpenAI</option>
+                            <option value="cohere" {{ 'selected' if embedding_provider == 'cohere' else '' }}>Cohere</option>
+                            <option value="azure" {{ 'selected' if embedding_provider == 'azure' else '' }}>Azure OpenAI</option>
+                        </select>
+                        <span class="form-hint">选择Embedding模型提供商</span>
+                    </div>
+
+                    <!-- Local model display (no additional config needed) -->
+                    <div id="embedding-local-config" class="embedding-config" style="{{ 'display: block;' if embedding_provider == 'local' else 'display: none;' }}">
+                        <div class="form-group">
+                            <label>本地 Embedding 模型</label>
+                            <input type="text" value="all-MiniLM-L6-v2 (本地)" disabled>
+                            <span class="form-hint">使用本地Sentence-Transformers模型，无需API Key</span>
+                        </div>
+                    </div>
+
+                    <!-- Jina AI config -->
+                    <div id="embedding-jina-config" class="embedding-config" style="{{ 'display: block;' if embedding_provider == 'jina' else 'display: none;' }}">
+                        <div class="form-group">
+                            <label for="embedding-api-key-jina">Jina AI API Key</label>
+                            <input type="password" id="embedding-api-key-jina" name="embedding_api_key"
+                                   value="{{ embedding_api_key or '' }}"
+                                   placeholder="jina_...">
+                            <span class="form-hint">用于Embedding的Jina AI API Key，<a href="https://jina.ai/api-key" target="_blank">点击获取</a></span>
+                        </div>
+                    </div>
+
+                    <!-- OpenAI config -->
+                    <div id="embedding-openai-config" class="embedding-config" style="{{ 'display: block;' if embedding_provider == 'openai' else 'display: none;' }}">
+                        <div class="form-group">
+                            <label for="embedding-api-key-openai">OpenAI API Key</label>
+                            <input type="password" id="embedding-api-key-openai" name="embedding_api_key"
+                                   value="{{ embedding_api_key or '' }}"
+                                   placeholder="sk-...">
+                            <span class="form-hint">用于Embedding的OpenAI API Key</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="embedding-model-openai">OpenAI Embedding 模型</label>
+                            <select id="embedding-model-openai" name="embedding_model">
+                                <option value="text-embedding-3-small" {{ 'selected' if embedding_model == 'text-embedding-3-small' else '' }}>text-embedding-3-small (推荐)</option>
+                                <option value="text-embedding-ada-002" {{ 'selected' if embedding_model == 'text-embedding-ada-002' else '' }}>text-embedding-ada-002</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Cohere config -->
+                    <div id="embedding-cohere-config" class="embedding-config" style="{{ 'display: block;' if embedding_provider == 'cohere' else 'display: none;' }}">
+                        <div class="form-group">
+                            <label for="embedding-api-key-cohere">Cohere API Key</label>
+                            <input type="password" id="embedding-api-key-cohere" name="embedding_api_key"
+                                   value="{{ embedding_api_key or '' }}"
+                                   placeholder="Cohere API Key">
+                            <span class="form-hint">用于Embedding的Cohere API Key</span>
+                        </div>
+                    </div>
+
+                    <!-- Azure config -->
+                    <div id="embedding-azure-config" class="embedding-config" style="{{ 'display: block;' if embedding_provider == 'azure' else 'display: none;' }}">
+                        <div class="form-group">
+                            <label for="embedding-api-key-azure">Azure API Key</label>
+                            <input type="password" id="embedding-api-key-azure" name="embedding_api_key"
+                                   value="{{ embedding_api_key or '' }}"
+                                   placeholder="Azure API Key">
+                            <span class="form-hint">用于Embedding的Azure OpenAI API Key</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="embedding-api-base-azure">Azure Endpoint</label>
+                            <input type="text" id="embedding-api-base-azure" name="embedding_api_base"
+                                   value="{{ embedding_api_base or '' }}"
+                                   placeholder="https://your-resource.openai.azure.com/">
+                            <span class="form-hint">Azure OpenAI 端点地址</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="search-type">默认搜索策略</label>
+                        <select id="search-type" name="search_type">
+                            <option value="vector" {{ 'selected' if search_type == 'vector' or not search_type else '' }}>向量搜索</option>
+                            <option value="bm25" {{ 'selected' if search_type == 'bm25' else '' }}>BM25</option>
+                            <option value="hybrid" {{ 'selected' if search_type == 'hybrid' else '' }}>混合搜索</option>
+                        </select>
+                        <span class="form-hint">默认搜索策略</span>
+                    </div>
+
+                    <div class="form-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="reranker-enabled" name="reranker_enabled" {{ 'checked' if reranker_enabled else '' }}>
+                            <span class="checkmark"></span>
+                            <span class="label-text">启用重排序 (Reranker)</span>
+                        </label>
+                        <span class="form-hint">使用 Jina Reranker 提升搜索结果相关性</span>
+                    </div>
+
+                    <div class="form-group" id="jina-api-group" style="{{ 'display: block;' if reranker_enabled else 'display: none;' }}">
+                        <label for="jina-api-key">Jina Reranker API Key</label>
+                        <input type="password" id="jina-api-key" name="jina_api_key"
+                               value="{{ jina_api_key or '' }}"
+                               placeholder="jina_...">
+                        <span class="form-hint">用于重排序的 Jina AI API Key，<a href="https://jina.ai/api-key" target="_blank">点击获取</a></span>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><use href="#icon-save"></use></svg>保存配置
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Feishu Tab -->
+        <div id="tab-feishu" class="tab-content">
+            <div class="config-card">
+                <h2>飞书集成配置</h2>
+                <p class="config-description">配置飞书应用凭证和回调设置</p>
+
+                <form id="feishu-config-form">
+                    <div class="form-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="feishu-enabled" name="enabled" {{ 'checked' if feishu_config and feishu_config.enabled else '' }}>
+                            <span class="checkmark"></span>
+                            <span class="label-text">启用飞书集成</span>
+                        </label>
+                        <span class="form-hint">启用后将接收飞书消息并自动回复</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="feishu-app-id">App ID</label>
+                        <input type="text" id="feishu-app-id" name="app_id"
+                               value="{{ feishu_config.app_id or '' }}"
+                               placeholder="cli_xxxxxxxxxxxx">
+                        <span class="form-hint">飞书应用的 App ID</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="feishu-app-secret">App Secret</label>
+                        <input type="password" id="feishu-app-secret" name="app_secret"
+                               value="{{ feishu_config.app_secret or '' }}"
+                               placeholder="输入 App Secret">
+                        <span class="form-hint">飞书应用的 App Secret</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="feishu-verification-token">Verification Token</label>
+                        <input type="text" id="feishu-verification-token" name="verification_token"
+                               value="{{ feishu_config.verification_token or '' }}"
+                               placeholder="输入 Verification Token">
+                        <span class="form-hint">飞书开放平台配置的 Verification Token</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="feishu-encrypt-key">Encrypt Key (可选)</label>
+                        <input type="password" id="feishu-encrypt-key" name="encrypt_key"
+                               value="{{ feishu_config.encrypt_key or '' }}"
+                               placeholder="输入 Encrypt Key">
+                        <span class="form-hint">消息加密密钥（如启用了加密）</span>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="testFeishuConnection()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><use href="#icon-check-circle"></use></svg>测试连接
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><use href="#icon-save"></use></svg>保存配置
+                        </button>
+                    </div>
+                </form>
+
+                <div id="feishu-test-result" class="test-result" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Modal -->
+    <div id="model-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">添加模型</h3>
+                <button type="button" class="modal-close" onclick="closeModelModal()">&times;</button>
+            </div>
+            <form id="model-form">
+                <input type="hidden" id="model-index" value="-1">
+                <div class="form-group">
+                    <label for="model-name">供应商</label>
+                    <input type="text" id="model-name" placeholder="如: DeepSeek、MiniMax" required>
+                </div>
+                <div class="form-group">
+                    <label for="model-api-format">API 协议</label>
+                    <select id="model-api-format" onchange="updateModalProviderDefaults()">
+                        <option value="openai">OpenAI 兼容</option>
+                        <option value="anthropic">Anthropic 兼容</option>
+                        <option value="gemini">Google Gemini</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="model-api-base">Base URL</label>
+                    <input type="url" id="model-api-base" placeholder="https://api.deepseek.com/v1" required>
+                </div>
+                <div class="form-group">
+                    <label for="model-api-key">API Key</label>
+                    <input type="password" id="model-api-key" placeholder="输入 API Key">
+                </div>
+                <div class="form-group">
+                    <label for="model-chat-model">对话模型</label>
+                    <input type="text" id="model-chat-model" placeholder="如: deepseek-chat、MiniMax-M2.1" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModelModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Fixed Status Bar at Bottom -->
+    <div class="status-bar">
+        <div class="status-bar-content">
+            <div class="status-section">
+                <span class="status-label">AI配置:</span>
+                <span class="status-badge {{ 'success' if status.api_provider else 'error' }}">
+                    {{ active_model.name if active_model else (providers[status.api_provider].name if status.api_provider else '未配置') }}
+                </span>
+            </div>
+            <div class="status-section">
+                <span class="status-label">向量引擎:</span>
+                <span class="status-badge {{ 'success' if status.vector_engine else 'error' }}">
+                    {{ status.vector_engine or '未配置' }}
+                </span>
+            </div>
+            <div class="status-section">
+                <span class="status-label">搜索策略:</span>
+                <span class="status-badge">{{ search_type or 'vector' }}</span>
+            </div>
+            <div class="status-section">
+                <span class="status-label">重排序:</span>
+                <span class="status-badge {{ 'success' if reranker_enabled else '' }}">
+                    {{ '已启用' if reranker_enabled else '未启用' }}
+                </span>
+            </div>
+            <div class="status-section">
+                <span class="status-label">飞书:</span>
+                <span class="status-badge {{ 'success' if feishu_config and feishu_config.enabled else '' }}">
+                    {{ '已启用' if feishu_config and feishu_config.enabled else '未启用' }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Tab switching - All in one DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    var tabButtons = document.querySelectorAll('#tab-nav .tab-btn');
+    console.log('Found tab buttons:', tabButtons.length);
+
+    // Define switchTab function inside
+    window.switchTab = function(tabName) {
+        console.log('switchTab running for:', tabName);
+        var tabContents = document.querySelectorAll('.tab-content');
+
+        // Process all tab buttons
+        for (var i = 0; i < tabButtons.length; i++) {
+            var btn = tabButtons[i];
+            var isActive = btn.getAttribute('data-tab') === tabName;
+            // Use classList to toggle
+            if (isActive) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+            console.log('Button', btn.getAttribute('data-tab'), 'active:', btn.classList.contains('active'));
+        }
+
+        // Process all tab contents
+        for (var i = 0; i < tabContents.length; i++) {
+            var tab = tabContents[i];
+            var isActive = tab.id === 'tab-' + tabName;
+            if (isActive) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+            console.log('Tab', tab.id, 'active:', tab.classList.contains('active'));
+        }
+
+        // Update URL hash
+        window.location.hash = tabName;
+    };
+
+    // Bind click events
+    tabButtons.forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Tab clicked:', this.getAttribute('data-tab'));
+            window.switchTab(this.getAttribute('data-tab'));
+        });
+    });
+
+    // Check URL hash on load
+    var hash = window.location.hash.slice(1);
+    if (hash && ['ai', 'vector', 'feishu'].indexOf(hash) >= 0) {
+        window.switchTab(hash);
+    }
+});
+
+// Provider default configurations
+const PROVIDER_CONFIGS = {
+    'openai': {
+        defaultBase: 'https://api.deepseek.com',
+        defaultModel: 'deepseek-chat'
+    },
+    'anthropic': {
+        defaultBase: 'https://api.anthropic.com',
+        defaultModel: 'claude-sonnet-4-20250514'
+    },
+    'gemini': {
+        defaultBase: 'https://generativelanguage.googleapis.com',
+        defaultModel: 'gemini-2.0-flash'
+    }
+};
+
+function updateProviderDefaults() {
+    const provider = document.getElementById('api-provider').value;
+    const config = PROVIDER_CONFIGS[provider];
+
+    const baseInput = document.getElementById('api-base');
+    const modelInput = document.getElementById('chat-model');
+
+    if (!baseInput.value || baseInput.value.includes('api.deepseek.com')) {
+        baseInput.value = config.defaultBase;
+    }
+    if (!modelInput.value || modelInput.value === 'deepseek-chat') {
+        modelInput.value = config.defaultModel;
+    }
+}
+
+// AI Config Form - Handle submission via JavaScript
+(function() {
+    const aiForm = document.getElementById('ai-config-form');
+    if (aiForm) aiForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+        const response = await fetch('/api/config/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        const resultDiv = document.getElementById('test-result');
+        resultDiv.style.display = 'block';
+
+        if (result.success) {
+            resultDiv.innerHTML = `<div class="success"><h3>保存成功</h3><p>${result.message}</p></div>`;
+            resultDiv.className = 'test-result success';
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            resultDiv.innerHTML = `<div class="error"><h3>保存失败</h3><p>${result.message}</p></div>`;
+            resultDiv.className = 'test-result error';
+        }
+    } catch (error) {
+        const resultDiv = document.getElementById('test-result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<div class="error"><h3>保存失败</h3><p>${error.message}</p></div>`;
+        resultDiv.className = 'test-result error';
+    }
+});
+})();
+
+// Vector Config Form - Handle submission via JavaScript
+(function() {
+    const vectorForm = document.getElementById('vector-config-form');
+    if (vectorForm) vectorForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const data = {
+        vector_engine: formData.get('vector_engine'),
+        search_type: formData.get('search_type'),
+        reranker_enabled: document.getElementById('reranker-enabled').checked,
+        jina_api_key: formData.get('jina_api_key')
+    };
+
+    try {
+        // First get current config
+        const configResponse = await fetch('/api/config/');
+        const currentConfig = await configResponse.json();
+
+        // Merge with new data
+        const mergedData = { ...currentConfig.config, ...data };
+
+        const response = await fetch('/api/config/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(mergedData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert('向量引擎配置已保存');
+            window.location.reload();
+        } else {
+            alert('保存失败: ' + result.message);
+        }
+    } catch (error) {
+        alert('保存失败: ' + error.message);
+    }
+});
+})();
+
+async function testConnection() {
+    const apiProvider = document.getElementById('api-provider').value;
+    const apiBase = document.getElementById('api-base').value;
+    const apiKey = document.getElementById('api-key').value;
+    const chatModel = document.getElementById('chat-model').value;
+    const resultDiv = document.getElementById('test-result');
+
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div class="loading">正在测试连接...</div>';
+    resultDiv.className = 'test-result loading';
+
+    try {
+        const response = await fetch('/api/config/test-ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_provider: apiProvider,
+                api_base: apiBase,
+                api_key: apiKey,
+                chat_model: chatModel
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            resultDiv.innerHTML = `<div class="success"><h3>连接成功!</h3><p>${data.message}</p></div>`;
+            resultDiv.className = 'test-result success';
+        } else {
+            resultDiv.innerHTML = `<div class="error"><h3>连接失败</h3><p>${data.message}</p></div>`;
+            resultDiv.className = 'test-result error';
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="error"><h3>连接失败</h3><p>${error.message}</p></div>`;
+        resultDiv.className = 'test-result error';
+    }
+}
+
+// Test connection for a specific model (from model cards)
+async function testModelConnection(index) {
+    const model = modelsData[index];
+    if (!model) return;
+
+    const resultDiv = document.getElementById(`model-test-result-${index}`);
+    if (!resultDiv) return;
+
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div class="loading" style="padding: 8px;">正在测试连接...</div>';
+    resultDiv.className = 'model-test-result loading';
+
+    try {
+        // Determine api_format from model
+        const apiFormat = model.api_format || 'openai';
+        const response = await fetch('/api/config/test-ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_provider: apiFormat,
+                api_base: model.api_base,
+                api_key: model.api_key,
+                chat_model: model.chat_model
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            resultDiv.innerHTML = `<div class="success" style="padding: 8px 12px;"><span style="font-size:13px">✓ 连接成功 - ${data.message}</span></div>`;
+            resultDiv.className = 'model-test-result success';
+        } else {
+            resultDiv.innerHTML = `<div class="error" style="padding: 8px 12px;"><span style="font-size:13px">✗ 连接失败 - ${data.message}</span></div>`;
+            resultDiv.className = 'model-test-result error';
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="error" style="padding: 8px 12px;"><span style="font-size:13px">✗ 连接失败 - ${error.message}</span></div>`;
+        resultDiv.className = 'model-test-result error';
+    }
+
+    // Auto-hide after 10 seconds
+    setTimeout(() => {
+        resultDiv.style.display = 'none';
+    }, 10000);
+}
+
+// Vector Config Form - Toggle Jina API Key
+document.addEventListener('DOMContentLoaded', function() {
+    const rerankerCheckbox = document.getElementById('reranker-enabled');
+    const jinaApiGroup = document.getElementById('jina-api-group');
+
+    if (rerankerCheckbox && jinaApiGroup) {
+        rerankerCheckbox.addEventListener('change', function() {
+            jinaApiGroup.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+
+    // Initialize embedding config visibility
+    window.toggleEmbeddingConfig = function() {
+        const provider = document.getElementById('embedding-provider').value;
+        const configs = document.querySelectorAll('.embedding-config');
+        configs.forEach(config => config.style.display = 'none');
+
+        if (provider === 'local') {
+            document.getElementById('embedding-local-config').style.display = 'block';
+        } else if (provider === 'jina') {
+            document.getElementById('embedding-jina-config').style.display = 'block';
+        } else if (provider === 'openai') {
+            document.getElementById('embedding-openai-config').style.display = 'block';
+        } else if (provider === 'cohere') {
+            document.getElementById('embedding-cohere-config').style.display = 'block';
+        } else if (provider === 'azure') {
+            document.getElementById('embedding-azure-config').style.display = 'block';
+        }
+    };
+});
+
+// Feishu Config Form
+async function testFeishuConnection() {
+    const appId = document.getElementById('feishu-app-id').value;
+    const appSecret = document.getElementById('feishu-app-secret').value;
+    const resultDiv = document.getElementById('feishu-test-result');
+
+    if (!appId || !appSecret) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<div class="error">请填写 App ID 和 App Secret</div>';
+        resultDiv.className = 'test-result error';
+        return;
+    }
+
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div class="loading">正在测试飞书连接...</div>';
+    resultDiv.className = 'test-result loading';
+
+    try {
+        const response = await fetch('/api/feishu/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ app_id: appId, app_secret: appSecret })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            resultDiv.innerHTML = `<div class="success"><h3>连接成功!</h3><p>${data.message}</p></div>`;
+            resultDiv.className = 'test-result success';
+        } else {
+            resultDiv.innerHTML = `<div class="error"><h3>连接失败</h3><p>${data.message}</p></div>`;
+            resultDiv.className = 'test-result error';
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="error"><h3>连接失败</h3><p>${error.message}</p></div>`;
+        resultDiv.className = 'test-result error';
+    }
+}
+
+// Feishu form submission
+(function() {
+    const form = document.getElementById('feishu-config-form');
+    if (form) form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const data = {
+        enabled: document.getElementById('feishu-enabled').checked,
+        app_id: formData.get('app_id'),
+        app_secret: formData.get('app_secret'),
+        verification_token: formData.get('verification_token'),
+        encrypt_key: formData.get('encrypt_key')
+    };
+
+    try {
+        const response = await fetch('/api/feishu/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        const resultDiv = document.getElementById('feishu-test-result');
+        resultDiv.style.display = 'block';
+
+        if (result.success) {
+            resultDiv.innerHTML = `<div class="success"><h3>保存成功</h3><p>${result.message}</p></div>`;
+            resultDiv.className = 'test-result success';
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            resultDiv.innerHTML = `<div class="error"><h3>保存失败</h3><p>${result.message}</p></div>`;
+            resultDiv.className = 'test-result error';
+        }
+    } catch (error) {
+        const resultDiv = document.getElementById('feishu-test-result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<div class="error"><h3>保存失败</h3><p>${error.message}</p></div>`;
+        resultDiv.className = 'test-result error';
+    }
+});
+})();
+
+// Model Management
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+let modelsData = [];
+let activeModelId = '';
+
+async function loadModels() {
+    try {
+        const response = await fetch('/api/config/ai');
+        const data = await response.json();
+        modelsData = data.models || [];
+        activeModelId = data.active_model_id || '';
+        renderModels();
+    } catch (e) {
+        console.error('Failed to load models:', e);
+    }
+}
+
+function renderModels() {
+    const container = document.getElementById('models-list');
+    if (!container) return;
+
+    if (modelsData.length === 0) {
+        container.innerHTML = '<p class="empty-state">暂无模型配置，点击右上角添加模型</p>';
+        return;
+    }
+
+    let html = '';
+    modelsData.forEach((model, index) => {
+        const isActive = model.id === activeModelId;
+        html += `
+            <div class="model-item ${isActive ? 'active' : ''}">
+                <div class="model-header">
+                    <div class="model-info">
+                        <span class="model-name">${escapeHtml(model.name)}</span>
+                        <span class="model-chat-name">${escapeHtml(model.chat_model)}</span>
+                    </div>
+                    <div class="model-actions">
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="testModelConnection(${index})" title="测试连接">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>测试
+                        </button>
+                        <label class="radio-label">
+                            <input type="radio" name="active_model" value="${model.id}" ${isActive ? 'checked' : ''} onchange="setActiveModel('${model.id}')">
+                            <span>默认</span>
+                        </label>
+                        <button type="button" class="btn-icon" onclick="editModel(${index})" title="编辑">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button type="button" class="btn-icon danger" onclick="deleteModel(${index})" title="删除">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="model-details">
+                    <span>协议: ${escapeHtml(model.api_format === 'anthropic' ? 'Anthropic兼容' : (model.api_format === 'gemini' ? 'Google Gemini' : 'OpenAI兼容'))}</span>
+                    <span>API: ${escapeHtml(model.api_base || '未设置')}</span>
+                    <span>Chat: ${escapeHtml(model.chat_model || '未设置')}</span>
+                </div>
+                <div id="model-test-result-${index}" class="model-test-result" style="display: none;"></div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function openModelModal(index = -1) {
+    const modal = document.getElementById('model-modal');
+    const title = document.getElementById('modal-title');
+    const form = document.getElementById('model-form');
+    const indexInput = document.getElementById('model-index');
+
+    if (index >= 0) {
+        // Edit existing model
+        const model = modelsData[index];
+        title.textContent = '编辑模型';
+        indexInput.value = index;
+        document.getElementById('model-name').value = model.name || '';
+        document.getElementById('model-api-base').value = model.api_base || '';
+        document.getElementById('model-api-key').value = model.api_key || '';
+        document.getElementById('model-chat-model').value = model.chat_model || '';
+        // Set api_format based on the model
+        const apiFormatSelect = document.getElementById('model-api-format');
+        if (model.api_format === 'gemini' || (model.api_base && model.api_base.includes('generativelanguage'))) {
+            apiFormatSelect.value = 'gemini';
+        } else if (model.api_format === 'anthropic' || (model.api_base && model.api_base.includes('anthropic'))) {
+            apiFormatSelect.value = 'anthropic';
+        } else {
+            apiFormatSelect.value = 'openai';
+        }
+        updateModalProviderDefaults();
+    } else {
+        // Add new model
+        title.textContent = '添加模型';
+        form.reset();
+        indexInput.value = -1;
+        updateModalProviderDefaults();
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeModelModal() {
+    const modal = document.getElementById('model-modal');
+    modal.style.display = 'none';
+}
+
+function updateModalProviderDefaults() {
+    const apiFormat = document.getElementById('model-api-format').value;
+    const baseInput = document.getElementById('model-api-base');
+    const modelInput = document.getElementById('model-chat-model');
+
+    if (apiFormat === 'gemini') {
+        if (!baseInput.value) {
+            baseInput.value = 'https://generativelanguage.googleapis.com/v1beta';
+        }
+        if (!modelInput.value) {
+            modelInput.value = 'gemini-2.0-flash';
+        }
+    } else if (apiFormat === 'anthropic') {
+        if (!baseInput.value) {
+            baseInput.value = 'https://api.minimaxi.com/v1';
+        }
+        if (!modelInput.value) {
+            modelInput.value = 'MiniMax-M2.1';
+        }
+    } else {
+        if (!baseInput.value || baseInput.value.includes('minimaxi')) {
+            baseInput.value = 'https://api.deepseek.com/v1';
+        }
+        if (!modelInput.value || modelInput.value.includes('MiniMax')) {
+            modelInput.value = 'deepseek-chat';
+        }
+    }
+}
+
+// Handle model form submission - auto save to server
+(function() {
+    const form = document.getElementById('model-form');
+    if (form) form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const index = parseInt(document.getElementById('model-index').value);
+    const modelData = {
+        id: index >= 0 ? modelsData[index].id : 'model_' + Date.now(),
+        name: document.getElementById('model-name').value,
+        api_base: document.getElementById('model-api-base').value,
+        api_key: document.getElementById('model-api-key').value,
+        chat_model: document.getElementById('model-chat-model').value,
+        api_format: document.getElementById('model-api-format').value
+    };
+
+    if (index >= 0) {
+        modelsData[index] = modelData;
+    } else {
+        modelsData.push(modelData);
+    }
+
+    // Auto-save to server
+    try {
+        const response = await fetch('/api/config/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                models: modelsData,
+                active_model_id: activeModelId || modelData.id
+            })
+        });
+        const result = await response.json();
+        if (result.success) {
+            activeModelId = activeModelId || modelData.id;
+            renderModels();
+            closeModelModal();
+        } else {
+            alert('保存失败: ' + result.message);
+        }
+    } catch (error) {
+        alert('保存失败: ' + error.message);
+    }
+});
+})();
+
+// Close modal when clicking outside
+document.addEventListener('DOMContentLoaded', function() {
+    const modelModal = document.getElementById('model-modal');
+    if (modelModal) {
+        modelModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModelModal();
+            }
+        });
+    }
+});
+
+function addModel() {
+    openModelModal(-1);
+}
+
+function editModel(index) {
+    openModelModal(index);
+}
+
+async function deleteModel(index) {
+    if (!confirm('确定要删除这个模型配置吗？')) return;
+    const deletedId = modelsData[index].id;
+    modelsData.splice(index, 1);
+    if (activeModelId === deletedId) {
+        activeModelId = modelsData.length > 0 ? modelsData[0].id : '';
+    }
+    // Auto-save to server
+    try {
+        const response = await fetch('/api/config/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                models: modelsData,
+                active_model_id: activeModelId
+            })
+        });
+        const result = await response.json();
+        if (result.success) {
+            renderModels();
+        } else {
+            alert('删除后保存失败: ' + result.message);
+        }
+    } catch (error) {
+        alert('删除后保存失败: ' + error.message);
+    }
+}
+
+async function setActiveModel(id) {
+    activeModelId = id;
+    // Auto-save to server
+    try {
+        const response = await fetch('/api/config/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                models: modelsData,
+                active_model_id: activeModelId
+            })
+        });
+        const result = await response.json();
+        if (result.success) {
+            renderModels();
+        }
+    } catch (error) {
+        console.error('Failed to save:', error);
+    }
+}
+
+async function saveModels() {
+    try {
+        const response = await fetch('/api/config/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                models: modelsData,
+                active_model_id: activeModelId
+            })
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('模型配置已保存');
+            loadModels();
+        } else {
+            alert('保存失败: ' + result.message);
+        }
+    } catch (e) {
+        alert('保存失败: ' + e.message);
+    }
+}
+
+// Load models when page loads
+window.addEventListener('DOMContentLoaded', function() {
+    loadModels();
+});
+</script>
+
+<style>
+.config-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px 20px 100px 20px; /* Extra bottom padding for status bar */
+}
+
+/* Tab Navigation */
+.tab-navigation {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 0;
+}
+
+.tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border: none;
+    background: transparent;
+    color: #666;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+    border-radius: 8px 8px 0 0;
+}
+
+.tab-btn:hover {
+    color: #4A6FA5;
+    background: rgba(74, 111, 165, 0.05);
+}
+
+.tab-btn.active {
+    color: #4A6FA5 !important;
+    border-bottom-color: #4A6FA5 !important;
+    background: rgba(74, 111, 165, 0.1) !important;
+    font-weight: 600 !important;
+}
+
+.tab-btn svg {
+    opacity: 0.7;
+}
+
+.tab-btn.active svg {
+    opacity: 1;
+    stroke-width: 2.5;
+}
+
+/* Tab Content */
+.tab-content {
+    display: none !important;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-content.active {
+    display: block !important;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Config Card */
+.config-card {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.config-description {
+    color: #718096;
+    font-size: 13px;
+    margin: 6px 0 0 0;
+    line-height: 1.5;
+}
+
+.config-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #f0f0f5;
+}
+
+.config-header-row h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.config-header-row .btn {
+    flex-shrink: 0;
+}
+
+.btn-add-model {
+    padding: 8px 14px;
+    font-size: 13px;
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: #333;
+}
+
+.checkbox-label {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 8px 0;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #4A6FA5;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+    background: white;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #4A6FA5;
+    box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.1);
+}
+
+.form-hint {
+    display: block;
+    font-size: 12px;
+    color: #888;
+    margin-top: 6px;
+}
+
+.form-hint a {
+    color: #4A6FA5;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    gap: 8px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+    color: #4a5568;
+    border: 1px solid #e2e8f0;
+}
+
+.btn-secondary:hover {
+    background: linear-gradient(135deg, #e4e8ec 0%, #cbd5e0 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Test Results */
+.test-result {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+.test-result.loading {
+    background: #f0f7ff;
+    color: #4A6FA5;
+}
+
+.test-result.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border-left: 4px solid #4caf50;
+}
+
+.test-result.error {
+    background: #ffebee;
+    color: #c62828;
+    border-left: 4px solid #f44336;
+}
+
+.test-result h3 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+}
+
+/* Model Test Result (inline in model card) */
+.model-test-result {
+    margin-top: 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.model-test-result.loading {
+    background: linear-gradient(135deg, #f0f5ff 0%, #e8eeff 100%);
+    color: #667eea;
+    border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.model-test-result.success {
+    background: linear-gradient(135deg, #f0fff4 0%, #e6ffec 100%);
+    color: #38a169;
+    border: 1px solid rgba(56, 161, 105, 0.2);
+}
+
+.model-test-result.error {
+    background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+    color: #e53e3e;
+    border: 1px solid rgba(229, 62, 62, 0.2);
+}
+
+/* Model Management */
+.models-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.model-item {
+    background: linear-gradient(135deg, #fafbfc 0%, #f0f2f5 100%);
+    border: 2px solid #e8eaf0;
+    border-radius: 14px;
+    padding: 18px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.model-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+
+.model-item:hover {
+    border-color: #c5cfd9;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+.model-item:hover::before {
+    opacity: 1;
+}
+
+.model-item.active {
+    border-color: #a5b4fc;
+    background: linear-gradient(135deg, #f5f7ff 0%, #eef0fa 100%);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.model-item.active::before {
+    opacity: 0;
+}
+
+.model-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.model-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.model-name {
+    font-weight: 600;
+    font-size: 16px;
+    color: #2d3748;
+}
+
+.model-chat-name {
+    font-size: 12px;
+    color: #667eea;
+    background: rgba(102, 126, 234, 0.1);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.model-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: #718096;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.radio-label:hover {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.radio-label input {
+    cursor: pointer;
+    accent-color: #667eea;
+}
+
+.btn-icon {
+    background: white;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    color: #718096;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon:hover {
+    background: #f5f7ff;
+    border-color: #667eea;
+    color: #667eea;
+    transform: scale(1.05);
+}
+
+.btn-icon.danger:hover {
+    background: #fff5f5;
+    border-color: #fc8181;
+    color: #e53e3e;
+}
+
+.model-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    font-size: 12px;
+    color: #718096;
+    padding-top: 12px;
+    border-top: 1px dashed #e2e8f0;
+}
+
+.model-details span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.model-details span::before {
+    content: '•';
+    color: #cbd5e0;
+}
+
+.model-details span:first-child::before {
+    display: none;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 50px 40px;
+    color: #a0aec0;
+    background: linear-gradient(135deg, #fafbfc 0%, #f0f2f5 100%);
+    border-radius: 14px;
+    border: 2px dashed #e2e8f0;
+}
+
+/* Fixed Status Bar at Bottom */
+.status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e0e0e0;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    z-index: 100;
+    padding: 12px 20px;
+}
+
+.status-bar-content {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+}
+
+.status-badge {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: #f0f0f0;
+    color: #555;
+    font-weight: 500;
+}
+
+.status-badge.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.status-badge.error {
+    background: #ffebee;
+    color: #c62828;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .tab-navigation {
+        flex-wrap: wrap;
+    }
+
+    .tab-btn {
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+
+    .status-bar-content {
+        gap: 12px;
+    }
+
+    .config-page {
+        padding-bottom: 120px;
+    }
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    width: 90%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #f0f0f5;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.modal-close {
+    background: #f5f5f5;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 18px;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: #e8e8e8;
+    color: #333;
+    transform: rotate(90deg);
+}
+
+#model-form .form-group {
+    margin-bottom: 18px;
+}
+
+#model-form .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 8px;
+}
+
+#model-form input,
+#model-form select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    transition: all 0.2s;
+    background: #fafbfc;
+    box-sizing: border-box;
+}
+
+#model-form input:focus,
+#model-form select:focus {
+    outline: none;
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+#model-form input::placeholder {
+    color: #a0aec0;
+}
+
+#model-form .form-actions {
+    margin-top: 28px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+</style>
+{% endblock %}

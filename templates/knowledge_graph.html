@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱 - CryoAgent Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}">
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <!-- SVG Symbols for icons -->
+    <svg style="display: none;">
+        <symbol id="icon-file-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="12" y1="18" x2="12" y2="12"></line>
+            <line x1="9" y1="15" x2="15" y2="15"></line>
+        </symbol>
+        <symbol id="icon-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"></circle>
+            <circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"></circle>
+            <circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"></circle>
+            <circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"></circle>
+            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"></path>
+        </symbol>
+        <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </symbol>
+        <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </symbol>
+    </svg>
+    <style>
+        .kg-container {
+            display: flex;
+            height: calc(100vh - 100px);
+            gap: 20px;
+            padding: 20px;
+        }
+        .kg-sidebar {
+            width: 300px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .kg-main {
+            flex: 1;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+        }
+        .search-box {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        .stats-card {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .stats-card h4 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 13px;
+        }
+        .stat-value {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        .node-type-list {
+            list-style: none;
+            padding: 0;
+        }
+        .node-type-list li {
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .node-type-list li:hover {
+            background: var(--bg-primary);
+        }
+        .type-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .visualization-area {
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+        }
+        .kg-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn:hover {
+            border-color: var(--primary-color);
+        }
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 15px;
+            max-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: none;
+        }
+        .info-panel h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+        .info-panel p {
+            margin: 0;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .search-dropdown {
+            position: absolute;
+            width: calc(100% - 40px);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            margin-top: 5px;
+        }
+        .search-result-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .search-result-item:hover {
+            background: var(--bg-secondary);
+        }
+        .search-result-type {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .search-result-id {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+        .search-result-title {
+            font-size: 12px;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        {% include 'components/sidebar.html' %}
+
+        <main class="main-content">
+            <div class="kg-container">
+                <div class="kg-sidebar">
+                    <input type="text" class="search-box" id="kg-search" placeholder="搜索结构、蛋白质...">
+
+                    <div class="stats-card">
+                        <h4>图谱统计</h4>
+                        <div class="stat-row">
+                            <span>节点数</span>
+                            <span class="stat-value" id="node-count">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>边数</span>
+                            <span class="stat-value" id="edge-count">-</span>
+                        </div>
+                    </div>
+
+                    <div class="stats-card">
+                        <h4>节点类型</h4>
+                        <ul class="node-type-list" id="node-types">
+                            <li><span class="type-indicator" style="background: #4CAF50;"></span> 结构</li>
+                            <li><span class="type-indicator" style="background: #2196F3;"></span> 蛋白质</li>
+                            <li><span class="type-indicator" style="background: #FF9800;"></span> 文献</li>
+                            <li><span class="type-indicator" style="background: #9C27B0;"></span> 实体</li>
+                        </ul>
+                    </div>
+
+                    <div class="stats-card">
+                        <h4>边类型（相似度）</h4>
+                        <ul class="node-type-list">
+                            <li><span class="type-indicator" style="background: #4CAF50;"></span> 高相似度 (&ge;70%)</li>
+                            <li><span class="type-indicator" style="background: #FF9800;"></span> 中相似度 (30-70%)</li>
+                            <li><span class="type-indicator" style="background: #9E9E9E;"></span> 低相似度 (&lt;30%)</li>
+                        </ul>
+                    </div>
+
+                    <div class="stats-card">
+                        <h4>加载真实数据</h4>
+                        <input type="text" class="search-box" id="center-node" placeholder="输入 PDB ID (如 6FE8)" style="margin-bottom: 10px;">
+                        <button class="btn btn-primary" onclick="loadNeighborhood()" style="width: 100%;">加载邻域数据</button>
+                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 10px;">
+                            输入PDB ID加载相关文献、相似结构等数据
+                        </p>
+                    </div>
+
+                    <div class="stats-card">
+                        <h4>热门结构</h4>
+                        <div id="popular-structures" style="display: flex; flex-wrap: wrap; gap: 5px;">
+                            <span style="font-size: 12px; color: var(--text-secondary);">加载中...</span>
+                        </div>
+                    </div>
+
+                    <div class="stats-card">
+                        <h4>路径查找</h4>
+                        <input type="text" class="search-box" id="path-source" placeholder="起点ID" style="margin-bottom: 10px;">
+                        <input type="text" class="search-box" id="path-target" placeholder="终点ID" style="margin-bottom: 10px;">
+                        <button class="btn btn-primary" onclick="findPath()" style="width: 100%;">查找路径</button>
+                    </div>
+                </div>
+
+                <div class="kg-main">
+                    <div class="kg-controls">
+                        <button class="btn" onclick="resetZoom()">重置视图</button>
+                        <button class="btn" onclick="togglePhysics()">暂停/继续</button>
+                        <button class="btn" onclick="downloadGraph()">导出PNG</button>
+                        <button class="btn" onclick="showAllNodes()">显示全部</button>
+                    </div>
+
+                    <div id="kg-visualization" class="visualization-area"></div>
+
+                    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+                        <div class="spinner"></div>
+                    </div>
+
+                    <div class="info-panel" id="info-panel">
+                        <h4 id="info-title">节点信息</h4>
+                        <p id="info-content">点击节点查看详情</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Global variables
+        let network = null;
+        let nodesDataSet = null;
+        let edgesDataSet = null;
+        let highlightedNodes = new Set();
+        let physicsEnabled = true;
+        let searchInput = null;
+
+        // Node type colors
+        const nodeColors = {
+            'structure': '#4CAF50',
+            'protein': '#2196F3',
+            'literature': '#FF9800',
+            'entity': '#9C27B0',
+            'gene': '#E91E63',
+            'emdb': '#00BCD4'
+        };
+
+        // Edge colors based on similarity level
+        const edgeColors = {
+            'high': '#4CAF50',      // >70% - Green
+            'medium': '#FF9800',    // 30-70% - Orange
+            'low': '#9E9E9E',        // <30% - Gray (not shown)
+            'default': '#888888'     // Default gray for non-similarity edges
+        };
+
+        // Get edge style based on similarity
+        function getEdgeStyle(edge) {
+            const similarity = edge.similarity;
+
+            if (similarity === undefined || edge.label !== 'sequence_similarity') {
+                return { color: edgeColors.default, width: 1, dash: undefined };
+            }
+
+            if (similarity >= 70) {
+                return { color: edgeColors.high, width: 4, dash: undefined };
+            } else if (similarity >= 30) {
+                return { color: edgeColors.medium, width: 2, dash: undefined };
+            } else {
+                return { color: edgeColors.low, width: 1, dash: [5, 5] };
+            }
+        }
+
+        // Node sizes by type
+        const nodeSizes = {
+            'structure': 25,
+            'protein': 20,
+            'literature': 15,
+            'entity': 18,
+            'gene': 18,
+            'emdb': 22
+        };
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadKgStats();
+            loadInitialGraph();
+            loadPopularStructures();
+            setupSearch();
+            setupEventListeners();
+        });
+
+        // Load popular structures from API
+        async function loadPopularStructures() {
+            try {
+                const resp = await fetch('/api/kg/popular');
+                const data = await resp.json();
+
+                const container = document.getElementById('popular-structures');
+                if (!container) return;
+
+                if (data.popular_structures && data.popular_structures.length > 0) {
+                    container.innerHTML = data.popular_structures.slice(0, 8).map(s => `
+                        <button class="btn" style="font-size: 11px; padding: 5px 10px;" onclick="quickLoad('${s.id}')">${s.id}</button>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<span style="font-size: 12px; color: var(--text-secondary);">暂无数据</span>';
+                }
+            } catch (e) {
+                console.error('Failed to load popular structures:', e);
+                const container = document.getElementById('popular-structures');
+                if (container) {
+                    container.innerHTML = '<span style="font-size: 12px; color: var(--text-secondary);">加载失败</span>';
+                }
+            }
+        }
+
+        async function loadKgStats() {
+            try {
+                const resp = await fetch('/api/kg/stats');
+                const data = await resp.json();
+
+                document.getElementById('node-count').textContent = data.node_count || 0;
+                document.getElementById('edge-count').textContent = data.edge_count || 0;
+
+                // Update node type list dynamically
+                updateNodeTypeList(data.types || {});
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
+        }
+
+        function updateNodeTypeList(types) {
+            const typeList = document.getElementById('node-types');
+            typeList.innerHTML = '';
+
+            const typeLabels = {
+                'structure': '结构 (PDB)',
+                'protein': '蛋白质',
+                'literature': '文献',
+                'entity': '实体',
+                'gene': '基因',
+                'emdb': 'EMDB结构'
+            };
+
+            for (const [type, count] of Object.entries(types)) {
+                const color = nodeColors[type] || '#607D8B';
+                const label = typeLabels[type] || type;
+                typeList.innerHTML += `
+                    <li onclick="filterByType('${type}')">
+                        <span class="type-indicator" style="background: ${color};"></span>
+                        ${label} (${count})
+                    </li>
+                `;
+            }
+        }
+
+        async function loadInitialGraph() {
+            // Show welcome message initially, don't load any data
+            showWelcomeMessage();
+        }
+
+        function showWelcomeMessage() {
+            const container = document.getElementById('kg-visualization');
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); text-align: center; padding: 40px;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">🔬</div>
+                    <h2 style="margin-bottom: 15px; color: var(--text-primary);">欢迎使用知识图谱</h2>
+                    <p style="font-size: 16px; margin-bottom: 25px; max-width: 400px;">
+                        输入 PDB ID 加载相关结构、文献等数据，探索蛋白质结构之间的序列相似性关系
+                    </p>
+                    <p style="font-size: 14px; color: var(--text-secondary);">
+                        提示：尝试搜索 <strong>7B5L</strong>、<strong>1EER</strong> 等结构
+                    </p>
+                </div>
+            `;
+        }
+
+        // Quick load a structure
+        function quickLoad(structureId) {
+            document.getElementById('center-node').value = structureId;
+            loadNeighborhood();
+        }
+
+        function loadDemoGraph() {
+            const demoNodes = [
+                { id: '6FE8', label: '6FE8', type: 'structure', title: 'Structure 6FE8' },
+                { id: '7AJI', label: '7AJI', type: 'structure', title: 'Structure 7AJI' },
+                { id: '7K5U', label: '7K5U', type: 'structure', title: 'Structure 7K5U' },
+                { id: 'P53', label: 'P53', type: 'protein', title: 'Tumor protein P53' },
+                { id: 'MDM2', label: 'MDM2', type: 'protein', title: 'E3 ubiquitin-protein ligase MDM2' },
+                { id: 'BCL2', label: 'BCL2', type: 'protein', title: 'Apoptosis regulator BCL2' },
+                { id: 'PMID:3650001', label: 'PMID:3650001', type: 'literature', title: 'Cryo-EM structure of...' },
+                { id: 'PMID:37400015', label: 'PMID:37400015', type: 'literature', title: 'Structure of...' },
+                { id: 'EMD-30000', label: 'EMD-30000', type: 'emdb', title: 'EMDB map 30000' }
+            ];
+
+            const demoEdges = [
+                { from: '6FE8', to: 'P53', label: 'contains' },
+                { from: '7AJI', to: 'P53', label: 'contains' },
+                { from: '7K5U', to: 'MDM2', label: 'contains' },
+                { from: 'P53', to: 'MDM2', label: 'interacts_with' },
+                { from: 'P53', to: 'BCL2', label: 'interacts_with' },
+                { from: '6FE8', to: 'PMID:3650001', label: 'cited_in' },
+                { from: '7AJI', to: 'PMID:3650001', label: 'cited_in' },
+                { from: '7K5U', to: 'PMID:37400015', label: 'cited_in' },
+                { from: 'MDM2', to: 'PMID:37400015', label: 'cited_in' },
+                { from: 'EMD-30000', to: '6FE8', label: 'related_to' }
+            ];
+
+            renderGraph(demoNodes, demoEdges);
+        }
+
+        function renderGraph(nodes, edges) {
+            // Create vis.js data sets
+            nodesDataSet = new vis.DataSet(
+                nodes.map(node => ({
+                    id: node.id,
+                    label: node.label || node.id,
+                    title: node.title || node.id,
+                    type: node.type,
+                    color: node.color || nodeColors[node.type] || '#607D8B',
+                    size: nodeSizes[node.type] || 15,
+                    font: { size: 12, color: '#1a1a1a', strokeWidth: 2, strokeColor: '#ffffff' },
+                    borderWidth: 2,
+                    borderWidthSelected: 4,
+                    shadow: true
+                }))
+            );
+
+            edgesDataSet = new vis.DataSet(
+                edges.map(edge => {
+                    const edgeStyle = getEdgeStyle(edge);
+                    return {
+                        from: edge.from,
+                        to: edge.to,
+                        label: edge.label || (edge.similarity !== undefined ? `${edge.similarity}%` : ''),
+                        arrows: 'to',
+                        color: { color: edgeStyle.color, highlight: edgeStyle.color },
+                        font: { size: 10, color: edgeStyle.color, strokeWidth: 0 },
+                        width: edgeStyle.width,
+                        dashes: edgeStyle.dash,
+                        smooth: { type: 'continuous' },
+                        title: edge.similarity !== undefined ? `相似度: ${edge.similarity}%` : edge.label
+                    };
+                })
+            );
+
+            // Create network container
+            const container = document.getElementById('kg-visualization');
+
+            // Network options
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    font: {
+                        face: 'Segoe UI, sans-serif'
+                    }
+                },
+                edges: {
+                    scaling: {
+                        min: 1,
+                        max: 5
+                    }
+                },
+                physics: {
+                    enabled: true,
+                    solver: 'forceAtlas2Based',
+                    forceAtlas2Based: {
+                        gravitationalConstant: -50,
+                        centralGravity: 0.01,
+                        springLength: 150,
+                        springConstant: 0.08,
+                        damping: 0.4,
+                        avoidOverlap: 0.5
+                    },
+                    stabilization: {
+                        iterations: 200,
+                        updateInterval: 25
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 200,
+                    hideEdgesOnDrag: true,
+                    navigationButtons: true,
+                    keyboard: true
+                },
+                layout: {
+                    randomSeed: 2
+                }
+            };
+
+            // Create network
+            network = new vis.Network(container, { nodes: nodesDataSet, edges: edgesDataSet }, options);
+
+            // Event handlers
+            network.on('click', function(params) {
+                handleNodeClick(params);
+            });
+
+            network.on('doubleClick', function(params) {
+                handleNodeDoubleClick(params);
+            });
+
+            network.on('dragEnd', function(params) {
+                // Keep physics enabled but update positions
+            });
+
+            console.log(`Graph rendered: ${nodes.length} nodes, ${edges.length} edges`);
+        }
+
+        function handleNodeClick(params) {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                const node = nodesDataSet.get(nodeId);
+                showNodeInfo(node);
+
+                // Highlight connected nodes
+                highlightConnectedNodes(nodeId);
+            } else if (params.edges.length > 0) {
+                // Clicked on edge
+                const edgeId = params.edges[0];
+                const edge = edgesDataSet.get(edgeId);
+                showEdgeInfo(edge);
+            } else {
+                // Clicked on empty space
+                clearHighlights();
+            }
+        }
+
+        async function handleNodeDoubleClick(params) {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                await expandNode(nodeId);
+            }
+        }
+
+        function showNodeInfo(node) {
+            const panel = document.getElementById('info-panel');
+            const titleEl = document.getElementById('info-title');
+            const contentEl = document.getElementById('info-content');
+
+            if (node) {
+                titleEl.textContent = node.label;
+                contentEl.innerHTML = `
+                    <strong>类型:</strong> ${node.type}<br>
+                    <strong>ID:</strong> ${node.id}<br>
+                    <strong>描述:</strong> ${node.title || 'N/A'}
+                `;
+                panel.style.display = 'block';
+            }
+        }
+
+        function showEdgeInfo(edge) {
+            const panel = document.getElementById('info-panel');
+            const titleEl = document.getElementById('info-title');
+            const contentEl = document.getElementById('info-content');
+
+            titleEl.textContent = '边信息';
+            let similarityHtml = '';
+            if (edge.similarity !== undefined) {
+                const level = edge.similarity >= 70 ? '高' : (edge.similarity >= 30 ? '中' : '低');
+                const levelColor = edge.similarity >= 70 ? '#4CAF50' : (edge.similarity >= 30 ? '#FF9800' : '#9E9E9E');
+                similarityHtml = `<strong>相似度:</strong> <span style="color: ${levelColor}">${edge.similarity}%</span> (${level})<br>`;
+            }
+            contentEl.innerHTML = `
+                <strong>从:</strong> ${edge.from}<br>
+                <strong>到:</strong> ${edge.to}<br>
+                <strong>类型:</strong> ${edge.label || 'N/A'}<br>
+                ${similarityHtml}
+            `;
+            panel.style.display = 'block';
+        }
+
+        function highlightConnectedNodes(nodeId) {
+            clearHighlights();
+
+            // Get connected nodes
+            const connectedNodes = network.getConnectedNodes(nodeId);
+            connectedNodes.push(nodeId);
+
+            // Update node styles
+            nodesDataSet.forEach(function(node) {
+                if (connectedNodes.includes(node.id)) {
+                    nodesDataSet.update({
+                        id: node.id,
+                        color: {
+                            background: nodeColors[node.type] || '#607D8B',
+                            border: '#ffffff',
+                            highlight: {
+                                background: '#4CAF50',
+                                border: '#ffffff'
+                            }
+                        },
+                        font: { size: 14, color: '#ffffff', strokeWidth: 2, strokeColor: '#000000' }
+                    });
+                    highlightedNodes.add(node.id);
+                }
+            });
+        }
+
+        function clearHighlights() {
+            highlightedNodes.forEach(nodeId => {
+                const node = nodesDataSet.get(nodeId);
+                if (node) {
+                    nodesDataSet.update({
+                        id: nodeId,
+                        color: {
+                            background: nodeColors[node.type] || '#607D8B',
+                            border: '#ffffff'
+                        },
+                        font: { size: 12, color: '#1a1a1a', strokeWidth: 2, strokeColor: '#ffffff' }
+                    });
+                }
+            });
+            highlightedNodes.clear();
+        }
+
+        async function expandNode(nodeId) {
+            showLoading(true);
+
+            try {
+                const resp = await fetch(`/api/kg/neighborhood/${nodeId}?depth=1&limit=30`);
+                const data = await resp.json();
+
+                if (data.nodes && data.nodes.length > 0) {
+                    // Add new nodes
+                    const newNodes = data.nodes.filter(n => !nodesDataSet.get(n.id));
+                    newNodes.forEach(node => {
+                        nodesDataSet.add({
+                            id: node.id,
+                            label: node.label || node.id,
+                            title: node.data?.title || node.id,
+                            type: node.type,
+                            color: nodeColors[node.type] || '#607D8B',
+                            size: nodeSizes[node.type] || 15
+                        });
+                    });
+
+                    // Add new edges
+                    if (data.edges) {
+                        data.edges.forEach(edge => {
+                            edgesDataSet.add({
+                                from: edge.source,
+                                to: edge.target,
+                                label: edge.type,
+                                arrows: 'to'
+                            });
+                        });
+                    }
+
+                    // Fit view to show new nodes
+                    network.fit({ animation: true });
+
+                    console.log(`Expanded node ${nodeId}: added ${newNodes.length} nodes`);
+                }
+            } catch (e) {
+                console.error('Failed to expand node:', e);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function loadNeighborhood() {
+            const nodeId = document.getElementById('center-node').value.trim().toUpperCase();
+            if (!nodeId) {
+                alert('请输入结构ID');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                const resp = await fetch(`/api/kg/visualize/${nodeId}`);
+                const data = await resp.json();
+
+                if (data.error) {
+                    alert('加载失败: ' + data.error);
+                    return;
+                }
+
+                if (data.nodes && data.nodes.length > 0) {
+                    renderGraph(data.nodes, data.edges);
+
+                    const nodeCount = data.nodes.length;
+                    const edgeCount = data.edges.length;
+                    console.log(`知识图谱已更新: ${nodeCount} 个节点, ${edgeCount} 条边`);
+                } else {
+                    alert('未找到相关结构');
+                }
+            } catch (e) {
+                alert('加载失败: ' + e.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function resetZoom() {
+            if (network) {
+                network.fit({ animation: true });
+            }
+        }
+
+        function togglePhysics() {
+            physicsEnabled = !physicsEnabled;
+            if (network) {
+                network.setOptions({ physics: { enabled: physicsEnabled } });
+            }
+        }
+
+        function downloadGraph() {
+            if (network) {
+                const canvas = document.querySelector('#kg-visualization canvas');
+                if (canvas) {
+                    const link = document.createElement('a');
+                    link.download = 'knowledge-graph.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                }
+            }
+        }
+
+        // Search functionality
+        function setupSearch() {
+            searchInput = document.getElementById('kg-search');
+            let debounceTimer;
+
+            searchInput.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(async () => {
+                    const q = searchInput.value.trim();
+                    if (q.length < 2) return;
+
+                    try {
+                        const resp = await fetch(`/api/kg/search?q=${encodeURIComponent(q)}&limit=10`);
+                        const data = await resp.json();
+
+                        if (data.results && data.results.length > 0) {
+                            showSearchResults(data.results);
+                        }
+                    } catch (e) {
+                        console.error('Search error:', e);
+                    }
+                }, 300);
+            });
+
+            // Handle Enter key
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const q = searchInput.value.trim();
+                    if (q) {
+                        searchAndFocus(q);
+                    }
+                }
+            });
+        }
+
+        function showSearchResults(results) {
+            // Create or update search results dropdown
+            let dropdown = document.getElementById('search-dropdown');
+
+            if (!dropdown) {
+                dropdown = document.createElement('div');
+                dropdown.id = 'search-dropdown';
+                dropdown.className = 'search-dropdown';
+                // Insert after the search input for proper positioning
+                searchInput.parentNode.insertBefore(dropdown, searchInput.nextSibling);
+            }
+
+            dropdown.innerHTML = results.map(r => `
+                <div class="search-result-item" onclick="selectSearchResult('${r.id}', '${r.type}')">
+                    <span class="search-result-type" style="background: ${nodeColors[r.type] || '#607D8B'}"></span>
+                    <span class="search-result-id">${r.id}</span>
+                    <span class="search-result-title">${r.title || ''}</span>
+                </div>
+            `).join('');
+
+            dropdown.style.display = 'block';
+        }
+
+        function selectSearchResult(id, type) {
+            // Hide dropdown
+            const dropdown = document.getElementById('search-dropdown');
+            if (dropdown) dropdown.style.display = 'none';
+
+            searchAndFocus(id);
+        }
+
+        async function searchAndFocus(query) {
+            // Check if node exists in current graph
+            let node = nodesDataSet.get(query.toUpperCase());
+
+            if (!node) {
+                // Try to load from API
+                showLoading(true);
+                try {
+                    const resp = await fetch(`/api/kg/visualize/${query.toUpperCase()}`);
+                    const data = await resp.json();
+
+                    if (data.nodes && data.nodes.length > 0) {
+                        renderGraph(data.nodes, data.edges);
+                        node = nodesDataSet.get(query.toUpperCase());
+                    }
+                } catch (e) {
+                    console.error('Search failed:', e);
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            // Focus on node
+            if (node && network) {
+                network.focus(node.id, {
+                    scale: 1.2,
+                    animation: true
+                });
+
+                // Highlight the node
+                highlightNode(node.id);
+            }
+        }
+
+        function highlightNode(nodeId) {
+            nodesDataSet.update({
+                id: nodeId,
+                color: {
+                    background: '#FF5722',
+                    border: '#ffffff'
+                },
+                font: { size: 16, color: '#ffffff', strokeWidth: 3, strokeColor: '#000000' }
+            });
+
+            // Remove highlight after 3 seconds
+            setTimeout(() => {
+                const node = nodesDataSet.get(nodeId);
+                if (node) {
+                    nodesDataSet.update({
+                        id: nodeId,
+                        color: {
+                            background: nodeColors[node.type] || '#607D8B',
+                            border: '#ffffff'
+                        },
+                        font: { size: 12, color: '#ffffff' }
+                    });
+                }
+            }, 3000);
+        }
+
+        // Path finding
+        async function findPath() {
+            const source = document.getElementById('path-source').value.trim().toUpperCase();
+            const target = document.getElementById('path-target').value.trim().toUpperCase();
+
+            if (!source || !target) {
+                alert('请输入起点和终点');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                const resp = await fetch(`/api/kg/paths?source=${source}&target=${target}&max_depth=3`);
+                const data = await resp.json();
+
+                if (data.paths && data.paths.length > 0) {
+                    highlightPath(data.paths[0]);
+                    console.log('Path found:', data.paths[0]);
+                } else {
+                    alert('未找到路径');
+                }
+            } catch (e) {
+                alert('路径查找失败: ' + e.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function highlightPath(path) {
+            // Clear previous highlights
+            clearHighlights();
+
+            // Highlight path nodes and edges
+            const pathNodes = path.nodes;
+            const pathEdges = path.edges;
+
+            pathNodes.forEach(nodeId => {
+                nodesDataSet.update({
+                    id: nodeId,
+                    color: {
+                        background: '#FF5722',
+                        border: '#ffffff'
+                    },
+                    size: 30
+                });
+            });
+
+            // Fit view to show path
+            network.fit({ animation: true });
+        }
+
+        function filterByType(type) {
+            if (!nodesDataSet) return;
+
+            nodesDataSet.forEach(function(node) {
+                if (node.type === type) {
+                    nodesDataSet.update({
+                        id: node.id,
+                        opacity: 1
+                    });
+                } else {
+                    nodesDataSet.update({
+                        id: node.id,
+                        opacity: 0.3
+                    });
+                }
+            });
+        }
+
+        function showAllNodes() {
+            if (!nodesDataSet) return;
+
+            nodesDataSet.forEach(function(node) {
+                nodesDataSet.update({
+                    id: node.id,
+                    opacity: 1
+                });
+            });
+        }
+
+        function setupEventListeners() {
+            // Close search dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                const dropdown = document.getElementById('search-dropdown');
+                const searchInput = document.getElementById('kg-search');
+                if (dropdown && searchInput && e.target !== searchInput && !dropdown.contains(e.target)) {
+                    dropdown.style.display = 'none';
+                }
+            });
+
+            // Close info panel when clicking outside
+            document.addEventListener('click', (e) => {
+                const panel = document.getElementById('info-panel');
+                const visualization = document.getElementById('kg-visualization');
+                if (panel && !panel.contains(e.target) && visualization && !visualization.contains(e.target)) {
+                    panel.style.display = 'none';
+                }
+            });
+        }
+
+        function showLoading(show) {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) {
+                overlay.style.display = show ? 'flex' : 'none';
+            }
+        }
+
+        // Hide info panel on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const panel = document.getElementById('info-panel');
+            if (panel) {
+                panel.style.display = 'none';
+            }
+        });
+    </script>
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        // Initialize sidebar stats directly
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Knowledge graph page loaded, initializing...');
+            // Direct fetch for literature stats
+            fetch('/api/utils/stats')
+                .then(res => res.json())
+                .then(stats => {
+                    console.log('System stats:', stats);
+                    const totalEl = document.getElementById('total-count');
+                    const structureEl = document.getElementById('structure-count');
+                    const vectorEl = document.getElementById('vector-count');
+                    if (totalEl) totalEl.textContent = stats.total_count || 0;
+                    if (structureEl) structureEl.textContent = stats.structure_count || 0;
+                    if (vectorEl) vectorEl.textContent = stats.vector_count || 0;
+                })
+                .catch(err => console.error('Failed to load stats:', err));
+
+            // Initialize upload if present
+            if (typeof initializeUpload === 'function') {
+                initializeUpload();
+            }
+        });
+    </script>
+</body>
+</html>

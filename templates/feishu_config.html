@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}飞书集成 - CryoAgent Pro{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/feishu_config.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="feishu-config-page">
+    <div class="page-header">
+        <h1><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:8px"><use href="#icon-mail"></use></svg>飞书集成</h1>
+        <div class="header-actions">
+            <a href="/" class="btn btn-secondary">返回首页</a>
+        </div>
+    </div>
+
+    <div class="config-container">
+        <!-- 基础配置 -->
+        <div class="config-card">
+            <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:8px"><use href="#icon-cog"></use></svg>应用配置</h2>
+            <p class="config-description">配置飞书应用凭证和回调设置</p>
+
+            <form id="feishu-config-form">
+                <!-- 启用开关 -->
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="enabled" name="enabled" {% if config.enabled %}checked{% endif %}>
+                        <span class="toggle-text">启用飞书集成</span>
+                    </label>
+                    <span class="form-hint">启用后将接收飞书消息并自动回复</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="app-id">App ID</label>
+                    <input type="text" id="app-id" name="app_id"
+                           value="{{ config.app_id or '' }}"
+                           placeholder="cli_xxxxxxxxxxxxxx">
+                    <span class="form-hint">飞书应用的 App ID</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="app-secret">App Secret</label>
+                    <input type="text" id="app-secret" name="app_secret"
+                           value="{{ config.app_secret or '' }}"
+                           placeholder="输入 App Secret">
+                    <span class="form-hint">飞书应用的 App Secret</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="bot-id">Bot ID</label>
+                    <input type="text" id="bot-id" name="bot_id"
+                           value="{{ config.bot_id or '' }}"
+                           placeholder="ou_xxxxxxxxxxxxxx">
+                    <span class="form-hint">飞书机器人的 Bot ID</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="verification-token">Verification Token</label>
+                    <input type="text" id="verification-token" name="verification_token"
+                           value="{{ config.verification_token or '' }}"
+                           placeholder="用于验证回调请求">
+                    <span class="form-hint">飞书开放平台配置的 Verification Token</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="encrypt-key">Encrypt Key (可选)</label>
+                    <input type="text" id="encrypt-key" name="encrypt_key"
+                           value="{{ config.encrypt_key or '' }}"
+                           placeholder="用于加密回调消息">
+                    <span class="form-hint">如果启用了加密回调，请填写 Encrypt Key</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="webhook-url">Webhook URL</label>
+                    <input type="url" id="webhook-url" name="webhook_url"
+                           value="{{ config.webhook_url or '' }}"
+                           placeholder="https://your-server.com/api/feishu/webhook">
+                    <span class="form-hint">回调URL，需要在飞书开放平台配置</span>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="testConnection()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><use href="#icon-check-circle"></use></svg>测试连接
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><use href="#icon-save"></use></svg>保存配置
+                    </button>
+                </div>
+            </form>
+
+            <div id="test-result" class="test-result" style="display: none;"></div>
+        </div>
+
+        <!-- 文档同步 -->
+        <div class="config-card">
+            <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:8px"><use href="#icon-document"></use></svg>文档同步</h2>
+            <p class="config-description">获取飞书文档并向量化到知识库</p>
+
+            <div class="form-group">
+                <label for="doc-token">文档 Token (Document ID)</label>
+                <div class="input-group">
+                    <input type="text" id="doc-token" name="doc_token"
+                           placeholder="输入飞书文档的 Document ID">
+                    <button type="button" class="btn btn-primary" onclick="fetchDocument()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><use href="#icon-download"></use></svg>获取并索引
+                    </button>
+                </div>
+                <span class="form-hint">在飞书文档URL中找到的 document_id，例如: https://open.feishu.cn/document/xx/xxx#xxx 中的 xx 部分（27位字符）</span>
+            </div>
+
+            <div id="fetch-result" class="test-result" style="display: none;"></div>
+        </div>
+
+        <!-- 文档列表 -->
+        <div class="config-card">
+            <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:8px"><use href="#icon-file-text"></use></svg>已同步文档</h2>
+            <p class="config-description">查看已同步的飞书文档内容</p>
+            <button type="button" class="btn btn-secondary" onclick="loadDocuments()" style="margin-bottom: 15px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><use href="#icon-refresh"></use></svg>刷新文档列表
+            </button>
+            <div id="document-list" class="document-list">
+                <p class="loading">点击上方按钮加载文档列表</p>
+            </div>
+        </div>
+
+        <!-- 搜索测试 -->
+        <div class="config-card">
+            <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:8px"><use href="#icon-search"></use></svg>搜索测试</h2>
+            <p class="config-description">在飞书知识库中测试搜索</p>
+
+            <div class="form-group">
+                <label for="search-query">搜索内容</label>
+                <div class="input-group">
+                    <input type="text" id="search-query" name="search_query"
+                           placeholder="输入搜索关键词">
+                    <button type="button" class="btn btn-primary" onclick="searchFeishu()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><use href="#icon-search"></use></svg>搜索
+                    </button>
+                </div>
+            </div>
+
+            <div id="search-results" class="search-results" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 文档详情Modal -->
+<div id="doc-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="modal-close" onclick="closeModal()">&times;</span>
+        <h2 id="modal-title">文档详情</h2>
+        <div id="modal-content" class="modal-body"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/feishu_config.js') }}"></script>
+{% endblock %}

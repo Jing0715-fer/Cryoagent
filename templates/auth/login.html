@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - CryoAgent Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --input-bg: #f9fafb;
+            --input-border: #e5e7eb;
+            --input-focus: #6366f1;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.2) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 40%, rgba(99, 102, 241, 0.2) 0%, transparent 40%);
+            animation: bgFloat 20s ease-in-out infinite;
+        }
+
+        @keyframes bgFloat {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(2%, 2%) rotate(1deg); }
+            66% { transform: translate(-1%, 1%) rotate(-1deg); }
+        }
+
+        .login-container {
+            position: relative;
+            width: 100%;
+            max-width: 420px;
+            z-index: 10;
+        }
+
+        .login-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            border: 1px solid var(--glass-border);
+        }
+
+        .login-header {
+            padding: 40px 40px 32px;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(99, 102, 241, 0.05) 0%, transparent 100%);
+        }
+
+        .login-logo {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            background: var(--bg-gradient);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 20px -5px rgba(102, 126, 234, 0.4);
+        }
+
+        .login-logo svg {
+            width: 36px;
+            height: 36px;
+            color: white;
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .login-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .login-body {
+            padding: 0 40px 40px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 15px;
+            font-family: inherit;
+            color: var(--text-primary);
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: var(--input-focus);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+            background: white;
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-options {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .form-check-input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .form-check-label {
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .forgot-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .forgot-link:hover {
+            color: var(--primary-dark);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            color: white;
+            background: var(--bg-gradient);
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px -3px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-login:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px -3px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .login-divider {
+            display: flex;
+            align-items: center;
+            margin: 28px 0;
+        }
+
+        .login-divider::before,
+        .login-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--input-border);
+        }
+
+        .login-divider span {
+            padding: 0 16px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .login-footer {
+            text-align: center;
+            padding-top: 8px;
+        }
+
+        .login-footer p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .login-footer a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+
+        .login-footer a:hover {
+            color: var(--primary-dark);
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 14px 16px;
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .alert-info {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        /* Guest link */
+        .guest-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 20px;
+            padding: 12px 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .guest-link:hover {
+            background: rgba(255, 255, 255, 0.8);
+            color: var(--text-primary);
+        }
+
+        .guest-link i {
+            transition: transform 0.2s;
+        }
+
+        .guest-link:hover i {
+            transform: translateX(-4px);
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .login-header {
+                padding: 32px 24px 24px;
+            }
+
+            .login-body {
+                padding: 0 24px 32px;
+            }
+
+            .login-title {
+                font-size: 22px;
+            }
+
+            .form-options {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+        }
+
+        /* Animation */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-container {
+            animation: fadeInUp 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 18h8"></path>
+                        <path d="M3 22h18"></path>
+                        <path d="M14 22a7 7 0 1 0 0-14h-1"></path>
+                        <path d="M9 14h2"></path>
+                        <path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2z"></path>
+                        <path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"></path>
+                    </svg>
+                </div>
+                <h1 class="login-title">欢迎回来</h1>
+                <p class="login-subtitle">登录到 CryoAgent Pro</p>
+            </div>
+
+            <div class="login-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }}">
+                                <i class="bi bi-{{ 'exclamation-circle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }}"></i>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <form method="POST" action="{{ url_for('auth.login') }}" id="loginForm">
+                    <div class="form-group">
+                        <label class="form-label" for="username">用户名</label>
+                        <input type="text" class="form-input" id="username" name="username" placeholder="请输入用户名" required autofocus>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">密码</label>
+                        <input type="password" class="form-input" id="password" name="password" placeholder="请输入密码" required>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                            <span class="form-check-label">记住登录</span>
+                        </label>
+                        <a href="#" class="forgot-link">忘记密码？</a>
+                    </div>
+
+                    <button type="submit" class="btn-login">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>登录
+                    </button>
+                </form>
+
+                <div class="login-footer">
+                    <p>还没有账号？ <a href="{{ url_for('auth.register') }}">立即注册</a></p>
+                </div>
+
+                <div style="text-align: center;">
+                    <a href="{{ url_for('index') }}" class="guest-link">
+                        <i class="bi bi-arrow-left"></i>
+                        暂不登录，以访客身份浏览
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            if (!username || !password) {
+                e.preventDefault();
+                alert('请输入用户名和密码');
+            }
+        });
+    </script>
+</body>
+</html>

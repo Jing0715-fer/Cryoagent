@@ -1,0 +1,18 @@
+<!-- Structure Card Component -->
+<a href="/structure/{{ structure.id }}" class="structure-card" data-id="{{ structure.id }}">
+    <div class="card-header">
+        <span class="structure-type-badge type-{{ structure.type|lower }}">{{ structure.type }}</span>
+        <h4 class="card-title">{{ structure.id }}</h4>
+    </div>
+    <div class="card-content">
+        <p class="structure-title">{{ structure.title[:60] }}{% if structure.title|length > 60 %}...{% endif %}</p>
+        {% if structure.resolution %}
+        <div class="resolution-badge">
+            <span class="resolution-value">{{ structure.resolution }} Å</span>
+        </div>
+        {% endif %}
+        <div class="meta-info">
+            <span class="meta-item">{{ structure.method if structure.method else 'N/A' }}</span>
+        </div>
+    </div>
+</a>

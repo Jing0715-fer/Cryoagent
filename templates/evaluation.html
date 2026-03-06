@@ -1,0 +1,1398 @@
+{% extends "base.html" %}
+
+{% block title %}蛋白质评估 - CryoAgent Pro{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/evaluation.css') }}">
+{% endblock %}
+
+
+{% block content %}
+<div class="evaluation-page">
+    <!-- Left Sidebar - Evaluation History -->
+    <div class="eval-sidebar">
+        <div class="sidebar-header">
+            <h2>评估历史</h2>
+            <input type="text" id="history-search" class="history-search-input" placeholder="搜索UniProt ID..." oninput="filterHistory()">
+        </div>
+        <div class="eval-history-list" id="eval-history-list">
+            <div class="empty-placeholder">加载中...</div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="eval-main">
+        <!-- Header -->
+        <header class="eval-header">
+            <h1>蛋白质评估</h1>
+            <p class="subtitle">输入UniProt ID进行蛋白质综合评估</p>
+        </header>
+
+        <!-- Input Section -->
+        <div class="eval-input-section">
+            <div class="input-group">
+                <label for="uniprot-id">UniProt ID</label>
+                <input type="text" id="uniprot-id" placeholder="例如: P04637, P00533" />
+                <button class="btn-start" onclick="startEvaluation()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    开始评估
+                </button>
+                <button class="btn-config" onclick="toggleEvalConfig()" title="高级配置">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Advanced Configuration Panel -->
+        <div class="eval-config-panel" id="eval-config-panel" style="display: none;">
+            <div class="config-grid">
+                <div class="config-item">
+                    <label for="config-max-pdb">最大PDB数量</label>
+                    <input type="number" id="config-max-pdb" value="100" min="10" max="500" />
+                    <span class="config-hint">最多获取的PDB结构数量</span>
+                </div>
+                <div class="config-item">
+                    <label for="config-max-lit">最大文献数</label>
+                    <input type="number" id="config-max-lit" value="20" min="5" max="100" />
+                    <span class="config-hint">每个PDB关联的最大文献数</span>
+                </div>
+                <div class="config-item">
+                    <label for="config-ai-temp">AI温度参数</label>
+                    <input type="number" id="config-ai-temp" value="0.3" min="0" max="1" step="0.1" />
+                    <span class="config-hint">越低越确定性，越高越创造性</span>
+                </div>
+                <div class="config-item">
+                    <label for="config-ai-max-tokens">AI最大Token</label>
+                    <input type="number" id="config-ai-max-tokens" value="6000" min="1000" max="16000" step="1000" />
+                    <span class="config-hint">AI生成内容的最大长度</span>
+                </div>
+            </div>
+            <div class="config-item full-width">
+                <label for="config-ai-prompt">AI分析提示词模板</label>
+                <textarea id="config-ai-prompt" rows="4" placeholder="输入自定义提示词...">请分析以下蛋白质数据，提供详细的结构功能分析报告，包括：
+1. 蛋白质功能概述
+2. 结构特征分析
+3. 相关文献解读
+4. 研究前景建议
+
+要求：报告详细全面，字数不少于4000字</textarea>
+                <span class="config-hint">使用 {"{"}uniprot{"}"}, {"{"}pdb{"}"}, {"{"}citations{"}"} 作为变量占位符</span>
+            </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div class="eval-progress-section" id="progress-section" style="display: none;">
+            <div class="progress-card">
+                <h3>评估进度</h3>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="progress-text" id="progress-text">等待开始...</div>
+                <div class="current-step" id="current-step"></div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="eval-results-section" id="results-section" style="display: none;">
+            <!-- Results will be displayed here -->
+        </div>
+
+        <!-- Error Section -->
+        <div class="eval-error-section" id="error-section" style="display: none;">
+            <div class="error-card">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span id="error-message"></span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- ECharts for charts (local) -->
+<script src="{{ url_for('static', filename='js/echarts.min.js') }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+// Wrap entire script in try-catch to prevent syntax errors from breaking the page
+let currentEvaluationId = null;
+let allEvaluations = [];
+let statusPollingInterval = null;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, calling loadEvaluationHistory...');
+    try {
+        loadEvaluationHistory();
+    } catch(e) {
+        console.error('Error in loadEvaluationHistory:', e);
+    }
+
+    // Handle Enter key
+    var uniprotInput = document.getElementById('uniprot-id');
+    if (uniprotInput) {
+        uniprotInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                startEvaluation();
+            }
+        });
+    }
+});
+
+function loadEvaluationHistory() {
+    var list = document.getElementById('eval-history-list');
+    list.innerHTML = '<div class="empty-placeholder">加载中...</div>';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/evaluation', true);
+    xhr.timeout = 10000;
+
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (data.success && data.evaluations) {
+                    allEvaluations = data.evaluations;
+                    renderEvaluationList(allEvaluations);
+                } else {
+                    list.innerHTML = '<div class="empty-placeholder">暂无评估记录</div>';
+                }
+            } catch(e) {
+                list.innerHTML = '<div class="empty-placeholder">解析失败</div>';
+            }
+        } else {
+            list.innerHTML = '<div class="empty-placeholder">加载失败: ' + xhr.status + '</div>';
+        }
+    };
+
+    xhr.onerror = function() {
+        list.innerHTML = '<div class="empty-placeholder">网络错误</div>';
+    };
+
+    xhr.ontimeout = function() {
+        list.innerHTML = '<div class="empty-placeholder">请求超时</div>';
+    };
+
+    xhr.send();
+}
+
+function renderEvaluationList(evaluations) {
+    var list = document.getElementById('eval-history-list');
+    if (!evaluations || evaluations.length === 0) {
+        list.innerHTML = '<div class="empty-placeholder">暂无评估记录</div>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < evaluations.length; i++) {
+        var ev = evaluations[i];
+        html += '<div class="eval-history-item" onclick="viewEvaluation(' + ev.id + ')">' +
+            '<div class="eval-item-header">' +
+            '<span class="eval-uniprot">' + ev.uniprot_id + '</span>' +
+            '<span class="eval-status status-' + ev.evaluation_status + '">' + getStatusText(ev.evaluation_status) + '</span>' +
+            '</div>' +
+            '<div class="eval-item-info">' +
+            (ev.gene_name ? '<span>' + ev.gene_name + '</span>' : '') +
+            '<span>' + formatDate(ev.created_at) + '</span>' +
+            '</div></div>';
+    }
+    list.innerHTML = html;
+}
+
+function filterHistory() {
+    var searchTerm = document.getElementById('history-search').value.trim().toLowerCase();
+    if (!searchTerm) {
+        renderEvaluationList(allEvaluations);
+        return;
+    }
+    var filtered = allEvaluations.filter(function(ev) {
+        return (ev.uniprot_id && ev.uniprot_id.toLowerCase().includes(searchTerm)) ||
+               (ev.gene_name && ev.gene_name.toLowerCase().includes(searchTerm));
+    });
+    renderEvaluationList(filtered);
+}
+
+function toggleEvalConfig() {
+    var panel = document.getElementById('eval-config-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function getEvalConfig() {
+    return {
+        max_pdb: parseInt(document.getElementById('config-max-pdb').value) || 100,
+        max_literature: parseInt(document.getElementById('config-max-lit').value) || 20,
+        ai_temperature: parseFloat(document.getElementById('config-ai-temp').value) || 0.3,
+        ai_max_tokens: parseInt(document.getElementById('config-ai-max-tokens').value) || 6000,
+        ai_prompt: document.getElementById('config-ai-prompt').value || ''
+    };
+}
+
+function startEvaluation() {
+    console.log('startEvaluation called');
+    const uniprotId = document.getElementById('uniprot-id').value.trim();
+    console.log('UniProt ID:', uniprotId);
+
+    if (!uniprotId) {
+        alert('请输入UniProt ID');
+        return;
+    }
+
+    // Show progress section
+    document.getElementById('progress-section').style.display = 'block';
+    document.getElementById('results-section').style.display = 'none';
+    document.getElementById('error-section').style.display = 'none';
+
+    // Update progress
+    updateProgress(0, '正在启动评估...', 'pending');
+
+    console.log('Sending request to /api/evaluation/start');
+
+    // Get config values
+    var config = getEvalConfig();
+
+    fetch('/api/evaluation/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            uniprot_id: uniprotId,
+            config: config
+        })
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            currentEvaluationId = data.evaluation_id;
+            console.log('Evaluation started with ID:', currentEvaluationId);
+            // Start polling for status
+            statusPollingInterval = setInterval(checkStatus, 3000);
+        } else {
+            showError(data.error || '启动评估失败');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('请求失败: ' + error.message);
+    });
+}
+
+function checkStatus() {
+    if (!currentEvaluationId) return;
+
+    fetch(`/api/evaluation/${currentEvaluationId}/status`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.evaluation) {
+                const eval = data.evaluation;
+                updateProgress(eval.progress, getStepMessage(eval.current_step), eval.current_step);
+
+                if (eval.evaluation_status === 'completed') {
+                    clearInterval(statusPollingInterval);
+                    displayResults(eval);
+                } else if (eval.evaluation_status === 'failed') {
+                    clearInterval(statusPollingInterval);
+                    showError(eval.error_message || '评估失败');
+                }
+            }
+        })
+        .catch(error => {
+            console.error('检查状态失败:', error);
+        });
+}
+
+function updateProgress(progress, message, step) {
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const currentStep = document.getElementById('current-step');
+
+    progressBar.style.width = progress + '%';
+    progressText.textContent = `${progress}% - ${message}`;
+    currentStep.textContent = step ? `当前步骤: ${step}` : '';
+}
+
+function getStepMessage(step) {
+    const messages = {
+        'pending': '等待开始',
+        'fetching_pdb': '获取PDB数据',
+        'fetching_uniprot': '获取UniProt数据',
+        'blasting': '执行BLAST搜索',
+        'analyzing': 'AI分析中',
+        'generating_report': '生成报告',
+        'completed': '评估完成',
+        'failed': '评估失败'
+    };
+    return messages[step] || step;
+}
+
+function displayResults(eval) {
+    // Store evaluation data for export
+    window.currentEvaluationData = eval;
+
+    document.getElementById('progress-section').style.display = 'none';
+    document.getElementById('results-section').style.display = 'block';
+
+    const resultsSection = document.getElementById('results-section');
+
+    let html = `
+        <div class="results-card">
+            <div class="results-header">
+                <h2>评估结果</h2>
+                <div class="results-actions">
+                    <button class="btn-secondary" onclick="deleteEvaluation(${eval.id})">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        删除
+                    </button>
+                </div>
+            </div>
+
+            <!-- Basic Info -->
+            <div class="result-section">
+                <h3 class="collapsible" onclick="toggleSection(this)">
+                    <span class="collapse-icon">▼</span>
+                    基本信息
+                </h3>
+                <div class="collapsible-content">
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>UniProt ID</label>
+                            <span>${eval.uniprot_id || '-'}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>基因名</label>
+                            <span>${eval.gene_name || '-'}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>蛋白质名称</label>
+                            <span>${eval.protein_name || '-'}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>评估时间</label>
+                            <span>${formatDate(eval.created_at)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+    `;
+
+    // UniProt Data
+    if (eval.uniprot_data) {
+        const uniprot = eval.uniprot_data;
+        const pdbCount = (uniprot.pdb_ids || []).length;
+        html += `
+            <div class="result-section">
+                <h3 class="collapsible" onclick="toggleSection(this)">
+                    <span class="collapse-icon">▼</span>
+                    UniProt 数据 ${pdbCount > 0 ? `<span class="badge">${pdbCount} PDB</span>` : ''}
+                </h3>
+                <div class="collapsible-content">
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>物种</label>
+                            <span>${uniprot.organism || '-'}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>序列长度</label>
+                            <span>${uniprot.sequence || '-'} aa</span>
+                        </div>
+                        <div class="info-item">
+                            <label>分子量</label>
+                            <span>${uniprot.mass ? (uniprot.mass/1000).toFixed(1) + ' kDa' : '-'}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>基因名</label>
+                            <span>${(uniprot.gene_names || []).join(', ') || '-'}</span>
+                        </div>
+                    </div>
+                    ${uniprot.function ? `<div class="info-full"><label>功能描述</label><p>${uniprot.function}</p></div>` : ''}
+                    ${(uniprot.keywords || []).length > 0 ? `<div class="info-full"><label>关键词</label><div class="keywords-list">${uniprot.keywords.map(kw => `<span class="keyword-tag">${kw}</span>`).join('')}</div></div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // AI Analysis (after UniProt data)
+    if (eval.ai_analysis && eval.ai_analysis.analysis) {
+        html += `
+            <div class="result-section">
+                <div class="section-header">
+                    <h3>AI 分析报告</h3>
+                    <div class="export-buttons">
+                        <button class="btn-export" onclick="exportReport('markdown')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                            Markdown
+                        </button>
+                        <button class="btn-export" onclick="exportReport('pdf')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                            PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="ai-analysis">
+                    ${formatMarkdown(eval.ai_analysis.analysis)}
+                </div>
+            </div>
+        `;
+    } else if (eval.ai_analysis && eval.ai_analysis.error) {
+        html += `
+            <div class="result-section">
+                <h3>AI 分析</h3>
+                <div class="ai-error">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <div>
+                        <strong>AI分析失败</strong>
+                        <p>${eval.ai_analysis.error}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Literature List - sorted by impact factor proxy
+    if (eval.pdb_data && eval.pdb_data.structures) {
+        const allCitations = [];
+        const seen = new Set();
+
+        // Helper: Simplify journal name (e.g., "Cell (Cambridge, Mass.)" -> "Cell")
+        function simplifyJournalName(journal) {
+            if (!journal) return '';
+            // Remove parenthetical content and trailing info
+            let simplified = journal.replace(/\s*\([^)]*\)\s*/g, '').replace(/\s*:\s*.*$/g, '').trim();
+
+            // Normalize: remove dots and extra spaces for better matching
+            // e.g., "Nat. Chem. Biol." -> "Nat Chem Biol"
+            simplified = simplified.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
+
+            // Map common variations to standardized names
+            const journalMap = {
+                'NAT CHEM BIOL': 'Nat Chem Biol',
+                'NAT STRUCT MOL BIOL': 'Nat Struct Mol Biol',
+                'NAT COMMUN': 'Nat Commun',
+                'NAT REV MOL CELL BIOL': 'Nat Rev Mol Cell Biol',
+                'MOL CELL': 'Mol Cell',
+                'CELL REP': 'Cell Rep',
+                'CELL DISCOV': 'Cell Discovery',
+                'PROC NATL ACAD SCI U S A': 'Proc Natl Acad Sci U S A',
+                'J MOL BIOL': 'J Mol Biol',
+                'J VIROL': 'J Virol',
+                'J BIOL CHEM': 'J Biol Chem',
+                'J BIOLOGICAL CHEM': 'J Biol Chem',
+                'BIOCHEM BIOPHYS RES COMMUN': 'Biochem Biophys Res Commun',
+                'NUCLEIC ACIDS RES': 'Nucleic Acids Res',
+                'PLOS ONE': 'PLoS ONE',
+                'PLOS PATHOG': 'PLoS Pathog',
+                'SCIENTIFIC REPORTS': 'Sci Rep',
+                'SCI REP': 'Sci Rep',
+                'ACTA CRYSTALLOGR D': 'Acta Crystallogr D',
+                'ACTA CRYSTALLOGR F': 'Acta Crystallogr F',
+                'EMBO J': 'EMBO J',
+                'PROTEIN SCI': 'Protein Science',
+                'PROTEINS': 'Protein Science'
+            };
+
+            const upper = simplified.toUpperCase();
+            return journalMap[upper] || simplified;
+        }
+
+        eval.pdb_data.structures.forEach(s => {
+            (s.citations || []).forEach(cit => {
+                // Simplify journal name for proper deduplication and sorting
+                const simpJournal = simplifyJournalName(cit.journal);
+                // Create unique key for deduplication (include simplified journal)
+                const key = cit.pubmed_id || cit.doi || simpJournal + '|' + (cit.title || '').substring(0, 50);
+                if (seen.has(key)) return;
+                seen.add(key);
+                allCitations.push({
+                    ...cit,
+                    pdb_id: s.pdb_id,
+                    journal: simpJournal || cit.journal  // Use simplified name as primary
+                });
+            });
+        });
+
+        // Top journals impact factor - from n8n workflow mapping
+        const topJournals = {
+            // Full names and abbreviations (all uppercase)
+            'NATURE': 64.8, 'SCIENCE': 56.9, 'CELL': 66.9,
+            'NAT COMMUN': 17.7, 'NAT STRUCT MOL BIOL': 16.1, 'NAT METHODS': 48.0,
+            'NAT REV MOL CELL BIOL': 113.9, 'COMMUN BIOL': 5.1, 'CELL RES': 25.7,
+            'NAT CHEM BIOL': 13.5, 'SCI ADV': 14.1, 'MOL CELL': 19.3, 'MOL.CELL': 19.3,
+            'DEV CELL': 13.4, 'CELL REP': 9.9, 'CELL DISCOV': 13,
+            'PROC NATL ACAD SCI U S A': 11.1, 'LIFE': 8.1, 'JACS': 15.0,
+            'ANGEW CHEM INT ED': 16.6, 'J MOL BIOLOGY': 4.5, 'STRUCTURE': 4.4,
+            'BIOCHEMISTRY': 3.1, 'J MOL CELL BIOL': 5.9, 'ACTA CRYSTALLOGR D': 2.2,
+            'ACTA CRYSTALLOGR F': 0.7, 'PROTEIN CELL': 13.6, 'VIRUSES': 4.7,
+            'PLANT CELL': 11.6, 'PLOS PATHOG': 4.9, 'PLOS ONE': 2.6, 'EMBO J': 8.3,
+            'J VIROL': 3.8, 'NUCLEIC ACIDS RES': 14.9, 'BIOCHEM BIOPHYS RES COMMUN': 3.6,
+            'BIORXIV': 0.1, 'BLOOD': 23.1, 'ACS MED CHEM LETTT': 4,
+            'J MED CHEM': 7.1, 'COMMUN CHEM': 6.2, 'SCI REP': 3.9,
+            'IUCRJ': 2.7, 'J STRUCT BIOL': 3.0, 'PROTEIN SCI': 8.0,
+            'J BIOLOGICAL CHEM': 5.5, 'COMMUNICATIONS BIOLOGY': 5.1, 'NEURON': 14.7,
+            'J BIOL CHEM': 4.2,
+            // Additional normalized forms from simplifyJournalName
+            'NAT CHEM BIOL': 13.5, 'NAT STRUCT MOL BIOL': 16.1, 'NAT COMMUN': 17.7,
+            'MOL CELL': 19.3, 'CELL REP': 9.9, 'CELL DISCOV': 13,
+            'J MOL BIOL': 4.5, 'J VIROL': 3.8, 'J BIOL CHEM': 4.2,
+            'BIOCHEM BIOPHYS RES COMMUN': 3.6, 'NUCLEIC ACIDS RES': 14.9,
+            'PLOS ONE': 2.6, 'PLOS PATHOG': 4.9, 'SCIENTIFIC REPORTS': 3.9,
+            'ACTA CRYSTALLOGR D': 2.2, 'ACTA CRYSTALLOGR F': 0.7,
+            'EMBO J': 8.3, 'PROTEIN SCIENCE': 8.0, 'PROTEINS': 8.0
+        };
+
+        // Sort by impact factor proxy (using simplified journal name + year)
+        allCitations.sort((a, b) => {
+            const journalA = (a.journal || '').toUpperCase().trim();
+            const journalB = (b.journal || '').toUpperCase().trim();
+
+            // Helper: get impact factor with proper matching
+            function getImpactFactor(journal) {
+                const upper = journal.toUpperCase();
+                // Exact match first
+                if (topJournals[upper] !== undefined) {
+                    return topJournals[upper];
+                }
+                // For partial matches, prioritize longer (more specific) matches
+                // e.g., "CELL REP" should match before "CELL"
+                let bestMatch = 0;
+                let bestMatchLen = 0;
+                for (const key in topJournals) {
+                    // Check if one contains the other
+                    if (upper.includes(key) || key.includes(upper)) {
+                        // Use the longer match to avoid "CELL" matching "CELL REP"
+                        const matchLen = Math.max(upper.length, key.length);
+                        if (matchLen > bestMatchLen) {
+                            bestMatchLen = matchLen;
+                            bestMatch = topJournals[key];
+                        }
+                    }
+                }
+                return bestMatch;
+            }
+
+            const ifA = getImpactFactor(journalA);
+            const ifB = getImpactFactor(journalB);
+
+            // Primary sort: impact factor
+            if (ifB !== ifA) return ifB - ifA;
+            // Secondary sort: year (newer first)
+            return (b.year || 0) - (a.year || 0);
+        });
+
+        if (allCitations.length > 0) {
+            html += `
+            <div class="result-section">
+                <h3 class="collapsible" onclick="toggleSection(this)">
+                    <span class="collapse-icon">▼</span>
+                    关联文献 <span class="badge">${allCitations.length} 篇</span>
+                </h3>
+                <div class="collapsible-content">
+                    <div class="literature-list">
+            `;
+            allCitations.slice(0, 20).forEach(cit => {
+                const authors = (cit.authors || []).slice(0, 5).map(a => a.name || a).join(', ');
+                const moreAuthors = (cit.authors || []).length > 5 ? ' 等' : '';
+                // Use simplified journal name for display
+                const displayJournal = cit.journal || '未知期刊';
+                html += `
+                        <div class="literature-item">
+                            <div class="lit-title">${cit.title || '无标题'}</div>
+                            <div class="lit-authors">${authors}${moreAuthors}</div>
+                            <div class="lit-journal">${displayJournal}</div>
+                            <div class="lit-meta">
+                                ${cit.year || 'N/A'} | ${cit.volume || ''} ${cit.pages || ''} | PDB: ${cit.pdb_id}
+                                ${cit.pubmed_id ? ' | <a href="https://pubmed.ncbi.nlm.nih.gov/' + cit.pubmed_id + '" target="_blank">PubMed</a>' : ''}
+                                ${cit.doi ? ' | <a href="https://doi.org/' + cit.doi + '" target="_blank">DOI</a>' : ''}
+                            </div>
+                        </div>
+                `;
+            });
+            if (allCitations.length > 20) {
+                html += `<p style="color:#6b7280;font-size:12px;margin-top:8px;">还有 ${allCitations.length - 20} 篇文献...</p>`;
+            }
+            html += `
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+    }
+
+    // PDB Statistics
+    if (eval.pdb_data && eval.pdb_data.structures) {
+        const structures = eval.pdb_data.structures;
+        // Calculate statistics
+        const methods = {};
+        const resolutions = [];
+        structures.forEach(s => {
+            const method = s.basic_info?.experimental_method || 'Unknown';
+            methods[method] = (methods[method] || 0) + 1;
+            if (s.basic_info?.resolution) resolutions.push(s.basic_info.resolution);
+        });
+        const avgRes = resolutions.length > 0 ? (resolutions.reduce((a,b)=>a+b,0)/resolutions.length).toFixed(2) : 'N/A';
+        const highResCount = resolutions.filter(r => r && r < 3).length;
+        const years = [];
+        let citationCount = 0;
+        structures.forEach(s => {
+            if (s.basic_info?.deposition_date) {
+                const year = parseInt(s.basic_info.deposition_date.substring(0, 4));
+                if (!isNaN(year)) years.push(year);
+            }
+            citationCount += (s.citations || []).length;
+        });
+        const yearRange = years.length > 0 ? Math.min(...years) + '-' + Math.max(...years) : 'N/A';
+        const latestYear = years.length > 0 ? Math.max(...years) : 'N/A';
+
+        // Method distribution for compact display
+        const methodEntries = Object.entries(methods).sort((a,b) => b[1] - a[1]);
+        const topMethod = methodEntries[0] ? methodEntries[0][0] : 'N/A';
+        const topMethodPct = methodEntries[0] ? (methodEntries[0][1] / structures.length * 100).toFixed(0) : 0;
+
+        html += `
+            <div class="result-section">
+                <h3 class="collapsible" onclick="toggleSection(this)">
+                    <span class="collapse-icon">▼</span>
+                    PDB 结构统计 <span class="badge">${structures.length} 个</span>
+                </h3>
+                <div class="collapsible-content">
+                    <div class="stats-compact-grid">
+                        <div class="stat-mini">
+                            <div class="stat-mini-value">${structures.length}</div>
+                            <div class="stat-mini-label">总结构</div>
+                        </div>
+                        <div class="stat-mini">
+                            <div class="stat-mini-value">${topMethodPct}%</div>
+                            <div class="stat-mini-label">${topMethod.substring(0,8)}</div>
+                        </div>
+                        <div class="stat-mini">
+                            <div class="stat-mini-value">${resolutions.length}</div>
+                            <div class="stat-mini-label">有分辨率</div>
+                        </div>
+                        <div class="stat-mini">
+                            <div class="stat-mini-value">${highResCount}</div>
+                            <div class="stat-mini-label">高分辨(<3Å)</div>
+                        </div>
+                        <div class="stat-mini">
+                            <div class="stat-mini-value">${avgRes} Å</div>
+                            <div class="stat-mini-label">平均分辨率</div>
+                        </div>
+                        <div class="stat-mini">
+                            <div class="stat-mini-value">${latestYear}</div>
+                            <div class="stat-mini-label">最新年份</div>
+                        </div>
+                        <div class="stat-mini">
+                            <div class="stat-mini-value">${yearRange}</div>
+                            <div class="stat-mini-label">年份范围</div>
+                        </div>
+                        <div class="stat-mini">
+                            <div class="stat-mini-value">${citationCount}</div>
+                            <div class="stat-mini-label">关联文献</div>
+                        </div>
+                    </div>
+                    <div class="method-chart">
+                        <h4>实验方法分布</h4>
+                        <div class="chart-bars">
+        `;
+        for (const [method, count] of Object.entries(methods)) {
+            const pct = (count / structures.length * 100).toFixed(1);
+            html += `
+                            <div class="chart-bar">
+                                <div class="bar-label">${method}</div>
+                                <div class="bar-container">
+                                    <div class="bar-fill" style="width: ${pct}%">${count}</div>
+                                </div>
+                                <div class="bar-pct">${pct}%</div>
+                            </div>
+            `;
+        }
+        html += `
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Journal Statistics (instead of resolution chart)
+        // Collect all citations and count journals
+        const journalCounts = {};
+        // Helper: Simplify journal name
+        function simplifyJournal(journal) {
+            if (!journal) return 'Unknown';
+            // Remove parenthetical content and trailing info
+            let simplified = journal.replace(/\s*\([^)]*\)\s*/g, '').replace(/\s*:\s*.*$/g, '').trim();
+            // Normalize: remove dots and extra spaces
+            simplified = simplified.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
+            // Map common variations
+            const journalMap = {
+                'NAT CHEM BIOL': 'Nat Chem Biol',
+                'NAT STRUCT MOL BIOL': 'Nat Struct Mol Biol',
+                'NAT COMMUN': 'Nat Commun',
+                'NAT REV MOL CELL BIOL': 'Nat Rev Mol Cell Biol',
+                'MOL CELL': 'Mol Cell',
+                'CELL REP': 'Cell Rep',
+                'CELL DISCOV': 'Cell Discovery',
+                'PROC NATL ACAD SCI U S A': 'Proc Natl Acad Sci U S A',
+                'J MOL BIOL': 'J Mol Biol',
+                'J VIROL': 'J Virol',
+                'J BIOL CHEM': 'J Biol Chem',
+                'J BIOLOGICAL CHEM': 'J Biol Chem',
+                'BIOCHEM BIOPHYS RES COMMUN': 'Biochem Biophys Res Commun',
+                'NUCLEIC ACIDS RES': 'Nucleic Acids Res',
+                'PLOS ONE': 'PLoS ONE',
+                'PLOS PATHOG': 'PLoS Pathog',
+                'SCIENTIFIC REPORTS': 'Sci Rep',
+                'SCI REP': 'Sci Rep',
+                'ACTA CRYSTALLOGR D': 'Acta Crystallogr D',
+                'ACTA CRYSTALLOGR F': 'Acta Crystallogr F',
+                'EMBO J': 'EMBO J',
+                'PROTEIN SCI': 'Protein Science',
+                'PROTEINS': 'Protein Science'
+            };
+            const upper = simplified.toUpperCase();
+            return journalMap[upper] || simplified;
+        }
+        structures.forEach(s => {
+            const citations = s.citations || [];
+            citations.forEach(cit => {
+                const journal = simplifyJournal(cit.journal) || 'Unknown';
+                if (!journalCounts[journal]) {
+                    journalCounts[journal] = { count: 0, year: cit.year };
+                }
+                journalCounts[journal].count++;
+                if (cit.year && cit.year > journalCounts[journal].year) {
+                    journalCounts[journal].year = cit.year;
+                }
+            });
+        });
+
+        // Convert to array and sort by count
+        const journalList = Object.entries(journalCounts)
+            .map(([name, data]) => ({ name, count: data.count, year: data.year }))
+            .sort((a, b) => b.count - a.count);
+
+        if (journalList.length > 0) {
+            html += `
+                <div class="result-section">
+                    <h3 class="collapsible" onclick="toggleSection(this)">
+                        <span class="collapse-icon">▼</span>
+                        文献期刊统计 <span class="badge">${journalList.length} 种期刊</span>
+                    </h3>
+                    <div class="collapsible-content">
+                        <div class="journal-stats">
+            `;
+            journalList.slice(0, 15).forEach((j, idx) => {
+                const pct = (j.count / journalList.reduce((sum, x) => sum + x.count, 0) * 100).toFixed(1);
+                html += `
+                    <div class="journal-item">
+                        <span class="journal-rank">${idx + 1}</span>
+                        <span class="journal-name">${j.name}</span>
+                        <span class="journal-count">${j.count} 篇</span>
+                        <span class="journal-year">${j.year || ''}</span>
+                        <div class="journal-bar">
+                            <div class="bar-fill" style="width: ${pct}%">${pct}%</div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // PDB Data - detailed list
+    if (eval.pdb_data && eval.pdb_data.structures) {
+        html += `
+            <div class="result-section">
+                <h3 class="collapsible" onclick="toggleSection(this)">
+                    <span class="collapse-icon">▼</span>
+                    PDB 结构详情
+                </h3>
+                <div class="collapsible-content">
+                    <div class="structures-list">
+        `;
+        eval.pdb_data.structures.forEach(struct => {
+            const basic = struct.basic_info || {};
+            const citations = struct.citations || [];
+            html += `
+                <div class="structure-item">
+                    <div class="structure-header">
+                        <a href="/structure/${struct.pdb_id}" target="_blank" class="pdb-link">${struct.pdb_id}</a>
+                        <span class="method-badge">${basic.experimental_method || '-'}</span>
+                        <span class="resolution-badge">${basic.resolution ? basic.resolution + ' Å' : 'N/A'}</span>
+                        <a href="/structure/${struct.pdb_id}" class="btn-view-detail" target="_blank">查看详情</a>
+                    </div>
+                    <div class="structure-details">
+                        <span>沉积日期: ${basic.deposition_date || '-'}</span>
+                        <span>标题: ${basic.title ? basic.title.substring(0, 80) + '...' : '-'}</span>
+                    </div>
+                    ${citations.length > 0 ? `
+                    <div class="citations-list">
+                        <h4 class="collapsible-citation" onclick="toggleCitation(this)">
+                            <span class="collapse-icon">▼</span>
+                            文献引用 (${citations.length}篇)
+                        </h4>
+                        <div class="citation-items-container">
+                        ${citations.map(cit => `
+                            <div class="citation-item">
+                                <div class="citation-title">${cit.title}</div>
+                                <div class="citation-meta">
+                                    ${(cit.authors || []).slice(0,3).join(', ')}${cit.authors && cit.authors.length > 3 ? ' et al.' : ''} (${cit.year})
+                                </div>
+                                <div class="citation-journal">${cit.journal} ${cit.volume || ''} (${cit.pages || ''})</div>
+                                ${cit.doi ? `<div class="citation-doi"><a href="https://doi.org/${cit.doi}" target="_blank">DOI: ${cit.doi}</a></div>` : ''}
+                                ${cit.pubmed_id ? `<div class="citation-pmid">PMID: <a href="https://pubmed.ncbi.nlm.nih.gov/${cit.pubmed_id}/" target="_blank">${cit.pubmed_id}</a></div>` : ''}
+                                ${cit.abstract ? `
+                                <div class="citation-abstract">
+                                    <div class="abstract-label">摘要:</div>
+                                    <div class="abstract-text">${cit.abstract}</div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        });
+        html += `</div></div>`;
+    }
+
+    // BLAST Results
+    if (eval.blast_results && eval.blast_results.results && eval.blast_results.results.length > 0) {
+        const blastResults = eval.blast_results.results;
+        html += `
+            <div class="result-section">
+                <h3 class="collapsible" onclick="toggleSection(this)">
+                    <span class="collapse-icon">▼</span>
+                    相似蛋白 (BLAST) <span class="badge">${blastResults.length} 个</span>
+                </h3>
+                <div class="collapsible-content">
+                    <div class="blast-summary">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            <div class="stat-value">${blastResults.length}</div>
+                            <div class="stat-label">相似蛋白数量</div>
+                        </div>
+                        <div class="stat-card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                            <div class="stat-value">${new Set(blastResults.map(r => r.organism)).size}</div>
+                            <div class="stat-label">涉及物种数</div>
+                        </div>
+                    </div>
+                    <table class="results-table">
+                        <thead>
+                            <tr><th>UniProt ID</th><th>蛋白质名称</th><th>物种</th><th>操作</th></tr>
+                        </thead>
+                        <tbody>
+        `;
+        blastResults.forEach(result => {
+            html += `
+                <tr>
+                    <td><a href="/literature?search=${result.uniprot_id}" target="_blank">${result.uniprot_id}</a></td>
+                    <td>${result.protein_name || '-'}</td>
+                    <td>${result.organism || '-'}</td>
+                    <td><button class="btn-small" onclick="evaluateProtein('${result.uniprot_id}')">评估</button></td>
+                </tr>
+            `;
+        });
+        html += `</tbody></table></div></div>`;
+    } else {
+        html += `
+            <div class="result-section">
+                <h3 class="collapsible" onclick="toggleSection(this)">
+                    <span class="collapse-icon">▼</span>
+                    相似蛋白 (BLAST)
+                </h3>
+                <div class="collapsible-content">
+                    <p style="color: #6b7280; padding: 20px; text-align: center;">未找到相似蛋白</p>
+                </div>
+            </div>
+        `;
+    }
+
+    // Function to evaluate similar protein
+    function evaluateProtein(uniprotId) {
+        document.getElementById('uniprot-id').value = uniprotId;
+        startEvaluation();
+    }
+
+    // Hidden full report data for export
+    if (eval.report) {
+        html += `<div id="full-report" style="display:none;">${eval.report}</div>`;
+    }
+
+    html += '</div>';
+    resultsSection.innerHTML = html;
+
+    // Refresh history
+    loadEvaluationHistory();
+}
+
+function viewEvaluation(id) {
+    currentEvaluationId = id;
+    fetch(`/api/evaluation/${id}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.evaluation) {
+                displayResults(data.evaluation);
+            } else {
+                showError('获取评估详情失败');
+            }
+        })
+        .catch(error => {
+            showError('请求失败: ' + error.message);
+        });
+}
+
+function deleteEvaluation(id) {
+    if (!confirm('确定要删除这条评估记录吗？')) return;
+
+    fetch(`/api/evaluation/${id}`, {method: 'DELETE'})
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadEvaluationHistory();
+                document.getElementById('results-section').style.display = 'none';
+                currentEvaluationId = null;
+            } else {
+                alert('删除失败');
+            }
+        })
+        .catch(error => {
+            alert('删除失败: ' + error.message);
+        });
+}
+
+function exportReport(format) {
+    const eval = window.currentEvaluationData;
+    if (!eval) {
+        alert('没有可导出的数据');
+        return;
+    }
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+
+    if (format === 'markdown') {
+        // Generate Markdown content and download
+        const content = generateMarkdownReport(eval);
+        const blob = new Blob([content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `protein_evaluation_${eval.uniprot_id}_${timestamp}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    } else if (format === 'pdf') {
+        // Check if html2pdf is available
+        if (typeof html2pdf !== 'undefined') {
+            // Generate HTML content
+            const content = generateHTMLReport(eval);
+
+            // Create a temporary container
+            const container = document.createElement('div');
+            container.innerHTML = content;
+            container.style.width = '800px';
+            container.style.padding = '20px';
+
+            // Use html2pdf to download directly
+            const opt = {
+                margin: 10,
+                filename: `protein_evaluation_${eval.uniprot_id}_${timestamp}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(container).save();
+        } else {
+            // Fallback: use print dialog
+            alert('PDF生成功能被浏览器阻止，将使用打印替代。请在打印对话框中选择"另存为PDF"。');
+            window.print();
+        }
+    }
+}
+
+// Helper function to generate literature list content
+function generateLiteratureContent(eval) {
+    if (!eval.pdb_data || !eval.pdb_data.structures) return '';
+
+    const allCitations = [];
+    const seen = new Set();
+
+    function simplifyJournalName(journal) {
+        if (!journal) return '';
+        let simplified = journal.replace(/\s*\([^)]*\)\s*/g, '').replace(/\s*:\s*.*$/g, '').trim();
+        simplified = simplified.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
+        return simplified;
+    }
+
+    eval.pdb_data.structures.forEach(s => {
+        (s.citations || []).forEach(cit => {
+            const key = cit.pubmed_id || cit.DOI || (cit.title || '').substring(0, 50);
+            if (seen.has(key)) return;
+            seen.add(key);
+            allCitations.push({
+                ...cit,
+                pdb_id: s.pdb_id,
+                journal: simplifyJournalName(cit.journal) || cit.journal
+            });
+        });
+    });
+
+    const topJournals = {
+        'NATURE': 64.8, 'SCIENCE': 56.9, 'CELL': 66.9,
+        'NAT COMMUN': 17.7, 'NAT STRUCT MOL BIOL': 16.1, 'NAT CHEM BIOL': 13.5,
+        'MOL CELL': 19.3, 'DEV CELL': 13.4, 'CELL REP': 9.9, 'CELL DISCOV': 13,
+        'PROC NATL ACAD SCI U S A': 11.1, 'JACS': 15.0, 'ANGEW CHEM INT ED': 16.6,
+        'STRUCTURE': 4.4, 'BIOCHEMISTRY': 3.1, 'J MOL BIOL': 4.5,
+        'EMBO J': 8.3, 'NUCLEIC ACIDS RES': 14.9, 'PLOS ONE': 2.6,
+        'SCIENTIFIC REPORTS': 3.9, 'PROTEIN SCIENCE': 8.0, 'PROTEINS': 8.0
+    };
+
+    function getImpactFactor(journal) {
+        const upper = (journal || '').toUpperCase();
+        if (topJournals[upper] !== undefined) return topJournals[upper];
+        for (const key in topJournals) {
+            if (upper.includes(key) && key.length >= 4) return topJournals[key];
+        }
+        return 0;
+    }
+
+    allCitations.sort((a, b) => {
+        const ifA = getImpactFactor(a.journal);
+        const ifB = getImpactFactor(b.journal);
+        if (ifB !== ifA) return ifB - ifA;
+        return (b.year || 0) - (a.year || 0);
+    });
+
+    if (allCitations.length === 0) return '';
+
+    let content = `## 关联文献 (${allCitations.length} 篇)\n\n`;
+    allCitations.forEach((cit, idx) => {
+        const authors = (cit.authors || []).slice(0, 5).map(a => a.name || a).join(', ');
+        const moreAuthors = (cit.authors || []).length > 5 ? ' 等' : '';
+        content += `**${idx + 1}. ${cit.title || '无标题'}**\n`;
+        content += `- 作者: ${authors}${moreAuthors}\n`;
+        content += `- 期刊: ${cit.journal || '未知期刊'}, ${cit.year || 'N/A'}\n`;
+        if (cit.volume) content += `- 卷: ${cit.volume}\n`;
+        if (cit.pages) content += `- 页: ${cit.pages}\n`;
+        if (cit.pubmed_id) content += `- PMID: ${cit.pubmed_id}\n`;
+        if (cit.DOI) content += `- DOI: ${cit.DOI}\n`;
+        content += `\n`;
+    });
+
+    return content;
+}
+
+function generateMarkdownReport(eval) {
+    let md = `# 蛋白质评估报告\n\n`;
+    md += `**UniProt ID**: ${eval.uniprot_id || 'N/A'}\n`;
+    md += `**蛋白质名称**: ${eval.protein_name || 'N/A'}\n`;
+    md += `**基因名**: ${eval.gene_name || 'N/A'}\n`;
+    md += `**评估时间**: ${formatDate(eval.created_at)}\n\n`;
+
+    // AI Analysis
+    if (eval.ai_analysis && eval.ai_analysis.analysis) {
+        md += `## AI 分析报告\n\n`;
+        md += eval.ai_analysis.analysis + '\n';
+    }
+
+    // Full Report
+    if (eval.report) {
+        md += `\n---\n\n## 完整评估报告\n\n`;
+        md += eval.report + '\n';
+    }
+
+    // Literature List at the end
+    const literatureContent = generateLiteratureContent(eval);
+    if (literatureContent) {
+        md += `\n---\n\n${literatureContent}`;
+    }
+
+    return md;
+}
+
+// Helper function to generate literature HTML content
+function generateLiteratureHTML(eval) {
+    if (!eval.pdb_data || !eval.pdb_data.structures) return '';
+
+    const allCitations = [];
+    const seen = new Set();
+
+    function simplifyJournalName(journal) {
+        if (!journal) return '';
+        let simplified = journal.replace(/\s*\([^)]*\)\s*/g, '').replace(/\s*:\s*.*$/g, '').trim();
+        simplified = simplified.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
+        return simplified;
+    }
+
+    eval.pdb_data.structures.forEach(s => {
+        (s.citations || []).forEach(cit => {
+            const key = cit.pubmed_id || cit.DOI || (cit.title || '').substring(0, 50);
+            if (seen.has(key)) return;
+            seen.add(key);
+            allCitations.push({
+                ...cit,
+                pdb_id: s.pdb_id,
+                journal: simplifyJournalName(cit.journal) || cit.journal
+            });
+        });
+    });
+
+    const topJournals = {
+        'NATURE': 64.8, 'SCIENCE': 56.9, 'CELL': 66.9,
+        'NAT COMMUN': 17.7, 'NAT STRUCT MOL BIOL': 16.1, 'NAT CHEM BIOL': 13.5,
+        'MOL CELL': 19.3, 'DEV CELL': 13.4, 'CELL REP': 9.9, 'CELL DISCOV': 13,
+        'PROC NATL ACAD SCI U S A': 11.1, 'JACS': 15.0, 'ANGEW CHEM INT ED': 16.6,
+        'STRUCTURE': 4.4, 'BIOCHEMISTRY': 3.1, 'J MOL BIOL': 4.5,
+        'EMBO J': 8.3, 'NUCLEIC ACIDS RES': 14.9, 'PLOS ONE': 2.6,
+        'SCIENTIFIC REPORTS': 3.9, 'PROTEIN SCIENCE': 8.0, 'PROTEINS': 8.0
+    };
+
+    function getImpactFactor(journal) {
+        const upper = (journal || '').toUpperCase();
+        if (topJournals[upper] !== undefined) return topJournals[upper];
+        for (const key in topJournals) {
+            if (upper.includes(key) && key.length >= 4) return topJournals[key];
+        }
+        return 0;
+    }
+
+    allCitations.sort((a, b) => {
+        const ifA = getImpactFactor(a.journal);
+        const ifB = getImpactFactor(b.journal);
+        if (ifB !== ifA) return ifB - ifA;
+        return (b.year || 0) - (a.year || 0);
+    });
+
+    if (allCitations.length === 0) return '';
+
+    let html = `    <h2>关联文献 (${allCitations.length} 篇)</h2>\n`;
+    allCitations.forEach((cit, idx) => {
+        const authors = (cit.authors || []).slice(0, 5).map(a => a.name || a).join(', ');
+        const moreAuthors = (cit.authors || []).length > 5 ? ' 等' : '';
+        html += `    <div class="lit-item">
+        <div class="lit-title">${idx + 1}. ${cit.title || '无标题'}</div>
+        <div class="lit-authors">作者: ${authors}${moreAuthors}</div>
+        <div class="lit-journal">期刊: ${cit.journal || '未知期刊'}, ${cit.year || 'N/A'}${cit.volume ? ', 卷 ' + cit.volume : ''}${cit.pages ? ', 页 ' + cit.pages : ''}</div>
+        <div class="lit-meta">${cit.pubmed_id ? 'PMID: ' + cit.pubmed_id + ' | ' : ''}${cit.DOI ? 'DOI: ' + cit.DOI : ''}</div>
+    </div>\n`;
+    });
+
+    return html;
+}
+
+function generateHTMLReport(eval) {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>蛋白质评估报告 - ${eval.uniprot_id}</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        h1 { color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; }
+        h2 { color: #555; margin-top: 30px; }
+        h3 { color: #666; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #4CAF50; color: white; }
+        .meta { color: #666; font-size: 14px; }
+        .ai-analysis { white-space: pre-wrap; }
+        .lit-item { margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-left: 3px solid #4CAF50; }
+        .lit-title { font-weight: bold; margin-bottom: 5px; }
+        .lit-authors { font-size: 13px; color: #555; }
+        .lit-journal { font-size: 13px; color: #666; }
+        .lit-meta { font-size: 12px; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>蛋白质评估报告</h1>
+    <p class="meta">
+        <strong>UniProt ID:</strong> ${eval.uniprot_id || 'N/A'} |
+        <strong>蛋白质名称:</strong> ${eval.protein_name || 'N/A'} |
+        <strong>基因名:</strong> ${eval.gene_name || 'N/A'}<br>
+        <strong>评估时间:</strong> ${formatDate(eval.created_at)}
+    </p>
+`;
+
+    // AI Analysis (with markdown rendering)
+    if (eval.ai_analysis && eval.ai_analysis.analysis) {
+        const renderedContent = formatMarkdown(eval.ai_analysis.analysis);
+        html += `    <h2>AI 分析报告</h2>
+    <div class="ai-analysis">${renderedContent}</div>\n`;
+    }
+
+    // Literature List at the end
+    html += generateLiteratureHTML(eval);
+
+    html += `</body></html>`;
+    return html;
+}
+
+function showError(message) {
+    document.getElementById('progress-section').style.display = 'none';
+    document.getElementById('results-section').style.display = 'none';
+    document.getElementById('error-section').style.display = 'block';
+    document.getElementById('error-message').textContent = message;
+}
+
+function getStatusText(status) {
+    const statusMap = {
+        'pending': '等待中',
+        'processing': '处理中',
+        'completed': '已完成',
+        'failed': '失败'
+    };
+    return statusMap[status] || status;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('zh-CN') + ' ' + date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'});
+}
+
+function toggleSection(header) {
+    const content = header.nextElementSibling;
+    const icon = header.querySelector('.collapse-icon');
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
+
+function toggleCitation(header) {
+    const container = header.nextElementSibling;
+    const icon = header.querySelector('.collapse-icon');
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        container.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
+
+// Resolution Chart using ECharts
+function renderResolutionChart(structures) {
+    const chartContainer = document.getElementById('resolution-chart');
+    if (!chartContainer) return;
+
+    // Check if echarts is loaded
+    if (typeof echarts === 'undefined') {
+        chartContainer.innerHTML = '<div class="chart-error">图表库加载失败，请刷新页面或检查网络连接</div>';
+        return;
+    }
+
+    // Prepare data
+    const xrayStructures = structures.filter(s => s.basic_info?.experimental_method === 'X-RAY DIFFRACTION');
+    const nmrStructures = structures.filter(s => s.basic_info?.experimental_method === 'SOLUTION NMR');
+
+    const chart = echarts.init(chartContainer);
+    const option = {
+        title: {
+            text: '分辨率分布',
+            left: 'center'
+        },
+        tooltip: {
+            trigger: 'axis'
+        },
+        xAxis: {
+            type: 'category',
+            data: xrayStructures.map(s => s.pdb_id),
+            axisLabel: { rotate: 45 }
+        },
+        yAxis: {
+            type: 'value',
+            name: '分辨率 (Å)',
+            inverse: true  // Lower is better
+        },
+        series: [{
+            name: 'X-RAY DIFFRACTION',
+            type: 'bar',
+            data: xrayStructures.map(s => s.basic_info?.resolution || null).filter(r => r !== null),
+            itemStyle: { color: '#5470c6' }
+        }],
+        grid: { bottom: 80 }
+    };
+    chart.setOption(option);
+}
+
+function formatMarkdown(text) {
+    if (!text) return '';
+    var html = text;
+    var lines = html.split('\n');
+    var inTable = false;
+    var tableRows = [];
+    var result = [];
+    lines.forEach(function(line) {
+        if (/^\|.+\|$/.test(line.trim())) {
+            if (!inTable) { inTable = true; tableRows = []; }
+            var cells = line.trim().slice(1, -1).split('|').map(function(c) { return c.trim(); });
+            var isSeparator = cells.every(function(c) { return /^[-:]+$/.test(c); });
+            if (!isSeparator) { tableRows.push(cells); }
+        } else {
+            if (inTable && tableRows.length > 0) {
+                var tableHtml = '<table class="md-table">';
+                tableRows.forEach(function(cells, idx) {
+                    var tag = idx === 0 ? 'th' : 'td';
+                    tableHtml += '<tr>' + cells.map(function(c) { return '<' + tag + '>' + c + '</' + tag + '>'; }).join('') + '</tr>';
+                });
+                tableHtml += '</table>';
+                result.push(tableHtml);
+                tableRows = [];
+            }
+            inTable = false;
+            result.push(line);
+        }
+    });
+    if (inTable && tableRows.length > 0) {
+        var tableHtml = '<table class="md-table">';
+        tableRows.forEach(function(cells, idx) {
+            var tag = idx === 0 ? 'th' : 'td';
+            tableHtml += '<tr>' + cells.map(function(c) { return '<' + tag + '>' + c + '</' + tag + '>'; }).join('') + '</tr>';
+        });
+        tableHtml += '</table>';
+        result.push(tableHtml);
+    }
+    html = result.join('\n');
+    html = html.replace(/^### (.*$)/gim, '<h4>$1</h4>');
+    html = html.replace(/^## (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^# (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+}
+</script>
+
+{% endblock %}

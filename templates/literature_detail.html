@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CryoAgent Pro{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-cyberpunk.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-matrix.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-persona5.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-persona4.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-persona3.css') }}">
+    <!-- Theme body background fix -->
+    <style>
+        html[data-theme="cyberpunk"] body {
+            background: #0a0a0f !important;
+        }
+        html[data-theme="matrix"] body {
+            background: #0a0a0a !important;
+        }
+        /* 原始主题的结构卡片 - 与主页文献卡片风格一致 */
+        .structure-card {
+            background: white !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+            border: 1px solid #e0e0e0 !important;
+            overflow: hidden !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+        }
+        .structure-card:hover {
+            transform: translateY(-4px) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+            border-color: var(--primary-light) !important;
+            background: white !important;
+        }
+        /* 确保子元素在悬停时也保持背景色 */
+        .structure-card:hover .structure-card-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+        }
+        .structure-card:hover .structure-card-body {
+            background: white !important;
+        }
+        .structure-card:hover .structure-card-footer {
+            background: #f8f9fa !important;
+        }
+        /* 确保文字颜色在悬停时保持清晰 */
+        .structure-card:hover .structure-title,
+        .structure-card:hover .structure-context,
+        .structure-card:hover .structure-meta {
+            color: #333 !important;
+        }
+        .structure-card-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+            padding: 12px 16px !important;
+            border-bottom: 1px solid #e0e0e0 !important;
+        }
+        .structure-card-body {
+            background: white !important;
+            padding: 15px !important;
+        }
+        .structure-card-footer {
+            background: #f8f9fa !important;
+            padding: 12px 15px !important;
+            border-top: 1px solid #e0e0e0 !important;
+        }
+        .structure-title {
+            font-size: 14px !important;
+            line-height: 1.4 !important;
+            margin-bottom: 10px !important;
+            color: #333 !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+        }
+        /* 配对结构卡片样式 */
+        .structure-pair {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .structure-item {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .structure-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .structure-item.pdb {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border: 1px solid #90caf9;
+        }
+        .structure-item.emdb {
+            background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+            border: 1px solid #ce93d8;
+        }
+        .structure-item .item-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .structure-item .card-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        .structure-item .structure-title {
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+        .structure-item .resolution-value {
+            display: inline-block;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .structure-item .meta-item {
+            font-size: 11px;
+            color: #666;
+        }
+        }
+        .structure-context {
+            background: #f5f5f5 !important;
+            color: #666 !important;
+            padding: 10px !important;
+            border-radius: 6px !important;
+            font-size: 12px !important;
+            margin-top: 10px !important;
+            border-left: 3px solid #1976d2 !important;
+        }
+        .structure-meta {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+            font-size: 12px !important;
+            color: #666 !important;
+            margin-top: 10px !important;
+            padding-top: 10px !important;
+            border-top: 1px dashed #e0e0e0 !important;
+        }
+        .structure-meta .meta-item {
+            display: flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            padding: 4px 8px !important;
+            background: #f5f5f5 !important;
+            border-radius: 4px !important;
+        }
+        .structure-links {
+            display: flex !important;
+            gap: 10px !important;
+        }
+        .type-badge {
+            background: transparent !important;
+            color: #1565C0 !important;
+            border: 1px solid #1565C0 !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+        }
+        .type-badge.type-pdb {
+            color: #4CAF50 !important;
+            border-color: #4CAF50 !important;
+        }
+        .type-badge.type-emdb {
+            color: #FF9800 !important;
+            border-color: #FF9800 !important;
+        }
+        .id-pdb {
+            color: #1565C0 !important;
+            font-weight: 600 !important;
+        }
+        .id-emdb {
+            color: #E65100 !important;
+            font-weight: 600 !important;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- SVG Icon Definitions -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+        <symbol id="icon-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </symbol>
+        <symbol id="icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </symbol>
+        <symbol id="icon-molecule" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <circle cx="12" cy="5" r="2"></circle>
+            <circle cx="19" cy="12" r="2"></circle>
+            <circle cx="12" cy="19" r="2"></circle>
+            <circle cx="5" cy="12" r="2"></circle>
+            <line x1="12" y1="7" x2="12" y2="9"></line>
+            <line x1="17" y1="12" x2="15" y2="12"></line>
+            <line x1="12" y1="15" x2="12" y2="17"></line>
+            <line x1="7" y1="12" x2="9" y2="12"></line>
+        </symbol>
+        <symbol id="icon-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+        </symbol>
+        <symbol id="icon-microscope" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 18h8"></path>
+            <path d="M3 22h18"></path>
+            <path d="M14 22a7 7 0 1 0 0-14h-1"></path>
+            <path d="M9 14h2"></path>
+            <path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2z"></path>
+            <path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"></path>
+        </symbol>
+        <symbol id="icon-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"></circle>
+            <circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"></circle>
+            <circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"></circle>
+            <circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"></circle>
+            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"></path>
+        </symbol>
+        <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </symbol>
+        <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </symbol>
+        <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+        </symbol>
+        <symbol id="icon-lightbulb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18h6"></path>
+            <path d="M10 22h4"></path>
+            <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>
+        </symbol>
+        <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </symbol>
+        <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </symbol>
+        <symbol id="icon-pdb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+            <line x1="4" y1="10" x2="20" y2="10"></line>
+            <line x1="10" y1="4" x2="10" y2="20"></line>
+        </symbol>
+        <symbol id="icon-emdb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <ellipse cx="12" cy="12" rx="10" ry="4"></ellipse>
+            <line x1="12" y1="2" x2="12" y2="22"></line>
+        </symbol>
+        <symbol id="icon-dna" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 15c6.667-6 13.333 0 20-6"></path>
+            <path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993"></path>
+            <path d="M15 2c-1.798 1.998-2.518 3.995-2.807 5.993"></path>
+            <path d="M17 6l-2.5-2.5"></path>
+            <path d="M14 8l-1.5-1.5"></path>
+            <path d="M7 18l2.5 2.5"></path>
+            <path d="M10 16l1.5 1.5"></path>
+        </symbol>
+        <symbol id="icon-medical" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+        </symbol>
+        <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+        </symbol>
+        <symbol id="icon-uniprot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 6v6l4 2"></path>
+        </symbol>
+        <symbol id="icon-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="19" x2="12" y2="5"></line>
+            <polyline points="5 12 12 5 19 12"></polyline>
+        </symbol>
+        <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+        </symbol>
+        <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </symbol>
+    </svg>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        {% include 'components/sidebar.html' %}
+
+        <!-- Main Content -->
+        <main class="main-content">
+{% block content %}
+<div class="detail-page" data-lit-id="{{ lit_id }}">
+    <div class="page-header">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-arrow-left"></use></svg> 返回列表</a>
+        <div class="header-actions">
+            <button class="btn btn-primary" id="reparse-btn" onclick="startReparse({{ lit_id }}, this)"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-refresh"></use></svg> 重新解析</button>
+            <button class="btn btn-secondary" onclick="extractFulltextSingle({{ lit_id }}, this)"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-doc"></use></svg> 提取全文</button>
+            <button class="btn btn-danger" onclick="deleteLiterature({{ lit_id }})"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-trash"></use></svg> 删除</button>
+        </div>
+    </div>
+
+    <!-- Progress Indicator -->
+    <div id="reparse-progress" class="card" style="display:none; margin: 10px 0;">
+        <div class="card-content">
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span id="progress-stage">解析中...</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill" style="width: 0%;"></div>
+                </div>
+                <p id="progress-message" class="progress-message">正在准备...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fulltext Extract Progress -->
+    <div id="fulltext-progress" class="card" style="display:none; margin: 10px 0;">
+        <div class="card-content">
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span id="fulltext-progress-stage">提取全文...</span>
+                    <span id="fulltext-progress-percent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="fulltext-progress-fill" class="progress-fill" style="width: 0%;"></div>
+                </div>
+                <p id="fulltext-progress-message" class="progress-message">准备中...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Title Section -->
+    <div class="card" id="literature-header">
+        <div class="card-content">
+            <h1 id="lit-title" class="title-text">加载中...</h1>
+            <p id="lit-authors" class="authors-text"></p>
+            <div class="meta-row">
+                <span class="meta-item" id="lit-journal"></span>
+                <span class="meta-item" id="lit-year"></span>
+                <span class="meta-item" id="lit-doi"></span>
+                <span class="status-badge" id="lit-status"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="detail-tabs">
+        <button class="tab-btn active" data-tab="info" onclick="switchDetailTab('info')">基本信息</button>
+        <button class="tab-btn" data-tab="structures" onclick="switchDetailTab('structures')">结构信息</button>
+        <button class="tab-btn" data-tab="qa" onclick="switchDetailTab('qa')">智能问答</button>
+        <button class="tab-btn" data-tab="pdf" onclick="switchDetailTab('pdf')" id="tab-btn-pdf">PDF 预览</button>
+        <button class="tab-btn" data-tab="appendices" onclick="switchDetailTab('appendices')" id="tab-btn-appendices">附录</button>
+    </div>
+
+    <!-- Tab Contents -->
+    <div class="tab-content active" id="tab-info">
+        <!-- 文献信息 -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">文献信息</h3>
+            </div>
+            <div class="card-content">
+                <div class="info-grid" id="lit-info-grid">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 摘要 -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">摘要</h3>
+            </div>
+            <div class="card-content">
+                <p id="lit-abstract" class="abstract-text">加载中...</p>
+            </div>
+        </div>
+
+        <!-- 关键发现 -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">关键发现</h3>
+            </div>
+            <div class="card-content">
+                <div id="lit-key-findings" class="findings-content">
+                    <p class="empty-state">加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content" id="tab-structures">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">相关结构</h3>
+                <button class="btn btn-secondary" onclick="refreshStructuresMetadata()" style="font-size: 12px; padding: 6px 12px;">
+                    <svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-refresh"></use></svg> 刷新元数据
+                </button>
+            </div>
+            <div class="card-content">
+                <div class="structures-grid" id="structures-grid">
+                    <p class="empty-state">加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content" id="tab-qa">
+        <div class="qa-container">
+            <div class="qa-messages" id="qa-messages">
+                <div class="message assistant welcome-message">
+                    <div class="message-avatar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-lightbulb"></use></svg></div>
+                    <div class="message-content">
+                        <h3>关于这篇文献的问答</h3>
+                        <p>请在下方输入您的问题，我会根据文献内容回答。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="qa-input-area">
+                <input type="text" id="qa-input" placeholder="输入关于这篇文献的问题..." onkeypress="if(event.key==='Enter')sendQuestion()">
+                <button class="send-btn" onclick="sendQuestion()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-send"></use></svg></button>
+            </div>
+            <div class="suggestions">
+                <h4>建议问题：</h4>
+                <div class="suggestion-chips">
+                    <button class="suggestion-chip" onclick="askSuggestion('这篇文献的主要发现是什么？')">主要发现</button>
+                    <button class="suggestion-chip" onclick="askSuggestion('使用了什么实验方法？')">实验方法</button>
+                    <button class="suggestion-chip" onclick="askSuggestion('有什么关键结论？')">关键结论</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content" id="tab-pdf">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">PDF 预览</h3>
+            </div>
+            <div class="card-content pdf-content">
+                <div id="pdf-viewer" class="pdf-viewer-container">
+                    <div class="pdf-toolbar">
+                        <a id="pdf-open-btn" href="/api/literature/{{ lit_id }}/pdf" target="_blank" class="pdf-toolbar-btn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                            在新窗口打开
+                        </a>
+                        <a id="pdf-download-btn" href="/api/literature/{{ lit_id }}/pdf" download class="pdf-toolbar-btn" style="margin-left: auto;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            下载PDF
+                        </a>
+                    </div>
+                    <object id="pdf-object" class="pdf-iframe" data="/api/literature/{{ lit_id }}/pdf" type="application/pdf">
+                        <div class="pdf-fallback">
+                            <p>您的浏览器不支持直接预览PDF</p>
+                            <a id="pdf-fallback-link" href="/api/literature/{{ lit_id }}/pdf" target="_blank" class="pdf-fallback-link">点击在新窗口打开PDF</a>
+                        </div>
+                    </object>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 附录 Tab -->
+    <div class="tab-content" id="tab-appendices">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">附录管理</h3>
+            </div>
+            <div class="card-content">
+                <!-- 上传附录 -->
+                <div class="upload-appendix-section" style="margin-bottom: 20px; padding: 15px; border: 1px dashed var(--border-color); border-radius: 8px;">
+                    <h4 style="margin-bottom: 10px;">上传附录</h4>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                        <input type="file" id="appendix-file-input" accept=".pdf,.docx,.xlsx,.zip" style="display: none;" onchange="updateAppendixFileName(this)">
+                        <button class="btn" onclick="document.getElementById('appendix-file-input').click()">选择文件</button>
+                        <span id="appendix-file-name" style="font-size: 12px; color: var(--text-secondary);">未选择文件</span>
+                        <select id="appendix-type-select" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                            <option value="supplementary_data">补充数据</option>
+                            <option value="methods">方法</option>
+                            <option value="code">代码</option>
+                            <option value="figures">图表</option>
+                            <option value="other">其他</option>
+                        </select>
+                        <input type="text" id="appendix-desc-input" placeholder="描述(可选)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); flex: 1; max-width: 200px;">
+                        <button class="btn btn-primary" onclick="uploadAppendix()">上传</button>
+                    </div>
+                    <p id="appendix-upload-status" style="margin-top: 10px; font-size: 12px;"></p>
+                </div>
+
+                <!-- 附录列表 -->
+                <div id="appendices-list">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>加载中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const LIT_ID = {{ lit_id }};
+
+console.log('Script started, LIT_ID =', LIT_ID);
+
+// Start reparse with progress polling
+async function startReparse(id, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '正在启动...';
+
+    try {
+        const response = await fetch('/api/literature/' + id + '/reparse', {method: 'POST'});
+        const data = await response.json();
+
+        if (!data.success) {
+            alert('启动失败: ' + data.error);
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-refresh"></use></svg> 重新解析';
+            return;
+        }
+
+        // Show progress
+        document.getElementById('reparse-progress').style.display = 'block';
+        btn.innerHTML = '解析中...';
+
+        // Start polling
+        pollProgress(id, btn);
+
+    } catch (e) {
+        alert('错误: ' + e);
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-refresh"></use></svg> 重新解析';
+    }
+}
+
+let progressInterval = null;
+
+async function pollProgress(id, btn) {
+    if (progressInterval) clearInterval(progressInterval);
+
+    progressInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/literature/' + id + '/reparse/progress');
+            const data = await response.json();
+
+            document.getElementById('progress-fill').style.width = data.progress + '%';
+            document.getElementById('progress-percent').textContent = data.progress + '%';
+
+            const stageNames = {
+                'starting': '启动中', 'loading_pdf': '加载PDF',
+                'parsing': '解析中', 'processing': '处理中',
+                'completed': '完成', 'error': '错误'
+            };
+            document.getElementById('progress-stage').textContent = stageNames[data.stage] || data.stage || '未知';
+            document.getElementById('progress-message').textContent = data.message || '';
+
+            if (data.stage === 'completed') {
+                clearInterval(progressInterval);
+                btn.innerHTML = '完成!';
+                setTimeout(() => {
+                    document.getElementById('reparse-progress').style.display = 'none';
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-refresh"></use></svg> 重新解析';
+                    loadLiteratureDetail(id);
+                }, 2000);
+            } else if (data.stage === 'error') {
+                clearInterval(progressInterval);
+                btn.innerHTML = '失败';
+                alert('解析失败: ' + data.message);
+                btn.disabled = false;
+                btn.innerHTML = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-refresh"></use></svg> 重新解析';
+            }
+        } catch (e) {
+            console.error('Poll error:', e);
+        }
+    }, 2000);
+}
+
+// Extract fulltext for single literature
+async function extractFulltextSingle(id, btn) {
+    if (!confirm('确定要提取这篇文献的完整文本吗？')) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '提取中...';
+
+    const progressDiv = document.getElementById('fulltext-progress');
+    const progressFill = document.getElementById('fulltext-progress-fill');
+    const progressPercent = document.getElementById('fulltext-progress-percent');
+    const progressMessage = document.getElementById('fulltext-progress-message');
+
+    progressDiv.style.display = 'block';
+    progressFill.style.width = '0%';
+    progressPercent.textContent = '0%';
+    progressMessage.textContent = '正在提取PDF全文...';
+
+    try {
+        // Get PDF path first
+        const pdfPathResponse = await fetch(`/api/literature/${id}/pdf-path`);
+        const pdfPathData = await pdfPathResponse.json();
+
+        if (!pdfPathData.pdf_path) {
+            throw new Error('PDF路径不存在');
+        }
+
+        progressFill.style.width = '30%';
+        progressPercent.textContent = '30%';
+        progressMessage.textContent = '正在处理PDF...';
+
+        // Call backend to extract
+        const extractResponse = await fetch('/api/literature/extract-fulltext-single', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({lit_id: id})
+        });
+
+        if (!extractResponse.ok) {
+            const err = await extractResponse.json().catch(() => ({}));
+            throw new Error(err.error || '提取失败');
+        }
+
+        const extractResult = await extractResponse.json();
+
+        progressFill.style.width = '100%';
+        progressPercent.textContent = '100%';
+        if (extractResult.success) {
+            progressMessage.textContent = '成功提取 ' + extractResult.char_count + ' 字符';
+            showToast('全文提取成功！', 'success');
+        } else {
+            progressMessage.textContent = extractResult.error || '提取失败';
+            showToast('提取失败: ' + extractResult.error, 'error');
+        }
+
+        setTimeout(() => {
+            progressDiv.style.display = 'none';
+        }, 3000);
+
+    } catch (e) {
+        console.error('提取全文失败:', e);
+        progressMessage.textContent = e.message;
+        showToast('提取失败: ' + e.message, 'error');
+        setTimeout(() => {
+            progressDiv.style.display = 'none';
+        }, 3000);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-doc"></use></svg> 提取全文';
+    }
+}
+
+window.extractFulltextSingle = extractFulltextSingle;
+
+
+// Initialize
+console.log('Script executing, LIT_ID =', LIT_ID);
+// DOM may already be loaded, check readyState
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        loadLiteratureDetail(LIT_ID);
+        loadStructures(LIT_ID);
+        loadSections(LIT_ID);
+        loadKeyFindings(LIT_ID);
+        loadAppendices();
+    });
+} else {
+    // DOM already loaded, run immediately
+    loadLiteratureDetail(LIT_ID);
+    loadStructures(LIT_ID);
+    loadSections(LIT_ID);
+    loadKeyFindings(LIT_ID);
+    loadAppendices();
+}
+
+// Format authors - handle both string and array of objects
+function formatAuthors(authors) {
+    if (!authors) return 'Unknown';
+
+    // Handle string format
+    if (typeof authors === 'string') {
+        // Try JSON format first [{"name": "..."}, ...]
+        if (authors.startsWith('[')) {
+            try {
+                const authorsArr = JSON.parse(authors);
+                if (Array.isArray(authorsArr)) {
+                    return authorsArr.map(a => a.name || a).join(', ');
+                }
+            } catch (e) {}
+        }
+
+        // Try Python dict string format like "[{'name': '...'}, ...]"
+        if (authors.includes("'name'")) {
+            try {
+                // Replace single quotes with double quotes for JSON parsing
+                const jsonStr = authors.replace(/'/g, '"');
+                const authorsArr = JSON.parse(jsonStr);
+                if (Array.isArray(authorsArr)) {
+                    return authorsArr.map(a => a.name || a).join(', ');
+                }
+            } catch (e) {}
+        }
+
+        // Just return as is if it's a plain string
+        return authors;
+    }
+
+    // Handle array of objects
+    if (Array.isArray(authors)) {
+        return authors.map(a => a.name || a).join(', ');
+    }
+
+    // Handle object format {"name": "..."}
+    if (typeof authors === 'object') {
+        if (authors.name) return authors.name;
+        return JSON.stringify(authors);
+    }
+
+    return String(authors);
+}
+
+// Load literature detail
+async function loadLiteratureDetail(id) {
+    console.log('loadLiteratureDetail called with id:', id);
+    try {
+        console.log('Fetching literature data...');
+        const data = await apiRequest(`/literature/${id}`);
+        console.log('Literature data received, title:', data.title);
+
+        // Update header
+        document.getElementById('lit-title').textContent = data.title || 'Unknown';
+
+        // Format authors
+        document.getElementById('lit-authors').textContent = formatAuthors(data.authors);
+
+        // Meta info
+        document.getElementById('lit-journal').textContent = data.journal || 'N/A';
+        document.getElementById('lit-year').textContent = data.year || 'N/A';
+        document.getElementById('lit-doi').textContent = data.doi || 'N/A';
+
+        // Status
+        const statusEl = document.getElementById('lit-status');
+        statusEl.textContent = (data.status || '').toUpperCase();
+        statusEl.className = `status-badge status-${data.status || 'unknown'}`;
+
+        // Info grid - skip N/A fields
+        const infoGrid = document.getElementById('lit-info-grid');
+        let infoItems = '';
+
+        // DOI (always show)
+        infoItems += `
+            <div class="info-item full-width">
+                <label>DOI</label>
+                <p>${data.doi || 'N/A'}</p>
+            </div>
+        `;
+
+        // Journal and Year
+        if (data.journal) {
+            infoItems += `
+                <div class="info-item">
+                    <label>期刊</label>
+                    <p>${data.journal}</p>
+                </div>
+            `;
+        }
+        if (data.year) {
+            infoItems += `
+                <div class="info-item">
+                    <label>年份</label>
+                    <p>${data.year}</p>
+                </div>
+            `;
+        }
+        if (data.status) {
+            infoItems += `
+                <div class="info-item">
+                    <label>状态</label>
+                    <p>${data.status}</p>
+                </div>
+            `;
+        }
+
+        // 解析方法和置信度 - 只显示AI解析时的置信度
+        if (data.parsing_method && data.parsing_method !== 'N/A') {
+            // 格式化解析方法显示
+            const methodMap = {
+                'crossref': 'Crossref',
+                'pubmed': 'PubMed',
+                'ai_enhanced': 'AI解析',
+                'ai': 'AI解析'
+            };
+            const methodDisplay = methodMap[data.parsing_method.toLowerCase()] || data.parsing_method;
+            infoItems += `
+                <div class="info-item">
+                    <label>解析方法</label>
+                    <p>${methodDisplay}</p>
+                </div>
+            `;
+            // 只在AI解析时显示置信度
+            if ((data.parsing_method === 'ai_enhanced' || data.parsing_method === 'ai') && data.confidence_score) {
+                infoItems += `
+                    <div class="info-item">
+                        <label>置信度</label>
+                        <p>${data.confidence_score}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Keywords - 隐藏空的关键词
+        const keywords = data.keywords;
+        const keywordsList = Array.isArray(keywords) ? keywords.filter(k => k && k.trim()) : (keywords && keywords.trim());
+        if (keywordsList && keywordsList.length > 0) {
+            const keywordsStr = Array.isArray(keywordsList) ? keywordsList.join(', ') : keywordsList;
+            infoItems += `
+                <div class="info-item full-width">
+                    <label>关键词</label>
+                    <p>${keywordsStr}</p>
+                </div>
+            `;
+        }
+
+        infoGrid.innerHTML = infoItems;
+
+        // Abstract
+        document.getElementById('lit-abstract').textContent = data.abstract || '暂无摘要';
+
+        // Load PDF
+        loadPDFPreview(data);
+
+        // Load Appendices
+        loadAppendices();
+
+    } catch (error) {
+        console.error('Failed to load literature:', error);
+        showToast('加载失败: ' + error.message, 'error');
+    }
+}
+
+// Load structures - PDB和EMDB配对显示
+async function loadStructures(litId) {
+    const grid = document.getElementById('structures-grid');
+    if (!grid) return;
+
+    try {
+        const response = await fetch(`/api/structure/literature/${litId}`);
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(`API error: ${response.status} - ${err.error || response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (!data || !data.structures || data.structures.length === 0) {
+            grid.innerHTML = '<p class="empty-state">暂无结构信息</p>';
+            return;
+        }
+
+        grid.innerHTML = data.structures.map(item => renderPairedStructureCard(item)).join('');
+
+    } catch (error) {
+        console.error('Failed to load structures:', error);
+        grid.innerHTML = `<p class="empty-state">加载失败: ${error.message}</p>`;
+    }
+}
+
+// 渲染配对的PDB/EMDB卡片 - 整个卡片可点击
+function renderPairedStructureCard(item) {
+    const pdb = item.pdb;
+    const emdb = item.emdb;
+
+    // 判断是否为配对
+    const isPaired = pdb && emdb;
+
+    // 构建类型标签
+    let typeBadges = '';
+    if (pdb) typeBadges += '<span class="type-badge type-pdb">PDB</span>';
+    if (emdb) typeBadges += '<span class="type-badge type-emdb">EMDB</span>';
+    const pairBadge = isPaired ? '<span class="pair-badge">配对结构</span>' : '';
+
+    // 构建链接 - 显示ID
+    let linksHtml = '';
+    if (pdb && emdb) {
+        linksHtml = `
+            <a href="${pdb.url}" class="structure-link primary" target="_blank">
+                <span class="link-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-pdb"></use></svg></span> PDB: ${pdb.id}
+            </a>
+            <a href="${emdb.url}" class="structure-link secondary" target="_blank">
+                <span class="link-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-emdb"></use></svg></span> EMDB: ${emdb.id}
+            </a>
+        `;
+    } else if (pdb) {
+        linksHtml = `
+            <a href="${pdb.url}" class="structure-link primary" target="_blank">
+                <span class="link-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-pdb"></use></svg></span> PDB: ${pdb.id}
+            </a>
+        `;
+    } else if (emdb) {
+        linksHtml = `
+            <a href="${emdb.url}" class="structure-link primary" target="_blank">
+                <span class="link-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-emdb"></use></svg></span> EMDB: ${emdb.id}
+            </a>
+        `;
+    }
+
+    // 分辨率 - 优先使用PDB的分辨率
+    let resolutionHtml = '';
+    const resolution = item.resolution || (pdb && pdb.resolution) || (emdb && emdb.resolution);
+    if (resolution) {
+        const resValue = parseFloat(resolution);
+        let resClass = 'res-standard';
+        if (resValue < 3) resClass = 'res-high';
+        else if (resValue < 4) resClass = 'res-medium';
+        resolutionHtml = `<span class="resolution-badge ${resClass}">${resValue.toFixed(2)} Å</span>`;
+    }
+
+    // 标题
+    const title = item.title || (pdb && pdb.title) || (emdb && emdb.title) || 'N/A';
+
+    // 方法 - 合并显示
+    let methodHtml = '';
+    const method = item.method || (pdb && pdb.method) || (emdb && emdb.method);
+    if (method) {
+        methodHtml = `<span class="meta-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-microscope"></use></svg></span> ${escapeHtml(method)}</span>`;
+    }
+
+    // 物种/表达系统 - 合并显示
+    let organismHtml = '';
+    const organism = item.organism || (pdb && pdb.organism) || (emdb && emdb.organism);
+    const expressionSystem = (pdb && pdb.expression_system) || (emdb && emdb.expression_system);
+    if (organism || expressionSystem) {
+        const orgText = organism || expressionSystem;
+        organismHtml = `<span class="meta-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-dna"></use></svg></span> ${escapeHtml(orgText)}</span>`;
+    }
+
+    // 蛋白质名称 - 合并显示
+    let proteinNameHtml = '';
+    const proteinName = item.protein_name || (pdb && pdb.protein_name) || (emdb && emdb.protein_name);
+    if (proteinName) {
+        proteinNameHtml = `<span class="meta-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-medical"></use></svg></span> ${escapeHtml(proteinName)}</span>`;
+    }
+
+    // UniProt IDs - 显示
+    let uniprotHtml = '';
+    let uniprotIds = item.uniprot_ids || (pdb && pdb.uniprot_ids) || (emdb && emdb.uniprot_ids);
+    // 确保是数组
+    if (!Array.isArray(uniprotIds)) {
+        if (typeof uniprotIds === 'string' && uniprotIds) {
+            uniprotIds = [uniprotIds];
+        } else {
+            uniprotIds = [];
+        }
+    }
+    if (uniprotIds.length > 0) {
+        // 提取唯一的UniProt ID - 处理字符串数组和对象数组两种格式
+        let uniqueIds = [];
+        try {
+            uniqueIds = [...new Set(uniprotIds.map(u => {
+                // 如果是字符串，直接返回；如果是对象，提取uniprot_id属性
+                if (typeof u === 'string') return u;
+                if (typeof u === 'object' && u !== null) return u.uniprot_id || u.id || '';
+                return '';
+            }).filter(Boolean))];
+        } catch (e) {
+            // 如果map失败，尝试直接使用数组
+            uniqueIds = uniprotIds.filter(Boolean);
+        }
+        if (uniqueIds.length > 0) {
+            const displayIds = uniqueIds.slice(0, 3).join(', ');
+            const moreText = uniqueIds.length > 3 ? ` (+${uniqueIds.length - 3})` : '';
+            uniprotHtml = `<span class="meta-tag uniprot-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-uniprot"></use></svg></span> ${escapeHtml(displayIds)}${moreText}</span>`;
+        }
+    }
+
+    // 沉积日期
+    let dateHtml = '';
+    const depositionDate = item.deposition_date || (pdb && pdb.deposition_date) || (emdb && emdb.deposition_date);
+    if (depositionDate) {
+        dateHtml = `<span class="meta-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-calendar"></use></svg></span> ${depositionDate}</span>`;
+    }
+
+    // 组合元信息（只在配对时去重显示）
+    let metaHtml = '';
+    if (isPaired) {
+        // 配对时只显示一个物种和方法（优先使用PDB）
+        const method = (pdb && pdb.method) || (emdb && emdb.method);
+        const organism = (pdb && pdb.organism) || (emdb && emdb.organism);
+        const protein = (pdb && pdb.protein_name) || (emdb && emdb.protein_name);
+        const pdbUniprot = pdb && pdb.uniprot_ids;
+        const emdbUniprot = emdb && emdb.uniprot_ids;
+
+        // 显示方法
+        if (method) metaHtml += `<span class="meta-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-microscope"></use></svg></span> ${escapeHtml(method)}</span>`;
+
+        // 物种信息
+        if (organism) metaHtml += `<span class="meta-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-dna"></use></svg></span> ${escapeHtml(organism)}</span>`;
+
+        // 蛋白质名称
+        if (protein) metaHtml += `<span class="meta-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-medical"></use></svg></span> ${escapeHtml(protein)}</span>`;
+
+        // UniProt ID - 优先使用PDB的 - 处理字符串数组和对象数组
+        const pdbUniqueIds = pdbUniprot && Array.isArray(pdbUniprot) ? [...new Set(pdbUniprot.map(u => {
+            if (typeof u === 'string') return u;
+            if (typeof u === 'object' && u !== null) return u.uniprot_id || u.id || '';
+            return '';
+        }).filter(Boolean))] : [];
+        const emdbUniqueIds = emdbUniprot && Array.isArray(emdbUniprot) ? [...new Set(emdbUniprot.map(u => {
+            if (typeof u === 'string') return u;
+            if (typeof u === 'object' && u !== null) return u.uniprot_id || u.id || '';
+            return '';
+        }).filter(Boolean))] : [];
+
+        if (pdbUniqueIds.length > 0) {
+            const displayIds = pdbUniqueIds.slice(0, 3).join(', ');
+            const moreText = pdbUniqueIds.length > 3 ? ` (+${pdbUniqueIds.length - 3})` : '';
+            metaHtml += `<span class="meta-tag uniprot-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-uniprot"></use></svg></span> ${escapeHtml(displayIds)}${moreText}</span>`;
+        } else if (emdbUniqueIds.length > 0) {
+            const displayIds = emdbUniqueIds.slice(0, 3).join(', ');
+            const moreText = emdbUniqueIds.length > 3 ? ` (+${emdbUniqueIds.length - 3})` : '';
+            metaHtml += `<span class="meta-tag uniprot-tag"><span class="meta-icon"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-uniprot"></use></svg></span> ${escapeHtml(displayIds)}${moreText}</span>`;
+        }
+    } else {
+        // 非配对时显示所有信息
+        metaHtml = methodHtml + organismHtml + proteinNameHtml + uniprotHtml + dateHtml;
+    }
+
+    // Context（如果存在）
+    let contextHtml = '';
+    if (item.context) {
+        const contextText = item.context.length > 120 ? item.context.substring(0, 120) + '...' : item.context;
+        contextHtml = `<p class="structure-context">"${escapeHtml(contextText)}"</p>`;
+    }
+
+    const cardClass = isPaired ? 'structure-card paired' : 'structure-card';
+
+    return `
+        <div class="${cardClass}" onclick="event.preventDefault(); handleStructureClick(${JSON.stringify(item).replace(/"/g, '&quot;')})">
+            <div class="structure-card-header">
+                <div class="structure-badges">
+                    ${typeBadges}
+                    ${pairBadge}
+                </div>
+                ${resolutionHtml}
+            </div>
+            <div class="structure-card-body">
+                <h4 class="structure-title">${escapeHtml(title)}</h4>
+                ${metaHtml ? `<div class="structure-meta">${metaHtml}</div>` : ''}
+                ${contextHtml}
+            </div>
+            <div class="structure-card-footer">
+                ${linksHtml}
+            </div>
+        </div>
+    `;
+}
+
+// 点击卡片处理函数
+function handleStructureClick(item) {
+    const pdb = item.pdb;
+    const emdb = item.emdb;
+
+    if (pdb) {
+        // 跳转到PDB详情页
+        window.location.href = pdb.url;
+    } else if (emdb) {
+        // 跳转到EMDB官网
+        window.open(emdb.url, '_blank');
+    }
+}
+
+// Load sections
+async function loadSections(litId) {
+    // Sections are included in detail data
+}
+
+// Load PDF preview - placeholder function (PDF is now loaded directly in HTML)
+function loadPDFPreview(data) {
+    // PDF is loaded directly via HTML, no need to set links here
+}
+
+// ==================== 附录功能 ====================
+
+// 加载附录列表
+async function loadAppendices() {
+    const container = document.getElementById('appendices-list');
+    if (!container) {
+        console.error('appendices-list container not found!');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/literature/${LIT_ID}/appendices`);
+        if (!response.ok) {
+            throw new Error('API response not ok');
+        }
+        const data = await response.json();
+        console.log('Appendices API response:', data);
+
+        // Handle different response formats
+        const appendices = data.appendices || data || [];
+
+        if (!Array.isArray(appendices) || appendices.length === 0) {
+            console.log('No appendices found, showing empty state');
+            container.innerHTML = '<div class="empty-state">暂无附录</div>';
+            return;
+        }
+
+        console.log('Found', appendices.length, 'appendices');
+
+        let html = '<div style="display: flex; flex-direction: column; gap: 15px;">';
+        appendices.forEach(appendix => {
+            const isPdf = appendix.file_type === 'pdf';
+            const isVectorized = appendix.has_vector_embeddings;
+            const fileSize = formatFileSize(appendix.file_size);
+
+            html += `
+                <div class="appendix-item" style="padding: 15px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                        <div>
+                            <h4 style="margin: 0 0 5px 0; font-size: 14px;">${escapeHtml(appendix.filename)}</h4>
+                            <p style="margin: 0; font-size: 12px; color: var(--text-secondary);">
+                                ${getAppendixTypeName(appendix.appendix_type)} | ${fileSize}
+                                ${appendix.description ? ' | ' + escapeHtml(appendix.description) : ''}
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            ${isPdf ? `<button class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="previewAppendix(${appendix.id})">预览</button>` : ''}
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="downloadAppendix(${appendix.id})">下载</button>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px; color: #ff6b6b;" onclick="deleteAppendix(${appendix.id})">删除</button>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; font-size: 12px;">
+                        <span style="color: ${isVectorized ? '#4caf50' : '#ff9800'};">
+                            ${isVectorized ? '✓ 已向量化' : '○ 未向量化'}
+                        </span>
+                        ${!isVectorized ? `<button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="vectorizeAppendix(${appendix.id})">开始向量化</button>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+
+    } catch (e) {
+        container.innerHTML = `<div class="error-state">加载失败: ${e.message}</div>`;
+    }
+}
+
+// 获取附录类型中文名
+function getAppendixTypeName(type) {
+    const typeMap = {
+        'supplementary_data': '补充数据',
+        'methods': '方法',
+        'code': '代码',
+        'figures': '图表',
+        'other': '其他'
+    };
+    return typeMap[type] || type || '未知类型';
+}
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// 上传附录
+// 更新选中文件名显示
+function updateAppendixFileName(input) {
+    const nameSpan = document.getElementById('appendix-file-name');
+    if (input.files && input.files.length > 0) {
+        nameSpan.textContent = input.files[0].name;
+    } else {
+        nameSpan.textContent = '未选择文件';
+    }
+}
+
+async function uploadAppendix() {
+    const fileInput = document.getElementById('appendix-file-input');
+    const typeSelect = document.getElementById('appendix-type-select');
+    const descInput = document.getElementById('appendix-desc-input');
+    const statusEl = document.getElementById('appendix-upload-status');
+
+    const file = fileInput.files[0];
+    if (!file) {
+        statusEl.textContent = '请选择文件';
+        statusEl.style.color = '#ff6b6b';
+        return;
+    }
+
+    statusEl.textContent = '上传中...';
+    statusEl.style.color = 'var(--text-primary)';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('appendix_type', typeSelect.value);
+    formData.append('description', descInput.value);
+
+    try {
+        const response = await fetch(`/api/literature/${LIT_ID}/appendix/upload`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            statusEl.textContent = '上传成功!';
+            statusEl.style.color = '#4caf50';
+            fileInput.value = '';
+            descInput.value = '';
+            loadAppendices();
+        } else {
+            statusEl.textContent = '上传失败: ' + (data.error || '未知错误');
+            statusEl.style.color = '#ff6b6b';
+        }
+    } catch (e) {
+        statusEl.textContent = '上传失败: ' + e.message;
+        statusEl.style.color = '#ff6b6b';
+    }
+}
+
+// 预览附录
+async function previewAppendix(appendixId) {
+    try {
+        const response = await fetch(`/api/literature/${LIT_ID}/appendix/${appendixId}/preview`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            alert('预览失败: ' + (data.error || '无法预览此文件'));
+            return;
+        }
+
+        // 打开新窗口预览
+        window.open(data.preview_url, '_blank');
+
+    } catch (e) {
+        alert('预览失败: ' + e.message);
+    }
+}
+
+// 下载附录
+async function downloadAppendix(appendixId) {
+    window.open(`/api/literature/${LIT_ID}/appendix/${appendixId}/download`, '_blank');
+}
+
+// 删除附录
+async function deleteAppendix(appendixId) {
+    if (!confirm('确定要删除这个附录吗?')) return;
+
+    try {
+        const response = await fetch(`/api/literature/${LIT_ID}/appendix/${appendixId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            loadAppendices();
+        } else {
+            alert('删除失败: ' + (data.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('删除失败: ' + e.message);
+    }
+}
+
+// 向量化附录
+async function vectorizeAppendix(appendixId) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '向量化中...';
+
+    try {
+        const response = await fetch(`/api/literature/${LIT_ID}/appendix/${appendixId}/vectorize`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            btn.textContent = '向量化完成';
+            loadAppendices();
+        } else {
+            btn.textContent = '向量化失败';
+            alert('向量化失败: ' + (data.error || '未知错误'));
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = '开始向量化';
+            }, 2000);
+        }
+    } catch (e) {
+        btn.textContent = '向量化失败';
+        alert('向量化失败: ' + e.message);
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.textContent = '开始向量化';
+        }, 2000);
+    }
+}
+
+// Load key findings
+async function loadKeyFindings(litId) {
+    const container = document.getElementById('lit-key-findings');
+    try {
+        const data = await apiRequest(`/literature/${litId}`);
+        const findings = data.key_findings;
+
+        if (!findings) {
+            container.innerHTML = '<p class="empty-state">暂无关键发现信息</p>';
+            return;
+        }
+
+        // Handle different formats
+        let findingsList = [];
+        if (typeof findings === 'string') {
+            try {
+                findingsList = JSON.parse(findings);
+            } catch(e) {
+                findingsList = [findings];
+            }
+        } else if (Array.isArray(findings)) {
+            findingsList = findings;
+        } else {
+            findingsList = [findings];
+        }
+
+        if (!findingsList || findingsList.length === 0) {
+            container.innerHTML = '<p class="empty-state">暂无关键发现信息</p>';
+            return;
+        }
+
+        // Check if items are objects with 'finding' field
+        if (findingsList.length > 0 && typeof findingsList[0] === 'object' && findingsList[0].finding) {
+            // New format: [{finding: "...", evidence: "...", ...}]
+            container.innerHTML = '<ul class="findings-list">' +
+                findingsList.map(f => `<li>${escapeHtml(f.finding || JSON.stringify(f))}</li>`).join('') +
+                '</ul>';
+        } else if (typeof findingsList[0] === 'object') {
+            // Object format: {key: value, ...}
+            container.innerHTML = '<ul class="findings-list">' +
+                Object.entries(findingsList[0]).map(([k, v]) =>
+                    `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</li>`
+                ).join('') + '</ul>';
+        } else {
+            // Simple string array
+            container.innerHTML = '<ul class="findings-list">' +
+                findingsList.map(f => `<li>${escapeHtml(String(f))}</li>`).join('') +
+                '</ul>';
+        }
+    } catch (error) {
+        console.error('Failed to load key findings:', error);
+        container.innerHTML = '<p class="empty-state">加载失败</p>';
+    }
+}
+
+// Refresh structures metadata
+async function refreshStructuresMetadata() {
+    if (!confirm('刷新结构元数据需要一些时间，确定要继续吗？')) return;
+
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '刷新中...';
+
+    try {
+        const response = await fetch(`/api/structure/literature/${LIT_ID}/refresh`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`成功刷新 ${data.refreshed}/${data.total} 个结构`, 'success');
+            // Reload structures
+            loadStructures(LIT_ID);
+        } else {
+            showToast('刷新失败: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('Refresh failed:', error);
+        showToast('刷新失败: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+// Tab switching
+function switchDetailTab(tabId) {
+    document.querySelectorAll('.detail-tabs .tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.tab === tabId) btn.classList.add('active');
+    });
+    document.querySelectorAll('.detail-page > .tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    const tabContent = document.getElementById(`tab-${tabId}`);
+    if (tabContent) tabContent.classList.add('active');
+}
+
+// QA Functions
+function sendQuestion() {
+    const input = document.getElementById('qa-input');
+    const question = input.value.trim();
+    if (!question) return;
+
+    addMessage('user', question);
+    input.value = '';
+
+    showTypingIndicator();
+
+    apiRequest('/qa/ask-v2', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({question, literature_id: LIT_ID, context: []})
+    }).then(response => {
+        removeTypingIndicator();
+        addMessage('assistant', response.answer, response.sources);
+    }).catch(error => {
+        removeTypingIndicator();
+        showToast('问答失败: ' + error.message, 'error');
+        addMessage('assistant', '抱歉，我无法回答您的问题。', []);
+    });
+}
+
+function addMessage(role, content, sources = []) {
+    const container = document.getElementById('qa-messages');
+    const div = document.createElement('div');
+    div.className = `message ${role}`;
+    div.innerHTML = role === 'user' ? `
+        <div class="message-content"><div class="message-text">${escapeHtml(content)}</div></div>
+    ` : `
+        <div class="message-avatar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-lightbulb"></use></svg></div>
+        <div class="message-content">
+            <div class="message-text">${escapeHtml(content)}</div>
+            ${sources.length ? `<div class="sources"><h5>参考来源：</h5><ul>${sources.map(s => `<li><a href="/literature/${s.id}">${escapeHtml(truncateText(s.title, 50))}</a></li>`).join('')}</ul></div>` : ''}
+        </div>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function showTypingIndicator() {
+    const container = document.getElementById('qa-messages');
+    const div = document.createElement('div');
+    div.className = 'message assistant';
+    div.id = 'typing-indicator';
+    div.innerHTML = `
+        <div class="message-avatar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-lightbulb"></use></svg></div>
+        <div class="message-content">
+            <div class="typing-indicator"><span></span><span></span><span></span></div>
+        </div>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function removeTypingIndicator() {
+    const indicator = document.getElementById('typing-indicator');
+    if (indicator) indicator.remove();
+}
+
+function askSuggestion(question) {
+    document.getElementById('qa-input').value = question;
+    sendQuestion();
+}
+
+
+// View structure - show detailed info
+async function viewStructure(structureId) {
+    try {
+        const data = await apiRequest(`/structure/${structureId}`);
+        if (data) {
+            const info = `
+结构详情
+━━━━━━━━━━━━━━━
+ID: ${data.id}
+类型: ${data.type || 'PDB'}
+分辨率: ${data.resolution ? data.resolution + ' Å' : 'N/A'}
+方法: ${data.method || 'N/A'}
+生物: ${data.organism || 'N/A'}
+标题: ${data.title || 'N/A'}
+            `;
+            alert(info);
+        }
+    } catch (e) {
+        showToast('获取结构信息失败: ' + e.message, 'error');
+    }
+}
+
+// Make functions global
+window.switchDetailTab = switchDetailTab;
+window.sendQuestion = sendQuestion;
+window.addMessage = addMessage;
+window.askSuggestion = askSuggestion;
+// window.reparseLiterature removed
+window.viewStructure = viewStructure;
+window.loadLiteratureDetail = loadLiteratureDetail;
+window.loadStructures = loadStructures;
+window.loadKeyFindings = loadKeyFindings;
+window.refreshStructuresMetadata = refreshStructuresMetadata;
+</script>
+
+<style>
+.title-text { font-size: 20px !important; font-weight: 600; margin-bottom: 10px; }
+.authors-text { font-size: 14px; color: var(--text-secondary); margin-bottom: 15px; }
+.meta-row { display: flex; gap: 20px; flex-wrap: wrap; }
+.meta-item { font-size: 13px; color: var(--text-muted); }
+
+.progress-container {
+    width: 100%;
+    padding: 10px 0;
+}
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+}
+.progress-bar {
+    height: 8px;
+    background: var(--bg-secondary, #e0e0e0);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    background: var(--primary-color, #1976D2);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+.progress-message {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.findings-content ul.findings-list {
+    list-style: disc;
+    padding-left: 20px;
+}
+.findings-content ul.findings-list li {
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+
+.pdf-placeholder {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+.pdf-icon { font-size: 48px; margin-bottom: 15px; }
+.pdf-path { font-size: 12px; color: var(--text-primary); margin: 10px 0; }
+.pdf-hint { font-size: 12px; }
+
+/* PDF Ready State */
+.pdf-ready {
+    text-align: center;
+    padding: 60px 20px;
+}
+.pdf-icon-large {
+    margin-bottom: 20px;
+    color: var(--primary-color);
+}
+.pdf-ready h3 {
+    margin-bottom: 10px;
+    color: var(--text-primary);
+}
+.pdf-ready p {
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}
+.pdf-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.pdf-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* PDF Viewer Styles */
+.pdf-viewer-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 300px);
+    min-height: 500px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-secondary);
+}
+
+.pdf-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.pdf-toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-primary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.pdf-toolbar-btn:hover {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+
+.pdf-filename {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+.pdf-embed {
+    flex: 1;
+    width: 100%;
+    border: none;
+    background: var(--bg-secondary);
+}
+
+.pdf-fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px;
+    text-align: center;
+}
+
+.pdf-fallback-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: var(--primary-color);
+    color: #fff;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    margin-top: 20px;
+    transition: all 0.2s ease;
+}
+
+.pdf-fallback-link:hover {
+    background: var(--primary-color-dark, #1565C0);
+    transform: translateY(-2px);
+}
+
+/* PDF.js Canvas Styles */
+.pdf-canvas-container {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background: #525659;
+}
+
+.pdf-canvas-container canvas {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    background: white;
+}
+
+.pdf-page-info {
+    color: #fff;
+    font-size: 13px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.pdf-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #fff;
+}
+
+.pdf-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #ff6b6b;
+    text-align: center;
+    padding: 20px;
+}
+
+/* PDF iframe */
+.pdf-iframe {
+    flex: 1;
+    width: 100%;
+    border: none;
+    background: white;
+    min-height: 600px;
+}
+</style>
+{% endblock %}
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/literature_detail.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+
+    <!-- Structure Detail Modal -->
+    <div class="modal" id="structure-modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px;">
+            <span class="modal-close" onclick="closeModal()" style="position: absolute; top: 16px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+            <div id="modal-body" class="modal-body">
+                <!-- Structure details will be loaded here -->
+            </div>
+        </div>
+    </div>
+    <script>
+        // 初始化侧栏功能
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStats();
+            initializeUpload();
+            // 初始化主题系统
+            if (typeof ThemeManager !== 'undefined') {
+                ThemeManager.init();
+            }
+        });
+    </script>
+
+    <!-- Digital Rain (cyberpunk + matrix) -->
+    <canvas id="matrix-canvas" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; pointer-events:none;"></canvas>
+    <script>
+    (function() {
+        var canvas = document.getElementById('matrix-canvas');
+        var ctx = canvas.getContext('2d');
+        var animId = null, columns = [], colColors = [], colPhrases = [], colCharIndex = [], currentMode = null;
+        var fontSize = 16, lineHeight = 24, colCount = 0;
+        var cyColors = ['rgba(0,255,245,0.85)','rgba(255,0,255,0.7)','rgba(255,255,0,0.5)'];
+
+        var cyberPhrases = [
+            // 中文
+            '赛博','朋克','未来','科技','数据','网络','智能','系统','代码','程序',
+            '算法','芯片','电路','电子','光子','量子','原子','分子','细胞','基因',
+            '蛋白','病毒','细菌','真菌','植物','动物','人类','文明','城市','国家',
+            '世界','宇宙','星空','月光','日光','时分','光影','色彩','声音','频率',
+            '人工智能','机器学习','深度学习','神经网络','数据流','云计算','大数据','物联网',
+            '虚拟现实','增强现实','自动驾驶','无人机','机器人','生物技术','量子计算',
+            '智能手机','无线通信','卫星导航','深海探测','太空站','空间站','国际空间站',
+            '核聚变','核裂变','新能源','可再生能源','太阳能','风能','潮汐能','地热能',
+            '智慧城市','数字孪生','元宇宙','区块链','数字货币','比特币','以太坊',
+            // 英文
+            'Cyber','Punk','Future','Tech','Data','Network','AI','Code','Sys','Algo',
+            'Quantum','Neural','Cloud','BigData','IoT','Blockchain','Crypto','VR','AR',
+            'Matrix','Hacker','Binary','Byte','Pixel','Vector','Tensor','Python','Java',
+            'Script','Type','React','Vue','Node','Docker','Git','DevOps','Swift','Kotlin',
+            // 日文
+            '未来','技術','電子','光子','量子','人工','知能','学習','神経','ネット',
+            'ネットワーク','人工智能','機械学習','深層学習','科學','技術','情報','通信',
+            '再生可能エネルギー','太陽光','風力発電','潮汐力','地熱','原子力','核融合',
+            // 韩文
+            '미래','기술','데이터','네트워크','인공지능','기계학습','심층학습','양자',
+            '양자컴퓨터','양자역학','핵융합','핵분열','재생에너지','태양광','풍력','조력',
+            '자율주행','스마트시티','디지털트윈','메타버스','블록체인','암호화폐',
+            // 俄文
+            'Данные','Сеть','Техника','Искусственный','Интеллект','Квантовый','Кибер','Хакер'
+        ];
+        var matrixPhrases = ['0','1','2','3','4','5','6','7','8','9'];
+
+        function initCols() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            colCount = Math.floor(canvas.width / fontSize); columns = []; colColors = []; colPhrases = []; colCharIndex = [];
+            for (var i = 0; i < colCount; i++) {
+                columns[i] = Math.floor(Math.random() * -20);
+                colPhrases[i] = currentMode === 'matrix' ? matrixPhrases[Math.floor(Math.random() * matrixPhrases.length)] : cyberPhrases[Math.floor(Math.random() * cyberPhrases.length)];
+                colCharIndex[i] = 0;
+                var r = Math.random(); colColors[i] = r < 0.6 ? 0 : (r < 0.85 ? 1 : 2);
+            }
+        }
+        function draw() {
+            var phrases = currentMode === 'matrix' ? matrixPhrases : cyberPhrases;
+            if (!phrases || phrases.length === 0) return;
+            ctx.fillStyle = currentMode === 'cyberpunk' ? 'rgba(10,10,15,0.07)' : 'rgba(0,0,0,0.06)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = fontSize + 'px monospace';
+            for (var i = 0; i < colCount; i++) {
+                // Validate column data
+                if (!colPhrases[i] || typeof colPhrases[i] !== 'string' || colPhrases[i].length === 0) {
+                    colPhrases[i] = phrases[Math.floor(Math.random() * phrases.length)];
+                    colCharIndex[i] = 0;
+                }
+                if (colCharIndex[i] === undefined) colCharIndex[i] = 0;
+
+                if (columns[i] > 0 && columns[i] % 2 === 0 && Math.random() < 0.5) {
+                    colPhrases[i] = phrases[Math.floor(Math.random() * phrases.length)];
+                    colCharIndex[i] = 0;
+                }
+                var y = columns[i] * lineHeight;
+                if (y > 0 && colPhrases[i] && typeof colPhrases[i] === 'string' && colPhrases[i].length > 0) {
+                    var phrase = colPhrases[i];
+                    var charIndex = colCharIndex[i] % phrase.length;
+                    if (charIndex < 0) charIndex = 0;
+                    var c = phrase[charIndex];
+                    if (c) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillText(c, i * fontSize, y);
+                        // Trail
+                        for (var j = 1; j <= 3; j++) {
+                            if (y - j * lineHeight > 0) {
+                                var trailIdx = (colCharIndex[i] - j + phrase.length) % phrase.length;
+                                if (trailIdx < 0) trailIdx = 0;
+                                var trailChar = phrase[trailIdx];
+                                if (trailChar && colColors[i] !== undefined) {
+                                    ctx.fillStyle = currentMode === 'cyberpunk' ? cyColors[colColors[i]] : 'rgba(0,255,65,0.9)';
+                                    ctx.fillText(trailChar, i * fontSize, y - j * lineHeight);
+                                }
+                            }
+                        }
+                    }
+                }
+                columns[i]++;
+                if (colCharIndex[i] !== undefined) colCharIndex[i]++;
+                else colCharIndex[i] = 1;
+                if (y > canvas.height && Math.random() > 0.98) {
+                    columns[i] = Math.floor(Math.random() * -20);
+                    colPhrases[i] = phrases[Math.floor(Math.random() * phrases.length)];
+                    colCharIndex[i] = 0;
+                    var r = Math.random(); colColors[i] = r < 0.6 ? 0 : (r < 0.85 ? 1 : 2);
+                }
+            }
+            animId = requestAnimationFrame(draw);
+        }
+
+        function start(m) {
+            currentMode = m;
+            if (m === 'matrix' || m === 'cyberpunk') {
+                // Enable digital rain for Matrix/Cyberpunk theme
+                canvas.style.display = '';
+                initCols();
+                draw();
+            }
+        }
+        function stop() {
+            canvas.style.display = 'none';
+            // Stop animation
+            currentMode = null;
+            if (animId) { cancelAnimationFrame(animId); animId = null; }
+            window.removeEventListener('resize', initCols);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        function check() {
+            var t = document.documentElement.getAttribute('data-theme');
+            if (t === 'matrix' || t === 'cyberpunk') { if (currentMode !== t) { stop(); start(t); } }
+            else { if (currentMode) stop(); }
+        }
+        var obs = new MutationObserver(function() { check(); });
+        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        setTimeout(check, 100);
+        setTimeout(check, 300);
+        if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', function() { setTimeout(check, 300); }); }
+    })();
+    </script>
+</body>

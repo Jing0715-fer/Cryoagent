@@ -1,0 +1,24 @@
+{
+  "enabled": true,
+  "app_id": "cli_a9e4ff3d2cb85cb0",
+  "app_secret": "uXaDYhiALmZF65VEu1EAmdaRjpSpIAq5",
+  "verification_token": "",
+  "encrypt_key": "",
+  "bot_id": "",
+  "webhook_url": "https://yuonne-transuterine-overlaxly.ngrok-free.dev/webhook/feishu",
+  "documents": [
+    {
+      "doc_id": "feishu_SoridiZXLoO9chxCiqxcE5KVnMA",
+      "source_id": "SoridiZXLoO9chxCiqxcE5KVnMA",
+      "title": "",
+      "fetched_at": "2026-02-14T16:48:28.658381"
+    }
+  ],
+  "monitor_folders": [
+    {
+      "folder_token": "IQXKfPzkalTuPfdCsyWcJK8tnVc",
+      "folder_name": "结构周报",
+      "added_at": "2026-02-14T18:28:55.715162"
+    }
+  ]
+}

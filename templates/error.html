@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>错误 - CryoAgent Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+</head>
+<body>
+    <div class="error-page">
+        <div class="error-content">
+            <h1>Oops!</h1>
+            <p class="error-message">{{ error }}</p>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">返回首页</a>
+        </div>
+    </div>
+</body>
+</html>

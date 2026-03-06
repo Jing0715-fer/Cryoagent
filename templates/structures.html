@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block extra_styles %}
+<style>
+    .refresh-progress {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .progress-bar {
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #6366F1, #8B5CF6);
+        transition: width 0.3s;
+    }
+    .progress-text {
+        font-size: 14px;
+        color: #666;
+        margin: 0;
+    }
+    /* 原始主题的结构卡片 - 与主页文献卡片风格一致 */
+    .structure-card {
+        background: white !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+        border: 1px solid #e0e0e0 !important;
+        overflow: hidden !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+        text-decoration: none !important;
+        color: inherit !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    .structure-card:hover {
+        transform: translateY(-4px) !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+        border-color: var(--primary-light) !important;
+        background: white !important;
+    }
+    /* 确保子元素在悬停时也保持背景色 */
+    .structure-card:hover .card-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    }
+    .structure-card:hover .card-content {
+        background: white !important;
+    }
+    /* 确保文字颜色在悬停时保持清晰 */
+    .structure-card:hover .card-title,
+    .structure-card:hover .structure-title {
+        color: #333 !important;
+    }
+    .structure-card .card-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+        padding: 12px 16px !important;
+        border-bottom: 1px solid #e0e0e0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+    }
+    .structure-card .card-content {
+        background: white !important;
+        padding: 15px !important;
+    }
+    .structure-card .card-title {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        color: #1565C0 !important;
+        margin: 0 !important;
+    }
+    .structure-card .structure-title {
+        font-size: 14px !important;
+        line-height: 1.4 !important;
+        margin: 10px 0 !important;
+        color: #333 !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2 !important;
+        -webkit-box-orient: vertical !important;
+        overflow: hidden !important;
+    }
+    .structure-card .resolution-badge {
+        display: inline-block !important;
+        padding: 4px 8px !important;
+        background: #e3f2fd !important;
+        color: #1565C0 !important;
+        border-radius: 4px !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        margin-bottom: 8px !important;
+    }
+    .structure-card .meta-info {
+        display: flex !important;
+        gap: 10px !important;
+        font-size: 12px !important;
+        color: #666 !important;
+    }
+    .structure-card .meta-item {
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+    }
+    .structure-type-badge {
+        padding: 6px 14px !important;
+        border-radius: 6px !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+    }
+    /* 默认：渐变背景（原始主题） */
+    .structure-type-badge.type-pdb {
+        background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%) !important;
+        color: white !important;
+        border: none !important;
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.35) !important;
+    }
+    .structure-type-badge.type-emdb {
+        background: linear-gradient(135deg, #FF9800 0%, #E65100 100%) !important;
+        color: white !important;
+        border: none !important;
+        box-shadow: 0 2px 8px rgba(255, 152, 0, 0.35) !important;
+    }
+    .structure-type-badge.type-af {
+        background: linear-gradient(135deg, #9C27B0 0%, #6A1B9A 100%) !important;
+        color: white !important;
+        border: none !important;
+        box-shadow: 0 2px 8px rgba(156, 39, 176, 0.35) !important;
+    }
+    /* 其他主题：透明背景 */
+    [data-theme] .structure-type-badge.type-pdb,
+    [data-theme] .structure-type-badge.type-emdb,
+    [data-theme] .structure-type-badge.type-af {
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    /* 夜间/黑客帝国主题 */
+    [data-theme="dark"] .structure-type-badge.type-pdb,
+    [data-theme="matrix"] .structure-type-badge.type-pdb {
+        color: #4CAF50 !important;
+        border: 1px solid #4CAF50 !important;
+    }
+    [data-theme="dark"] .structure-type-badge.type-emdb,
+    [data-theme="matrix"] .structure-type-badge.type-emdb {
+        color: #FF9800 !important;
+        border: 1px solid #FF9800 !important;
+    }
+    /* 赛博朋克主题 */
+    [data-theme="cyberpunk"] .structure-type-badge.type-pdb {
+        color: #00fff5 !important;
+        border: 1px solid #00fff5 !important;
+        text-shadow: 0 0 5px #00fff5 !important;
+    }
+    [data-theme="cyberpunk"] .structure-type-badge.type-emdb {
+        color: #ff00ff !important;
+        border: 1px solid #ff00ff !important;
+        text-shadow: 0 0 5px #ff00ff !important;
+    }
+    /* P5主题 */
+    [data-theme="persona5"] .structure-type-badge.type-pdb,
+    [data-theme="persona5"] .structure-type-badge.type-emdb,
+    [data-theme="persona5"] .structure-type-badge.type-af {
+        color: #ff1744 !important;
+        border: 1px solid #ff1744 !important;
+    }
+    /* P3主题 */
+    [data-theme="persona3"] .structure-type-badge.type-pdb,
+    [data-theme="persona3"] .structure-type-badge.type-emdb,
+    [data-theme="persona3"] .structure-type-badge.type-af {
+        color: #4fc3f7 !important;
+        border: 1px solid #4fc3f7 !important;
+    }
+    /* P4主题 */
+    [data-theme="persona4"] .structure-type-badge.type-pdb,
+    [data-theme="persona4"] .structure-type-badge.type-emdb,
+    [data-theme="persona4"] .structure-type-badge.type-af {
+        color: #FFD700 !important;
+        border: 1px solid #FFD700 !important;
+    }
+    }
+    /* 增加卡片层次感 */
+    .structure-card .meta-info {
+        margin-top: 8px !important;
+        padding-top: 8px !important;
+        border-top: 1px dashed #e0e0e0 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="structures-page">
+    <div class="page-header">
+        <h1>结构浏览器</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="refreshAllMetadata()" style="margin-right: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                刷新所有元数据
+            </button>
+            <input type="text" id="structure-search" placeholder="搜索蛋白质名称、PDB ID...">
+            <button class="btn btn-primary" onclick="searchStructures()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                搜索
+            </button>
+        </div>
+    </div>
+
+    <!-- Refresh Progress -->
+    <div id="refresh-progress" class="refresh-progress" style="display: none;">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+        </div>
+        <p class="progress-text" id="progress-text">正在刷新元数据...</p>
+    </div>
+
+    <!-- Structure Type Filters -->
+    <div class="filter-row">
+        <label class="checkbox-label">
+            <input type="checkbox" id="filter-pdb" checked> PDB
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="filter-emdb" checked> EMDB
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="filter-af" checked> AlphaFold
+        </label>
+    </div>
+
+    <!-- Structures Grid -->
+    <div class="structures-grid" id="structures-grid">
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-container" id="pagination-container"></div>
+
+    <!-- Structure Detail Modal -->
+    <div class="modal" id="structure-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">结构详情</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Structure details will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/structures.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,1297 @@
+{% extends "base.html" %}
+
+{% block title %}序列比对 - CryoAgent Pro{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-dark.css') }}">
+    <style>
+        .alignment-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .alignment-header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .alignment-header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--primary-color), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .alignment-header p {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* Sequence Input Section */
+        .sequence-input-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border-color);
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-title svg {
+            width: 20px;
+            height: 20px;
+            color: var(--primary-color);
+        }
+
+        /* Sequence Type Selector */
+        .sequence-type-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .type-option {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            background: var(--bg-primary);
+            text-align: center;
+        }
+        .type-option:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+        .type-option.active {
+            border-color: var(--primary-color);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+        }
+        .type-option .type-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+        .type-option .type-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .type-option .type-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* Input Groups */
+        .sequence-input-group {
+            margin-bottom: 20px;
+        }
+        .sequence-input-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .sequence-input-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .sequence-input-group label .label-badge {
+            background: var(--primary-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .seq-length {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-primary);
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+        .sequence-input-group textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 13px;
+            resize: vertical;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+        .sequence-input-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        .sequence-input-group textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Action Buttons */
+        .input-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+            border-color: var(--primary-color);
+        }
+
+        /* Tool Selector Cards */
+        .tool-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .tool-card {
+            padding: 18px;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            background: var(--bg-primary);
+            position: relative;
+            overflow: hidden;
+        }
+        .tool-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--border-color);
+            transition: all 0.25s ease;
+        }
+        .tool-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+        .tool-card:hover::before {
+            background: var(--primary-color);
+        }
+        .tool-card.active {
+            border-color: var(--primary-color);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
+        }
+        .tool-card.active::before {
+            background: linear-gradient(180deg, var(--primary-color), #8b5cf6);
+        }
+        .tool-card .tool-name {
+            font-weight: 700;
+            font-size: 15px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .tool-card .tool-badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+        .tool-card .tool-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        .tool-card .tool-complexity {
+            margin-top: 10px;
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .tool-card .complexity-bar {
+            flex: 1;
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .tool-card .complexity-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
+            border-radius: 2px;
+        }
+
+        /* Run Button */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), #8b5cf6);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            width: 100%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Progress Indicator */
+        .progress-indicator {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+        .progress-steps {
+            display: flex;
+            gap: 8px;
+            flex: 1;
+        }
+        .progress-step {
+            flex: 1;
+            height: 6px;
+            background: var(--border-color);
+            border-radius: 3px;
+            position: relative;
+            overflow: hidden;
+        }
+        .progress-step.active {
+            background: linear-gradient(90deg, var(--primary-color), #8b5cf6);
+        }
+        .progress-step.completed {
+            background: #22c55e;
+        }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .progress-text {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* Results Section */
+        .result-card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 20px;
+            border: 1px solid var(--border-color);
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .result-card h3 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Similarity Score Display */
+        .similarity-score {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 24px;
+            background: var(--bg-primary);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+        .score-label {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        .score-value {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #22c55e, #84cc16);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .score-bar {
+            flex: 1;
+            max-width: 200px;
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .score-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #84cc16);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .result-stat-item {
+            background: var(--bg-primary);
+            padding: 14px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+        .result-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        .result-stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Alignment Viewer */
+        .alignment-viewer {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            background: var(--bg-primary);
+            padding: 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+            white-space: pre;
+            border: 1px solid var(--border-color);
+        }
+        .sequence-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+        .sequence-label {
+            min-width: 80px;
+            color: var(--primary-color);
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .seq-content {
+            letter-spacing: 2px;
+        }
+        .residue-with-pos {
+            cursor: pointer;
+            position: relative;
+            padding: 0 1px;
+            border-radius: 2px;
+            transition: background-color 0.2s;
+        }
+        .residue-with-pos:hover {
+            background-color: rgba(99, 102, 241, 0.3);
+        }
+        /* Color coding for matching residues */
+        .residue-match {
+            color: #22c55e;
+            font-weight: 700;
+        }
+        .residue-mismatch {
+            color: #ef4444;
+        }
+        .residue-gap {
+            color: #f59e0b;
+        }
+        .consensus-row {
+            color: var(--text-muted);
+            border-top: 1px dashed var(--border-color);
+            padding-top: 12px;
+            margin-top: 12px;
+        }
+        .consensus-symbol {
+            color: #8b5cf6;
+            font-weight: 700;
+        }
+
+        /* Hidden file input */
+        #fasta-input {
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .alignment-container {
+                padding: 12px;
+            }
+            .sequence-type-selector {
+                flex-direction: column;
+            }
+            .tool-selector {
+                grid-template-columns: 1fr;
+            }
+            .result-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .stats-panel {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .sequence-row {
+                flex-direction: column;
+                gap: 4px;
+            }
+            .sequence-label {
+                min-width: auto;
+            }
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            background: var(--bg-secondary);
+            padding: 24px;
+            border-radius: 16px;
+            max-width: 450px;
+            width: 90%;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .modal-desc {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .chain-item {
+            padding: 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            background: var(--bg-primary);
+            transition: all 0.2s;
+        }
+        .chain-item:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .chain-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+        }
+        .chain-length {
+            color: var(--primary-color);
+        }
+        .chain-preview {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            font-family: monospace;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+        }
+        .tooltip::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 10px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            z-index: 100;
+        }
+        .tooltip:hover::after {
+            opacity: 1;
+        }
+    </style>
+{% endblock %}
+</head>
+<body>
+{% block content %}
+    <div class="alignment-container">
+                <div class="alignment-header">
+                    <h1>序列比对</h1>
+                    <p>比对蛋白质或核酸序列，发现相似性和进化关系</p>
+                </div>
+
+                <div class="sequence-input-card">
+                    <div class="section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                        </svg>
+                        序列输入
+                    </div>
+
+                    <!-- Sequence Type Selector -->
+                    <div class="sequence-type-selector">
+                        <div class="type-option active" data-type="protein">
+                            <div class="type-icon">🧬</div>
+                            <div class="type-name">蛋白质</div>
+                            <div class="type-desc">Amino acids (20种)</div>
+                        </div>
+                        <div class="type-option" data-type="dna">
+                            <div class="type-icon">🧪</div>
+                            <div class="type-name">核酸 (DNA)</div>
+                            <div class="type-desc">ATGC 碱基</div>
+                        </div>
+                        <div class="type-option" data-type="rna">
+                            <div class="type-icon">🔬</div>
+                            <div class="type-name">核酸 (RNA)</div>
+                            <div class="type-desc">AUGC 碱基</div>
+                        </div>
+                    </div>
+
+                    <div class="sequence-input-group">
+                        <div class="sequence-input-header">
+                            <label>
+                                <span class="label-badge">1</span>
+                                序列 1
+                            </label>
+                            <span class="seq-length" id="seq1-length">0 bp</span>
+                        </div>
+                        <textarea id="seq1" placeholder="输入第一条序列..."></textarea>
+                        <div class="input-actions">
+                            <button class="btn-secondary" onclick="loadExampleSeq(1)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                示例序列
+                            </button>
+                            <button class="btn-secondary" onclick="currentFastaTarget=1; document.getElementById('fasta-input').click()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                FASTA
+                            </button>
+                            <button class="btn-secondary" onclick="currentPdbTarget=1; document.getElementById('pdb-input').click()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                </svg>
+                                PDB文件
+                            </button>
+                            <button class="btn-secondary" onclick="showPdbIdInput(1)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                PDB ID
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="sequence-input-group">
+                        <div class="sequence-input-header">
+                            <label>
+                                <span class="label-badge">2</span>
+                                序列 2
+                            </label>
+                            <span class="seq-length" id="seq2-length">0 bp</span>
+                        </div>
+                        <textarea id="seq2" placeholder="输入第二条序列..."></textarea>
+                        <div class="input-actions">
+                            <button class="btn-secondary" onclick="loadExampleSeq(2)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                示例序列
+                            </button>
+                            <button class="btn-secondary" onclick="currentFastaTarget=2; document.getElementById('fasta-input').click()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                FASTA
+                            </button>
+                            <button class="btn-secondary" onclick="currentPdbTarget=2; document.getElementById('pdb-input').click()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                </svg>
+                                PDB文件
+                            </button>
+                            <button class="btn-secondary" onclick="showPdbIdInput(2)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                PDB ID
+                            </button>
+                        </div>
+                    </div>
+
+                    <input type="file" id="fasta-input" accept=".fasta,.fa,.txt" onchange="handleFastaUpload(event)">
+                    <input type="file" id="pdb-input" accept=".pdb" onchange="handlePdbUpload(event)" style="display: none;">
+
+                    <!-- PDB ID Input Modal -->
+                    <div id="pdb-id-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+                        <div style="background: var(--bg-secondary); padding: 24px; border-radius: 12px; max-width: 400px; width: 90%;">
+                            <h3 style="margin-bottom: 16px;">输入PDB ID</h3>
+                            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">例如: 7A5I, 1HBA, 4HHB</p>
+                            <input type="text" id="pdb-id-text" placeholder="输入4位PDB ID" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); margin-bottom: 16px; text-transform: uppercase;">
+                            <div style="display: flex; gap: 10px; justify-content: stretch;">
+                                <button class="btn-primary" style="flex: 1;" onclick="fetchPdbById()">获取序列</button>
+                                <button class="btn-primary" style="flex: 1; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-color);" onclick="document.getElementById('pdb-id-modal').style.display='none'">取消</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chain Selection Modal -->
+                    <div id="chain-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+                        <div style="background: var(--bg-secondary); padding: 24px; border-radius: 12px; max-width: 500px; width: 90%;">
+                            <h3 style="margin-bottom: 16px;">选择链</h3>
+                            <div id="chain-list" style="max-height: 300px; overflow-y: auto;"></div>
+                            <button class="btn-secondary" onclick="document.getElementById('chain-modal').style.display='none'" style="margin-top: 16px;">取消</button>
+                        </div>
+                    </div>
+
+                    <!-- Tool Selector -->
+                    <div class="section-title" style="margin-top: 24px;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        比对工具
+                    </div>
+
+                    <div class="tool-selector">
+                        <div class="tool-card active" data-tool="biopython_pairwise">
+                            <div class="tool-name">
+                                Pairwise2
+                                <span class="tool-badge">推荐</span>
+                            </div>
+                            <div class="tool-desc">BioPython内置算法，支持全局/局部比对，精确度高</div>
+                            <div class="tool-complexity">
+                                <span>复杂度</span>
+                                <div class="complexity-bar">
+                                    <div class="complexity-fill" style="width: 30%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tool-card" data-tool="clustal">
+                            <div class="tool-name">Clustal Omega</div>
+                            <div class="tool-desc">渐进式多序列比对，适合构建进化树</div>
+                            <div class="tool-complexity">
+                                <span>复杂度</span>
+                                <div class="complexity-bar">
+                                    <div class="complexity-fill" style="width: 60%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tool-card" data-tool="mafft">
+                            <div class="tool-name">MAFFT</div>
+                            <div class="tool-desc">快速高效的渐进式比对，适合大型数据集</div>
+                            <div class="tool-complexity">
+                                <span>复杂度</span>
+                                <div class="complexity-bar">
+                                    <div class="complexity-fill" style="width: 50%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" id="run-alignment" onclick="runAlignment()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        开始比对
+                    </button>
+                </div>
+
+                <div id="progress-area" style="display: none;">
+                    <div class="progress-indicator">
+                        <div class="spinner"></div>
+                        <div style="flex: 1;">
+                            <div class="progress-text" id="progress-text">正在初始化比对...</div>
+                            <div class="progress-steps" style="margin-top: 8px;">
+                                <div class="progress-step active" id="step-1"></div>
+                                <div class="progress-step" id="step-2"></div>
+                                <div class="progress-step" id="step-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="result-area" style="display: none;">
+                    <div class="result-card">
+                        <div class="result-header">
+                            <h3>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                                比对结果
+                            </h3>
+                            <div class="similarity-score">
+                                <span class="score-label">相似度</span>
+                                <span class="score-value" id="similarity-score">0%</span>
+                                <div class="score-bar">
+                                    <div class="score-bar-fill" id="score-bar-fill" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stats Panel -->
+                        <div class="stats-panel" id="stats-panel">
+                            <div class="result-stat-item">
+                                <div class="result-stat-value" id="stat-matches">0</div>
+                                <div class="result-stat-label">匹配</div>
+                            </div>
+                            <div class="result-stat-item">
+                                <div class="result-stat-value" id="stat-mismatches">0</div>
+                                <div class="result-stat-label">错配</div>
+                            </div>
+                            <div class="result-stat-item">
+                                <div class="result-stat-value" id="stat-gaps">0</div>
+                                <div class="result-stat-label">空位</div>
+                            </div>
+                            <div class="result-stat-item">
+                                <div class="result-stat-value" id="stat-length">0</div>
+                                <div class="result-stat-label">比对长度</div>
+                            </div>
+                        </div>
+
+                        <div class="alignment-viewer" id="alignment-viewer"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let selectedTool = 'biopython_pairwise';
+        let selectedType = 'protein';
+        let currentFastaTarget = 1;
+
+        // Example sequences
+        const exampleSequences = {
+            protein: {
+                1: 'MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNALSALSDLHAHKLRVDPVNFKLLSHCLLVTLAAHLPAEFTPFLASVYADLMFASYSDKSSAAWAAFNDSFGNLNDALAALQTYFATLTDAYPSKYGHDYAAEALASAFFDMFGMQMSDLHANKCFSTVQTQVKCLEVEAPK',
+                2: 'MVLSGEDKSNIKAAWGKIGGHGAEYGAEALERMFASFPTTKTYFPHFDVSHGSAQVKGHGKKVADALASAAGHLDDLPGALSALSDLHAHKLRVDPVNFKLLSHCLLVTLASHHPADFTPFLASVYVDLMFNDSSLDKSSAAWADFAGFGNLNDVLAALQEKYGFTATMSDAYPSKYGHDYGAEALSRFFEMLGMQMSDLHKAH'
+            },
+            dna: {
+                1: 'ATGCGTACTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAG',
+                2: 'ATGCGTACCAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAG'
+            },
+            rna: {
+                1: 'AUGCGUACUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAG',
+                2: 'AUGCGUACCAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAGCUAG'
+            }
+        };
+
+        // Sequence type selection
+        document.querySelectorAll('.type-option').forEach(option => {
+            option.addEventListener('click', () => {
+                document.querySelectorAll('.type-option').forEach(o => o.classList.remove('active'));
+                option.classList.add('active');
+                selectedType = option.dataset.type;
+            });
+        });
+
+        // Tool selection - updated for cards
+        document.querySelectorAll('.tool-card').forEach(card => {
+            card.addEventListener('click', () => {
+                document.querySelectorAll('.tool-card').forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+                selectedTool = card.dataset.tool;
+            });
+        });
+
+        // Sequence length counter
+        document.getElementById('seq1').addEventListener('input', function() {
+            const len = this.value.replace(/[^A-Za-z]/g, '').length;
+            document.getElementById('seq1-length').textContent = len + ' aa';
+            if (selectedType !== 'protein') {
+                document.getElementById('seq1-length').textContent = len + ' bp';
+            }
+        });
+
+        document.getElementById('seq2').addEventListener('input', function() {
+            const len = this.value.replace(/[^A-Za-z]/g, '').length;
+            document.getElementById('seq2-length').textContent = len + ' aa';
+            if (selectedType !== 'protein') {
+                document.getElementById('seq2-length').textContent = len + ' bp';
+            }
+        });
+
+        // Load example sequence
+        function loadExampleSeq(seqNum) {
+            const seq = exampleSequences[selectedType][seqNum];
+            document.getElementById('seq' + seqNum).value = seq;
+            // Trigger input event to update length counter
+            document.getElementById('seq' + seqNum).dispatchEvent(new Event('input'));
+        }
+
+        // FASTA upload
+        // currentFastaTarget is already defined at the top
+
+        function handleFastaUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                const parsed = parseFasta(content);
+                if (parsed) {
+                    document.getElementById('seq' + currentFastaTarget).value = parsed.sequence;
+                    document.getElementById('seq' + currentFastaTarget).dispatchEvent(new Event('input'));
+                }
+            };
+            reader.readAsText(file);
+            // Reset input
+            event.target.value = '';
+        }
+
+        function importFasta(target) {
+            currentFastaTarget = target;
+            document.getElementById('fasta-input').click();
+        }
+
+        function parseFasta(content) {
+            const lines = content.split('\n');
+            let header = '';
+            let sequence = '';
+
+            for (const line of lines) {
+                if (line.startsWith('>')) {
+                    header = line.substring(1).trim();
+                } else {
+                    sequence += line.trim();
+                }
+            }
+
+            if (!sequence) return null;
+            return { header, sequence };
+        }
+
+        // PDB Upload handling
+        let currentPdbTarget = 1;
+        let extractedStructures = [];
+
+        function handlePdbUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/alignment/extract-pdb', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('解析失败: ' + data.error);
+                    return;
+                }
+                extractedStructures = data.structures;
+                showChainSelection(data.structures, currentPdbTarget);
+            })
+            .catch(error => {
+                alert('上传失败: ' + error.message);
+            });
+
+            event.target.value = '';
+        }
+
+        function showPdbIdInput(target) {
+            currentPdbTarget = target;
+            document.getElementById('pdb-id-modal').style.display = 'flex';
+            document.getElementById('pdb-id-text').value = '';
+            document.getElementById('pdb-id-text').focus();
+        }
+
+        function fetchPdbById() {
+            const pdbId = document.getElementById('pdb-id-text').value.trim().toUpperCase();
+            if (!pdbId) {
+                alert('请输入PDB ID');
+                return;
+            }
+
+            fetch(`/api/alignment/extract-pdb-id?pdb_id=${pdbId}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('pdb-id-modal').style.display = 'none';
+                if (data.error) {
+                    alert('获取失败: ' + data.error);
+                    return;
+                }
+                extractedStructures = data.structures;
+                showChainSelection(data.structures, currentPdbTarget);
+            })
+            .catch(error => {
+                alert('获取失败: ' + error.message);
+            });
+        }
+
+        function showChainSelection(structures, target) {
+            const chainList = document.getElementById('chain-list');
+            chainList.innerHTML = '';
+
+            structures.forEach((struct, index) => {
+                const chainDiv = document.createElement('div');
+                chainDiv.style.cssText = 'padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: var(--bg-primary);';
+                chainDiv.innerHTML = `
+                    <div style="font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                        <span>链 ${struct.chain}</span>
+                        <span style="color: var(--primary-color);">${struct.length} aa</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                        ${struct.pdb_id || '本地文件'} - ${struct.sequence.substring(0, 30)}...
+                    </div>
+                `;
+                chainDiv.onclick = () => selectChain(struct, target);
+                chainList.appendChild(chainDiv);
+            });
+
+            document.getElementById('chain-modal').style.display = 'flex';
+        }
+
+        function selectChain(struct, target) {
+            document.getElementById('seq' + target).value = struct.sequence;
+            document.getElementById('seq' + target).dispatchEvent(new Event('input'));
+
+            // Store residue numbers if available from PDB
+            if (struct.residue_numbers) {
+                document.getElementById('seq' + target).dataset.residueNumbers = JSON.stringify(struct.residue_numbers);
+            } else {
+                document.getElementById('seq' + target).dataset.residueNumbers = '';
+            }
+
+            document.getElementById('chain-modal').style.display = 'none';
+        }
+
+        // Update progress steps
+        function updateProgress(step, text) {
+            for (let i = 1; i <= 3; i++) {
+                const el = document.getElementById('step-' + i);
+                if (i < step) {
+                    el.className = 'progress-step completed';
+                } else if (i === step) {
+                    el.className = 'progress-step active';
+                } else {
+                    el.className = 'progress-step';
+                }
+            }
+            document.getElementById('progress-text').textContent = text;
+        }
+
+        async function runAlignment() {
+            const seq1 = document.getElementById('seq1').value.trim();
+            const seq2 = document.getElementById('seq2').value.trim();
+
+            if (!seq1 || !seq2) {
+                alert('请输入两条序列');
+                return;
+            }
+
+            const btn = document.getElementById('run-alignment');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner" style="width: 18px; height: 18px; border-width: 2px;"></div> 比对中...';
+
+            document.getElementById('progress-area').style.display = 'block';
+            document.getElementById('result-area').style.display = 'none';
+
+            try {
+                updateProgress(1, '正在计算序列相似度...');
+
+                // First compare locally for quick result
+                const compareResp = await fetch('/api/alignment/compare', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        sequence1: seq1,
+                        sequence2: seq2
+                    })
+                });
+
+                const compareData = await compareResp.json();
+
+                updateProgress(2, '正在进行序列比对...');
+
+                // Also start full alignment
+                const alignResp = await fetch('/api/alignment/align', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        sequences: [seq1, seq2],
+                        tool: selectedTool,
+                        sequence_type: selectedType
+                    })
+                });
+
+                const alignData = await alignResp.json();
+
+                if (alignData.task_id) {
+                    updateProgress(3, '正在处理结果...');
+                    // Poll for result
+                    await pollAlignment(alignData.task_id, compareData.similarity);
+                } else {
+                    updateProgress(3, '完成!');
+                    showResult(compareData.similarity, seq1, seq2);
+                }
+
+            } catch (error) {
+                alert('比对失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> 开始比对';
+                document.getElementById('progress-area').style.display = 'none';
+            }
+        }
+
+        async function pollAlignment(taskId, similarity) {
+            for (let i = 0; i < 30; i++) {
+                await new Promise(r => setTimeout(r, 1000));
+
+                const resp = await fetch(`/api/alignment/result/${taskId}`);
+                const data = await resp.json();
+
+                if (data.status === 'completed') {
+                    showResult(similarity, data.result.aligned_sequences[0], data.result.aligned_sequences[1]);
+                    return;
+                } else if (data.status === 'error') {
+                    alert('比对失败: ' + data.error);
+                    return;
+                }
+            }
+            alert('比对超时');
+        }
+
+        // Color coding for residues
+        function colorizeResidue(res1, res2) {
+            if (res1 === '-' && res2 === '-') {
+                return '<span class="residue-gap">-</span>';
+            }
+            if (res1 === res2) {
+                return '<span class="residue-match">' + res1 + '</span>';
+            }
+            if (res1 === '-' || res2 === '-') {
+                return '<span class="residue-gap">' + (res1 === '-' ? res1 : res2) + '</span>';
+            }
+            return '<span class="residue-mismatch">' + res1 + '</span>';
+        }
+
+        function showResult(similarity, alignedSeq1, alignedSeq2) {
+            document.getElementById('result-area').style.display = 'block';
+            document.getElementById('similarity-score').textContent = similarity + '%';
+            document.getElementById('score-bar-fill').style.width = similarity + '%';
+
+            // Calculate stats - use max length to count all positions
+            let matches = 0, mismatches = 0, gaps = 0;
+            const alignedLen = Math.max(alignedSeq1.length, alignedSeq2.length);
+
+            for (let i = 0; i < alignedLen; i++) {
+                const r1 = alignedSeq1[i] || '-';
+                const r2 = alignedSeq2[i] || '-';
+                if (r1 === r2 && r1 !== '-') {
+                    matches++;
+                } else if (r1 === '-' || r2 === '-') {
+                    gaps++;
+                } else {
+                    mismatches++;
+                }
+            }
+
+            document.getElementById('stat-matches').textContent = matches;
+            document.getElementById('stat-mismatches').textContent = mismatches;
+            document.getElementById('stat-gaps').textContent = gaps;
+            document.getElementById('stat-length').textContent = alignedLen;
+
+            // Build consensus with color
+            let consensus = '';
+            for (let i = 0; i < alignedLen; i++) {
+                const r1 = alignedSeq1[i] || '-';
+                const r2 = alignedSeq2[i] || '-';
+                if (r1 === r2 && r1 !== '-') {
+                    consensus += r1;
+                } else if (r1 === '-' || r2 === '-') {
+                    consensus += '.';
+                } else {
+                    consensus += '*';
+                }
+            }
+
+            // Format for display (60 chars per line) with color coding
+            const viewer = document.getElementById('alignment-viewer');
+            let html = '';
+
+            // Get residue numbers from input fields (if extracted from PDB)
+            let seq1ResNums = [];
+            let seq2ResNums = [];
+            try {
+                const seq1Data = document.getElementById('seq1').dataset.residueNumbers;
+                const seq2Data = document.getElementById('seq2').dataset.residueNumbers;
+                if (seq1Data) seq1ResNums = JSON.parse(seq1Data);
+                if (seq2Data) seq2ResNums = JSON.parse(seq2Data);
+            } catch (e) {
+                // Not from PDB, use sequential numbering
+            }
+
+            // Use max length for display
+            const displayLen = Math.max(alignedSeq1.length, alignedSeq2.length);
+
+            for (let i = 0; i < displayLen; i += 60) {
+                const chunk1 = alignedSeq1.slice(i, i + 60);
+                const chunk2 = alignedSeq2.slice(i, i + 60);
+                const chunkCons = consensus.slice(i, i + 60);
+
+                // Colorize sequence 1 with position tooltip
+                let coloredChunk1 = '';
+                for (let j = 0; j < chunk1.length; j++) {
+                    const seqIdx = i + j;
+                    // Use PDB residue number if available, otherwise use sequential
+                    const pos = seq1ResNums.length > seqIdx ? seq1ResNums[seqIdx] : (i + j + 1);
+                    const r1 = chunk1[j] || '-';
+                    const r2 = chunk2[j] || '-';
+                    coloredChunk1 += `<span class="residue-with-pos" data-pos="${pos}" title="Seq1 位置: ${pos}">${colorizeResidue(r1, r2)}</span>`;
+                }
+
+                // Colorize sequence 2 with position tooltip
+                let coloredChunk2 = '';
+                for (let j = 0; j < chunk2.length; j++) {
+                    const seqIdx = i + j;
+                    const pos = seq2ResNums.length > seqIdx ? seq2ResNums[seqIdx] : (i + j + 1);
+                    const r1 = chunk1[j] || '-';
+                    const r2 = chunk2[j] || '-';
+                    coloredChunk2 += `<span class="residue-with-pos" data-pos="${pos}" title="Seq2 位置: ${pos}">${colorizeResidue(r2, r1)}</span>`;
+                }
+
+                // Fill remaining space if one sequence is longer
+                if (chunk1.length < 60) {
+                    for (let j = chunk1.length; j < 60; j++) {
+                        coloredChunk1 += '<span class="residue-with-pos" style="visibility:hidden">-</span>';
+                    }
+                }
+                if (chunk2.length < 60) {
+                    for (let j = chunk2.length; j < 60; j++) {
+                        coloredChunk2 += '<span class="residue-with-pos" style="visibility:hidden">-</span>';
+                    }
+                }
+
+                // Colorize consensus with position
+                let coloredCons = '';
+                for (let j = 0; j < chunkCons.length; j++) {
+                    const pos = i + j + 1;
+                    const c = chunkCons[j];
+                    if (c === '*') {
+                        coloredCons += `<span class="residue-with-pos" data-pos="${pos}" title="Seq1:${seq1ResNums.length > i+j ? seq1ResNums[i+j] : pos}, Seq2:${seq2ResNums.length > i+j ? seq2ResNums[i+j] : pos}"><span class="consensus-symbol">*</span></span>`;
+                    } else if (c === '.') {
+                        coloredCons += `<span class="residue-with-pos" data-pos="${pos}" title="位置: ${pos}"><span class="residue-gap">.</span></span>`;
+                    } else {
+                        coloredCons += `<span class="residue-with-pos" data-pos="${pos}" title="Seq1:${seq1ResNums.length > i+j ? seq1ResNums[i+j] : pos}, Seq2:${seq2ResNums.length > i+j ? seq2ResNums[i+j] : pos}"><span class="residue-match">${c}</span></span>`;
+                    }
+                }
+
+                html += `<div class="sequence-row">
+                    <span class="sequence-label">Seq 1</span>
+                    <span class="seq-content">${coloredChunk1}</span>
+                </div>`;
+                html += `<div class="sequence-row">
+                    <span class="sequence-label">Seq 2</span>
+                    <span class="seq-content">${coloredChunk2}</span>
+                </div>`;
+                html += `<div class="sequence-row consensus-row">
+                    <span class="sequence-label">Consensus</span>
+                    <span class="seq-content">${coloredCons}</span>
+                </div>`;
+                html += '<br>';
+            }
+
+            viewer.innerHTML = html;
+        }
+    </script>
+{% endblock %}

@@ -1,0 +1,7 @@
+$601dd36b-e1c9-4f75-bd8f-f97c39923c17²Žid ÿÿÿÿÿÿÿÿÿ*string08)structure_type ÿÿÿÿÿÿÿÿÿ*string08 title ÿÿÿÿÿÿÿÿÿ*string08&description ÿÿÿÿÿÿÿÿÿ*string08"methods ÿÿÿÿÿÿÿÿÿ*string08%
+resolution ÿÿÿÿÿÿÿÿÿ*double08#organism ÿÿÿÿÿÿÿÿÿ*string08,expression_system ÿÿÿÿÿÿÿÿÿ*string08gene ÿÿÿÿÿÿÿÿÿ*string08'protein_name	 ÿÿÿÿÿÿÿÿÿ*string08"authors
+ ÿÿÿÿÿÿÿÿÿ*string08#keywords ÿÿÿÿÿÿÿÿÿ*string08)literature_ids ÿÿÿÿÿÿÿÿÿ*string08&entity_type ÿÿÿÿÿÿÿÿÿ*string08#metadata ÿÿÿÿÿÿÿÿÿ*string087	embedding ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:38408%
+created_at ÿÿÿÿÿÿÿÿÿ*string08%
+updated_at ÿÿÿÿÿÿÿÿÿ*string08"!
+lance.auto_cleanup.interval20"'
+lance.auto_cleanup.older_than14days

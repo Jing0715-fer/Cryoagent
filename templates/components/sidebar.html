@@ -1,0 +1,237 @@
+<!-- Sidebar Component -->
+<aside class="sidebar" id="sidebar" style="position: relative;">
+    <div class="sidebar-header">
+        <div class="logo">
+            <svg class="logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 18h8"></path>
+                <path d="M3 22h18"></path>
+                <path d="M14 22a7 7 0 1 0 0-14h-1"></path>
+                <path d="M9 14h2"></path>
+                <path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2z"></path>
+                <path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"></path>
+            </svg>
+            <span class="logo-text" id="main-logo">CryoAgent Pro</span>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <ul>
+            <li class="nav-item {% if request.endpoint in ['qa_page', 'index'] %}active{% endif %}">
+                <a href="{{ url_for('qa_page') }}">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span>智能问答</span>
+                </a>
+            </li>
+            <li class="nav-item {% if request.endpoint in ['literature_page', 'literature_detail_page'] %}active{% endif %}">
+                <a href="/literature">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                    </svg>
+                    <span>文献管理</span>
+                </a>
+            </li>
+            <li class="nav-item {% if request.endpoint in ['structures_page', 'structure_detail_page'] %}active{% endif %}">
+                <a href="{{ url_for('structures_page') }}">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    </svg>
+                    <span>结构浏览</span>
+                </a>
+            </li>
+            <li class="nav-item {% if request.endpoint == 'alignment_page' %}active{% endif %}">
+                <a href="{{ url_for('alignment_page') }}">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M2 15c6.667-6 13.333 0 20-6"></path>
+                        <path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993"></path>
+                    </svg>
+                    <span>序列比对</span>
+                </a>
+            </li>
+            <li class="nav-item {% if request.endpoint == 'knowledge_graph_page' %}active{% endif %}">
+                <a href="{{ url_for('knowledge_graph_page') }}">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="6" cy="6" r="3"></circle>
+                        <circle cx="18" cy="6" r="3"></circle>
+                        <circle cx="6" cy="18" r="3"></circle>
+                        <circle cx="18" cy="18" r="3"></circle>
+                        <line x1="6" y1="9" x2="6" y2="15"></line>
+                        <line x1="18" y1="9" x2="18" y2="15"></line>
+                        <line x1="9" y1="6" x2="15" y2="6"></line>
+                        <line x1="9" y1="18" x2="15" y2="18"></line>
+                    </svg>
+                    <span>知识图谱</span>
+                </a>
+            </li>
+            <li class="nav-item {% if request.endpoint == 'evaluation_page' %}active{% endif %}">
+                <a href="{{ url_for('evaluation_page') }}">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+                    </svg>
+                    <span>蛋白质评估</span>
+                </a>
+            </li>
+            <li class="nav-item {% if request.endpoint == 'feishu_documents_page' %}active{% endif %}">
+                <a href="{{ url_for('feishu_documents_page') }}">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>飞书文档</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Statistics Panel -->
+    <div class="sidebar-stats" id="sidebar-stats">
+        <h4>系统统计</h4>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-value" id="total-count">-</span>
+                <span class="stat-label">文献数</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="structure-count">-</span>
+                <span class="stat-label">结构数</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="vector-count">-</span>
+                <span class="stat-label">向量文件</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Section -->
+    <div class="sidebar-upload">
+        <h4>上传文献</h4>
+        <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" multiple accept=".pdf" hidden>
+            <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-file-plus"></use></svg> 选择 PDF 文件
+            </button>
+            <p class="upload-hint">支持批量上传</p>
+        </div>
+
+        <!-- Pending files list -->
+        <div id="pending-files-container" style="display: none; margin-top: 10px;">
+            <div style="font-size: 13px; color: #343a40; margin-bottom: 8px; font-weight: 600;">待上传文件：</div>
+            <div id="pending-files-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; background: #f8f9fa; border-radius: 6px; padding: 8px; border: 1px solid #dee2e6;"></div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-primary" id="confirm-upload-btn" style="flex: 1; font-size: 13px; padding: 8px 12px;">
+                    开始上传
+                </button>
+                <button class="btn" id="clear-files-btn" style="flex: 1; font-size: 13px; padding: 8px 12px; background: #6c757d; color: white; border: none;">
+                    清空
+                </button>
+            </div>
+        </div>
+
+        <div class="upload-progress" id="upload-progress" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <span class="progress-text" id="progress-text">0%</span>
+        </div>
+
+        <!-- Upload Log Container -->
+        <div id="upload-log-container" style="display: none; margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; max-height: 200px; overflow-y: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 11px;">
+            <div id="upload-logs" style="color: rgba(255,255,255,0.9); line-height: 1.6;"></div>
+        </div>
+    </div>
+
+    <!-- System Operations -->
+    <div class="sidebar-settings">
+        <h4>系统操作</h4>
+        <div class="action-item" onclick="window.location.href='{{ url_for('themes_page') }}'">
+            <svg class="action-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-palette"></use></svg>
+            <span class="action-text">皮肤主题</span>
+        </div>
+        <div class="action-item" onclick="window.location.href='{{ url_for('settings_page') }}'">
+            <svg class="action-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-settings"></use></svg>
+            <span class="action-text">系统设置</span>
+        </div>
+        <div class="action-item" onclick="rebuildIndex()">
+            <svg class="action-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-refresh"></use></svg>
+            <span class="action-text">重建索引</span>
+        </div>
+    </div>
+
+    <!-- Index Progress -->
+    <div class="sidebar-progress" id="sidebar-progress" style="display: none; padding: 15px 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+        <h4 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.5); margin-bottom: 10px;">索引进度</h4>
+        <div class="progress-bar" style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+            <div class="progress-fill" id="index-progress-fill" style="height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); width: 0%; transition: width 0.3s;"></div>
+        </div>
+        <div id="index-progress-text" style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 5px;">准备中...</div>
+    </div>
+
+    <!-- User Account Section -->
+    <div class="sidebar-user" id="sidebar-user" style="padding: 15px 20px; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
+        {% if current_user.is_authenticated %}
+        <div class="user-info" style="display: flex; align-items: center; gap: 12px;">
+            <div class="user-avatar" style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px;">
+                {{ current_user.username[0].upper() }}
+            </div>
+            <div class="user-details" style="flex: 1; min-width: 0;">
+                <div class="user-name" style="color: white; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    {{ current_user.display_name or current_user.username }}
+                </div>
+                <div class="user-email" style="color: rgba(255,255,255,0.6); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    {{ current_user.email }}
+                </div>
+            </div>
+            <div class="user-actions" style="display: flex; gap: 8px;">
+                <button class="btn btn-sm" onclick="showUserMenu()" style="padding: 6px 10px; background: rgba(255,255,255,0.1); border: none; border-radius: 6px; color: white; cursor: pointer;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="1"></circle>
+                        <circle cx="12" cy="5" r="1"></circle>
+                        <circle cx="12" cy="19" r="1"></circle>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <!-- User Menu Dropdown -->
+        <div id="user-menu" style="display: none; position: absolute; bottom: 60px; left: 10px; right: 10px; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); overflow: hidden; z-index: 1000;">
+            <div style="padding: 10px; border-bottom: 1px solid #eee;">
+                <div style="font-weight: 600; color: #333; font-size: 14px;">账户设置</div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" style="display: block; padding: 12px 15px; color: #dc3545; text-decoration: none; font-size: 14px; display: flex; align-items: center; gap: 10px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                退出登录
+            </a>
+        </div>
+        {% else %}
+        <div class="login-prompt" style="text-align: center; padding: 10px;">
+            <a href="{{ url_for('auth.login') }}" style="display: inline-block; padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 600;">
+                登录 / 注册
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</aside>
+
+<script>
+function showUserMenu() {
+    const menu = document.getElementById('user-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+// 点击其他地方关闭菜单
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('user-menu');
+    const btn = e.target.closest('button[onclick="showUserMenu()"]');
+    if (!e.target.closest('#user-menu') && !btn) {
+        menu.style.display = 'none';
+    }
+});
+</script>

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Flask
+instance/
+.webassets-cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+flask_app.log
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache directories
+*_cache/
+pdb_cache/
+pdf_cache/
+literature_cache/
+literature_thumbnails/
+structure_cache/
+unified_vector_cache/
+uniprot_cache/
+
+# Data files (may contain large binaries)
+feishu_documents/
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db

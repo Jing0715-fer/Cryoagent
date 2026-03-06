@@ -1,0 +1,30 @@
+{
+  "api_provider": "anthropic",
+  "api_base": "https://api.minimaxi.com/anthropic",
+  "api_key": "sk-cp-Z0lrWRE3uyJ68uuGsHICJtTVJtqJDcGTs4-uqM2BsAzN-8fVE3iEXZKaVbmXEaQQ4EcgwSay-aD2XGMN6GZMfRJ5-wDouTsVReEvWvBYOjsAx5bjjAJn7Gk",
+  "chat_model": "Minimax-M2.5",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "vector_engine": "faiss",
+  "search_type": "vector",
+  "reranker_enabled": false,
+  "jina_api_key": "",
+  "models": [
+    {
+      "api_base": "https://api.minimaxi.com/anthropic",
+      "api_format": "anthropic",
+      "api_key": "sk-cp-Z0lrWRE3uyJ68uuGsHICJtTVJtqJDcGTs4-uqM2BsAzN-8fVE3iEXZKaVbmXEaQQ4EcgwSay-aD2XGMN6GZMfRJ5-wDouTsVReEvWvBYOjsAx5bjjAJn7Gk",
+      "chat_model": "Minimax-M2.5",
+      "id": "model_2",
+      "name": "MiniMax"
+    },
+    {
+      "api_base": "https://generativelanguage.googleapis.com",
+      "api_format": "gemini",
+      "api_key": "AIzaSyDWAaZ9ZDahzrf_ZgtG_uhjqPv_qh0XeAI",
+      "chat_model": "gemini-3-flash-preview",
+      "id": "model_1772532018763",
+      "name": "Google Germini"
+    }
+  ],
+  "active_model_id": "model_2"
+}
