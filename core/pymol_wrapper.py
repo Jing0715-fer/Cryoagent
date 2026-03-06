@@ -177,35 +177,24 @@ class PyMOLWrapper:
             if not self.fetch_structure(pdb_id):
                 return {"error": f"Failed to fetch {pdb_id}"}
 
-            # 获取描述信息
-            desc = self.cmd.get_str("describe", pdb_id)
-
             # 获取原子数量
             atom_count = self.cmd.count_atoms(pdb_id)
 
             # 获取残基数量 - 使用 iterate 替代 count_resi
             resi_count = 0
             try:
-                self.cmd.iterate(f"({pdb_id} and name CA)", "resi_count += 1", space=locals())
+                self.cmd.iterate(f"({pdb_id} and name CA)", "resi_count += 1", space={'resi_count': 0})
             except:
                 resi_count = atom_count // 3  # 估算
 
             # 获取链信息
             chains = list(self.cmd.get_chains(pdb_id))
 
-            # 获取序列
-            try:
-                seq = self.cmd.get_seq(pdb_id)
-            except:
-                seq = ""
-
             return {
                 "pdb_id": pdb_id,
-                "description": desc,
                 "atom_count": atom_count,
                 "residue_count": resi_count,
-                "chains": chains,
-                "sequence": seq
+                "chains": chains
             }
         except Exception as e:
             logger.error(f"Error getting structure info for {pdb_id}: {e}")
