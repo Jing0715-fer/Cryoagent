@@ -6,7 +6,8 @@ import os
 import json
 import asyncio
 import logging
-from typing import Dict, List, Any
+
+print(f"DEBUG: Loading routes.qa_agent from {__file__}")
 
 # Add project root to path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -302,24 +303,24 @@ def manage_session():
 _sessions = {}
 
 
-def _get_session_data(session_id: str) -> Dict:
+def _get_session_data(session_id: str) -> dict:
     """获取会话数据"""
     return _sessions.get(session_id, {})
 
 
-def _save_session_data(session_id: str, data: Dict):
+def _save_session_data(session_id: str, data: dict):
     """保存会话数据"""
     _sessions[session_id] = data
 
 
-def _get_context(session_id: str) -> List[Dict]:
+def _get_context(session_id: str) -> list[Dict]:
     """获取会话上下文"""
     session_data = _get_session_data(session_id)
     return session_data.get('context', [])
 
 
 def _handle_clarification_response(session_id: str, clarification_id: str,
-                                   value: Any, session_data: Dict) -> Dict:
+                                   value: any, session_data: dict) -> dict:
     """处理用户对澄清问题的响应"""
     logger.info(f"Handling clarification: {clarification_id} = {value}")
 
@@ -343,7 +344,7 @@ def _handle_clarification_response(session_id: str, clarification_id: str,
     return session_data
 
 
-def _save_qa_history(user_id: str, session_id: str, question: str, result: Dict):
+def _save_qa_history(user_id: str, session_id: str, question: str, result: dict):
     """保存问答历史"""
     try:
         from core.literature_db import save_qa_history
