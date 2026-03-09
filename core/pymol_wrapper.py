@@ -424,8 +424,9 @@ class PyMOLWrapper:
                 f"{pdb_id}_{style}_{color}.{format}"
             )
 
-            # 渲染图像
-            self.cmd.png(output_path, width=width, height=height, dpi=300, ray=1)
+            # 渲染图像 - 禁用 ray  tracing 以提高速度
+            # ray=0 使用 OpenGL 快速渲染，ray=1 使用光线追踪（慢但质量高）
+            self.cmd.png(output_path, width=width, height=height, dpi=300, ray=0)
 
             logger.info(f"Generated image: {output_path}")
             return output_path

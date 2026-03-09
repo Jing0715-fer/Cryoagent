@@ -385,7 +385,8 @@ class EmbeddingManager:
             try:
                 from sentence_transformers import SentenceTransformer
                 logger.info(f"正在加载本地嵌入模型: {self.model_name}")
-                self.model = SentenceTransformer(self.model_name)
+                # 强制使用 CPU 设备以避免 GPU 问题
+                self.model = SentenceTransformer(self.model_name, device='cpu')
                 logger.info(f"✅ 本地嵌入模型加载成功: {self.model_name}")
             except ImportError as e:
                 logger.warning(f"无法加载sentence-transformers: {e}")

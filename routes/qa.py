@@ -4,8 +4,14 @@ QA System API Routes - 多阶段智能问答
 import sys
 import os
 import json
+import logging
+import logging.config
+
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
+logger = logging.getLogger(__name__)
 # Add project root to path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -25,14 +31,231 @@ def get_current_user_id():
     return None
 
 
+def _handle_agent_mode(question: str, session_id: str, original_data: dict):
+    """
+    处理 Agent 模式 - 调用 Agent 端点
+    """
+    import logging
+    import uuid
+    logger = logging.getLogger(__name__)
+
+    try:
+        # 准备调用 Agent 的参数
+        skill_id = original_data.get('skill_id')
+
+        def run_agent():
+            # 不使用 app_context()，避免阻塞
+            from core.agent_tools import get_tool_registry, initialize_tools
+            from core.qa_agent import create_agent
+
+            # 初始化工具
+            registry = get_tool_registry()
+            if not registry.get_all_tools():
+                initialize_tools()
+
+            # 创建 Agent 并处理问题
+            agent = create_agent(registry, skill_id=skill_id)
+
+            # 导入 asyncio 并运行
+            import asyncio
+            return asyncio.run(agent.process(question, [], {}, skill_id=skill_id))
+
+        # 直接执行 Agent，不使用线程池
+        try:
+            # 5分钟超时
+            logger.info("[QA v2] 开始执行 Agent...")
+            result = run_agent()
+            logger.info(f"[QA v2] Agent 执行完成！result type: {type(result)}")
+        except Exception as e:
+            import traceback
+            logger.error(f"Agent 执行异常: {e}")
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': f'Agent 执行失败: {str(e)}'
+            }), 500
+
+        # 从 Agent 结果中提取信息
+        print(f"[QA v2] 开始提取 Agent 结果...")
+        answer = result.get('content', '')
+        tool_results = result.get('tool_results', [])
+        print(f"[QA v2] 提取完成：content_len={len(answer) if answer else 0}, tool_results={len(tool_results)}")
+
+        # 打印 tool_results 的类型和内容
+        print(f"[QA v2] tool_results 类型: {type(tool_results)}")
+        if tool_results:
+            print(f"[QA v2] 第一个 tool_result: {str(tool_results[0])[:500]}")
+        print(f"[QA v2] Agent result 完整数据：{json.dumps(result, ensure_ascii=False)[:1000]}...")
+
+        # 提取图像 URL（如果有）
+        image_url = None
+        print(f"[QA v2] tool_results count: {len(tool_results)}")
+        for tr in tool_results:
+            print(f"[QA v2] tool: {tr.get('tool_name')}, success: {tr.get('success')}")
+            if tr.get('tool_name') == 'pymol_image' and tr.get('success'):
+                image_path = tr.get('result', {}).get('image_path')
+                print(f"[QA v2] pymol_image result: image_path={image_path}")
+                if image_path:
+                    # 提取文件名并处理大小写问题
+                    original_filename = image_path.split('/')[-1] if '/' in image_path else image_path
+                    filename = original_filename
+
+                    # 检查文件是否存在，如果不存在尝试小写版本
+                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    sessions_dir = os.path.join(project_root, 'pymol_sessions')
+                    if not os.path.exists(os.path.join(sessions_dir, filename)):
+                        filename_lower = original_filename.lower()
+                        if os.path.exists(os.path.join(sessions_dir, filename_lower)):
+                            filename = filename_lower
+
+                    image_url = f"/api/pymol/sessions/{filename}"
+                    break
+
+        # 提取来源
+        sources = []
+        for tr in tool_results:
+            # 文献来源
+            if tr.get('tool_name') == 'search_literature' and tr.get('success'):
+                lit_results = tr.get('result', {}).get('results', [])
+                for lit in lit_results[:3]:
+                    sources.append({
+                        'type': 'literature',
+                        'id': str(lit.get('id', '')),
+                        'title': lit.get('title', '')[:100]
+                    })
+            # 结构来源
+            if tr.get('tool_name') == 'search_structures' and tr.get('success'):
+                struct_results = tr.get('result', {}).get('results', [])
+                for struct in struct_results[:3]:
+                    sources.append({
+                        'type': 'structure',
+                        'id': struct.get('pdb_id', ''),
+                        'title': struct.get('title', '')[:100]
+                    })
+
+        print(f"[QA v2] Agent 模式完成, image_url: {image_url}, sources: {len(sources)}")
+        print(f"[QA v2] 准备保存历史记录...")
+
+        # 保存历史（截断过大的结果）
+        try:
+            from core.literature_db import save_qa_history
+            user_id = get_current_user_id()
+            print(f"[QA v2] user_id = {user_id}")
+            if user_id:
+                print(f"[QA v2] 开始保存历史，result 类型: {type(result)}")
+                # 截断过大的结果JSON，防止数据库存储失败
+                result_json_str = json.dumps(result)
+                max_history_size = 500000  # 500KB 限制
+                if len(result_json_str) > max_history_size:
+                    # 创建一个精简版本
+                    truncated_result = {
+                        'content': result.get('content', ''),
+                        'iteration': result.get('iteration', 0),
+                        'tool_results': []
+                    }
+                    # 只保留工具名称和成功状态
+                    for tr in result.get('tool_results', []):
+                        truncated_result['tool_results'].append({
+                            'tool_name': tr.get('tool_name', ''),
+                            'success': tr.get('success', False)
+                        })
+                    result_json_str = json.dumps(truncated_result)
+                    logger.warning(f"结果数据过大，已截断保存: {len(result_json_str)} bytes")
+
+                save_qa_history(
+                    question=question,
+                    answer=answer,
+                    session_id=session_id,
+                    user_id=user_id,
+                    result_json=result_json_str
+                )
+        except Exception as e:
+            logger.warning(f"保存历史失败: {e}")
+
+        # 返回结果 - 不返回完整的tool_results以减小响应大小
+        # 只返回工具调用摘要
+        tool_results_summary = []
+        for tr in tool_results:
+            summary = {
+                'tool_name': tr.get('tool_name', ''),
+                'success': tr.get('success', False)
+            }
+            # 如果是图片工具，包含image_path
+            if tr.get('tool_name') == 'pymol_image' and tr.get('success'):
+                summary['image_path'] = tr.get('result', {}).get('image_path')
+            # 如果是搜索工具，包含结果数量
+            if tr.get('tool_name') in ['search_literature', 'search_structures'] and tr.get('success'):
+                summary['count'] = tr.get('result', {}).get('count', 0)
+            tool_results_summary.append(summary)
+
+        # 构建符合前端期望的响应格式
+        # 格式：{'success': True, 'result': {type, content, image_url, tool_results}, 'session_id': ...}
+        result_data = {
+            'type': 'answer',
+            'content': answer,
+            'tool_results': tool_results_summary
+        }
+
+        # 如果有图片，添加到 result 中
+        if image_url:
+            result_data['image_url'] = image_url
+
+        # 如果有来源，也添加到 result 中
+        if sources:
+            result_data['sources'] = sources
+
+        response = {
+            'success': True,
+            'result': result_data,
+            'session_id': session_id,
+            'mode': 'agent',
+            'analysis': {
+                'question_type': 'agent',
+                'sources_count': len(sources),
+                'iterations': result.get('iteration', 0)
+            }
+        }
+
+        # 添加调试日志
+        logger.info(f"[QA v2] 返回响应：success=True, result.type={result_data.get('type')}, content_len={len(answer) if answer else 0}, image_url={image_url}")
+
+        # 尝试序列化响应，捕获可能的错误
+        try:
+            json.dumps(response)  # 测试是否可以正常序列化
+            logger.info("[QA v2] JSON 序列化成功")
+        except TypeError as je:
+            logger.error(f"[QA v2] JSON 序列化失败：{je}")
+            # 如果序列化失败，返回错误响应
+            return jsonify({
+                'success': False,
+                'error': f'响应序列化失败：{str(je)}'
+            }), 500
+
+        logger.info("[QA v2] 准备返回 jsonify 响应")
+        response_obj = jsonify(response)
+        logger.info("[QA v2] jsonify 完成，准备返回")
+        return response_obj
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        logger.error(f"Agent 模式错误: {e}")
+        return jsonify({
+            'error': f'Agent 处理失败: {str(e)}',
+            'fallback': '请尝试使用 RAG 模式'
+        }), 500
+
+
 @bp.route('/ask-v2', methods=['POST'])
 def ask_question_v2():
     """
     智能问答 v2 - 基于问题类型的智能路由
+    自动选择 RAG 或 Agent 模式
     """
     import logging
     import json
     import re
+    import uuid
     logger = logging.getLogger(__name__)
     print(f"[QA v2] 收到问题...")
 
@@ -42,11 +265,11 @@ def ask_question_v2():
         literature_id = data.get('literature_id')
         session_id = data.get('session_id')  # 获取session_id
         model_id = data.get('model_id')  # 获取模型ID
-        print(f"[QA v2] 收到session_id: {session_id}, model_id: {model_id}")
+        force_mode = data.get('mode', 'auto')  # 强制模式: auto, rag, agent
+        print(f"[QA v2] 收到session_id: {session_id}, model_id: {model_id}, force_mode: {force_mode}")
 
         # 如果没有session_id，创建一个新的
         if not session_id:
-            import uuid
             session_id = str(uuid.uuid4())
             print(f"[QA v2] 创建新session: {session_id}")
 
@@ -76,6 +299,66 @@ def ask_question_v2():
 
         if not question:
             return jsonify({'error': 'Question is required'}), 400
+
+        # ====== 自动路由：检测使用 RAG 还是 Agent ======
+        question_lower = question.lower()
+
+        # 需要使用 Agent 模式的特征
+        need_agent_patterns = [
+            # 多轮对话相关
+            "继续", "上文", "之前", "continue", "previous", "follow up",
+            # 复杂分析
+            "对比", "比较", "差异", "compare", "vs", "versus",
+            # 序列相关 - 移至RAG模式处理，因为RAG有更好的向量搜索
+            # "序列", "sequence", "alignment", "比对",
+            # 结构分析
+            "分析", "analysis", "rmsd", "align",
+            # 多步骤任务
+            "先", "然后", "再", "first", "then", "next",
+            # 明确要求
+            "使用agent", "用agent", "agent模式",
+        ]
+
+        # 简单 RAG 就能解决的问题
+        is_simple_question = any(kw in question_lower for kw in [
+            "是什么", "什么是", "what is", "定义", "definition",
+            "解释", "explain", "介绍", "introduce",
+            "总结", "summarize", "摘要",
+        ])
+
+        # 检测是否有复杂特征
+        needs_agent = any(pattern in question_lower for pattern in need_agent_patterns)
+
+        # 如果用户指定了模式
+        if force_mode == 'agent':
+            needs_agent = True
+        elif force_mode == 'rag':
+            needs_agent = False
+
+        # 决定使用哪种模式
+        # 先提取明确的 PDB/EMDB ID（需要在路由决策之前）
+        pdb_pattern = r'[1-9][A-Za-z0-9]{3}'
+        emdb_pattern = r'EMD[A-Z]?\d+'
+        explicit_pdb_ids = re.findall(pdb_pattern, question.upper())
+        explicit_emdb_ids = re.findall(emdb_pattern, question.upper())
+        explicit_structure_ids = explicit_pdb_ids + explicit_emdb_ids
+
+        use_agent_mode = needs_agent or (not is_simple_question and (
+            # 需要多轮工具调用的情况
+            # 包含图片/可视化请求（无论是否有明确 PDB ID）
+            any(kw in question_lower for kw in ["图片", "image", "可视化", "visualize", "cartoon", "stick"]) or
+            # 需要多次搜索的情况
+            any(kw in question_lower for kw in ["相关", "related", "关联", "邻居"])
+        ))
+
+        print(f"[QA v2] 路由决策: use_agent_mode={use_agent_mode}, needs_agent={needs_agent}, is_simple={is_simple_question}, explicit_structure_ids={explicit_structure_ids}")
+        print(f"[QA v2] 问题包含关键词检查：question_lower='{question_lower[:50]}...'")
+        print(f"[QA v2] 检查 image/cartoon 关键词：{any(kw in question_lower for kw in ['图片', 'image', '可视化', 'visualize', 'cartoon', 'stick'])}")
+
+        # ====== 统一使用 Agent 模式 ======
+        # Agent 模式会自动判断是否需要搜索文献/结构，并调用相应工具
+        print(f"[QA v2] 使用统一 Agent 模式...")
+        return _handle_agent_mode(question, session_id, data)
 
         # 分析问题类型
         pdb_pattern = r'[1-9][A-Za-z0-9]{3}'
@@ -201,6 +484,17 @@ UniProt ID: [例如: P29274]
                     search_proteins.append(standardized_uniprot.upper())
                     print(f"[QA v2] 添加UniProt ID到搜索: {standardized_uniprot}")
 
+                # 特殊处理：希腊字母和TCR相关关键词（如Vγ9Vδ2, γδ TCR等）
+                greek_keywords = []
+                if 'γ' in question or 'δ' in question or 'gamma' in question.lower() or 'delta' in question.lower():
+                    greek_keywords = ['γδ', 'gamma-delta', 'gamma delta', 'tcr', 'γ chain', 'δ chain']
+                    print(f"[QA v2] 检测到希腊字母/TCR关键词: {greek_keywords}")
+                if 'tcr' in question.lower():
+                    if 'tcr' not in greek_keywords:
+                        greek_keywords.append('tcr')
+
+                print(f"[QA v2] 初始搜索蛋白: {search_proteins}, 希腊/TCR关键词: {greek_keywords}")
+
                 # 搜索有methods的文献
                 cursor.execute("SELECT id, title, methods FROM literature_entries WHERE methods IS NOT NULL AND methods != ''")
                 all_methods = cursor.fetchall()
@@ -216,18 +510,28 @@ UniProt ID: [例如: P29274]
                             if p.lower() in text_to_search:
                                 match = True
                                 break
+                    # 检查希腊字母/TCR关键词
+                    if not match and greek_keywords:
+                        for kw in greek_keywords:
+                            if kw.lower() in text_to_search:
+                                match = True
+                                print(f"[QA v2] 希腊/TCR关键词匹配: {kw} in 文献 {lit_id}")
+                                break
                     # 如果没有特定蛋白名但问题是关于纯化/方法的，也返回所有有methods的文献
-                    elif any(kw in question.lower() for kw in ['纯化', '方法', 'method', 'purif', '表达', 'protein']):
-                        match = True
+                    elif not search_proteins and not greek_keywords:
+                        if any(kw in question.lower() for kw in ['纯化', '方法', 'method', 'purif', '表达', 'protein']):
+                            match = True
 
                     if match and lit_id not in matched_lit_ids:
                         matched_lit_ids.append(lit_id)
+
+                print(f"[QA v2] 数据库搜索完成: 共匹配 {len(matched_lit_ids)} 篇文献: {matched_lit_ids}")
 
                 conn.close()
 
                 # 如果找到匹配的文献，从数据库获取完整的methods
                 if matched_lit_ids:
-                    print(f"[QA v2] 从数据库找到 {len(matched_lit_ids)} 篇有methods的文献")
+                    print(f"[QA v2] ========== 从数据库找到 {len(matched_lit_ids)} 篇有methods的文献 ==========")
                     from core.literature_db import get_literature_entry
 
                     for lit_id in matched_lit_ids[:5]:  # 最多处理5篇
@@ -250,6 +554,8 @@ UniProt ID: [例如: P29274]
                                         'title': title[:100],
                                         'type': 'literature'
                                     })
+                                    print(f"[QA v2] >>> 添加到sources: lit_id={lit_id}, title={title[:50]}")
+
             except Exception as e:
                 import traceback
                 print(f"[QA v2] 从数据库搜索methods失败: {e}")
@@ -258,7 +564,6 @@ UniProt ID: [例如: P29274]
             try:
                 # 直接从unified_index.json读取并搜索chunks
                 import json
-                import os
                 index_path = os.path.join(PROJECT_ROOT, 'literature_indices', 'unified_index.json')
 
                 if os.path.exists(index_path):
@@ -288,6 +593,16 @@ UniProt ID: [例如: P29274]
                     if standardized_uniprot and standardized_uniprot.lower() not in search_terms:
                         search_terms.append(standardized_uniprot.lower())
                         print(f"[QA v2] 添加UniProt ID到索引搜索: {standardized_uniprot}")
+
+                    # 特殊处理：希腊字母和TCR相关关键词
+                    if 'γ' in question or 'δ' in question or 'gamma' in question.lower() or 'delta' in question.lower() or 'tcr' in question.lower():
+                        if 'γδ' not in search_terms:
+                            search_terms.append('γδ')
+                        if 'gamma-delta' not in search_terms:
+                            search_terms.append('gamma-delta')
+                        if 'tcr' not in search_terms:
+                            search_terms.append('tcr')
+                        print(f"[QA v2] 添加希腊/TCR关键词到索引搜索")
 
                     print(f"[QA v2] 搜索关键词: {search_terms}")
 
@@ -404,7 +719,8 @@ UniProt ID: [例如: P29274]
 
         # 搜索结构数据库
         if question_type in ["structure", "sequence", "general"]:
-            print(f"[QA v2] 搜索结构数据库...")
+            print(f"[QA v2] ========== 搜索结构数据库 ==========")
+            print(f"[QA v2] question_type: {question_type}, explicit_structure_ids: {explicit_structure_ids}")
 
             from core.structure_database import StructureOfflineDatabase
             db = StructureOfflineDatabase()
@@ -427,6 +743,13 @@ UniProt ID: [例如: P29274]
                 print(f"[QA v2] 添加UniProt ID到结构搜索: {standardized_uniprot}")
 
             proteins = list(set(proteins))[:5]
+
+            # 如果有明确的 PDB/EMDB ID，添加到搜索列表
+            if explicit_structure_ids:
+                for sid in explicit_structure_ids:
+                    if sid.upper() not in [p.upper() for p in proteins]:
+                        proteins.append(sid.upper())
+                        print(f"[QA v2] 添加显式 PDB ID 到搜索: {sid}")
 
             print(f"[QA v2] 蛋白质搜索: {proteins}")
 
@@ -657,7 +980,8 @@ UniProt ID: [例如: P29274]
 5. **在回答中必须附上相关methods的英文原文**
 6. 回答要简洁，专业、有据可查
 7. **重要：只使用下面提供的【文献】和【结构】信息来回答问题，不要编造参考文献**
-8. 参考来源只能列出系统提供的真实来源，不要列出不在列表中的文献"""
+8. 参考来源只能列出系统提供的真实来源，不要列出不在列表中的文献
+9. **如果用户问题中涉及的蛋白/基因/结构在提供的上下文中没有找到相关信息，必须明确告知用户"抱歉，数据库中没有找到相关信息"，禁止编造任何文献、结构、序列或PDB ID**"""
 
         # 合并所有上下文到单个system消息中（MiniMax兼容性）
         # 增加限制以支持完整序列和methods内容
@@ -883,6 +1207,53 @@ UniProt ID: [例如: P29274]
             except Exception as e:
                 print(f"[QA v2] 第二轮搜索失败: {e}")
 
+        # ====== 步骤2.5：检测是否需要生成结构图像 (PyMOL) ======
+        # 检测是否需要生成图像
+        need_image = any(kw in question.lower() for kw in [
+            "image", "图片", "图像", "可视化", "visualize", "show structure",
+            "展示结构", "生成图像", "cartoon", "stick", "ribbon", "surface"
+        ])
+
+        pymol_image_url = None
+        if need_image and explicit_structure_ids:
+            # 提取 PDB ID
+            pdb_id = explicit_structure_ids[0].upper()
+            # 提取样式
+            style = "cartoon"
+            if "stick" in question.lower():
+                style = "sticks"
+            elif "ribbon" in question.lower():
+                style = "ribbon"
+            elif "surface" in question.lower():
+                style = "surface"
+            elif "line" in question.lower():
+                style = "line"
+
+            print(f"[QA v2] 需要生成 PyMOL 图像: {pdb_id}, style={style}")
+
+            try:
+                from core.pymol_wrapper import get_pymol_wrapper
+                wrapper = get_pymol_wrapper()
+                if wrapper.is_available():
+                    image_path = wrapper.generate_image(pdb_id, style, "rainbow")
+                    if image_path:
+                        # 处理大小写问题
+                        original_filename = image_path.split('/')[-1] if '/' in image_path else image_path
+                        filename = original_filename
+                        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                        sessions_dir = os.path.join(project_root, 'pymol_sessions')
+                        if not os.path.exists(os.path.join(sessions_dir, filename)):
+                            filename_lower = original_filename.lower()
+                            if os.path.exists(os.path.join(sessions_dir, filename_lower)):
+                                filename = filename_lower
+                        pymol_image_url = f"/api/pymol/sessions/{filename}"
+                        structure_context += f"\n\n【结构图像】\n- PDB ID: {pdb_id}\n- 图像URL: {pymol_image_url}\n"
+                        print(f"[QA v2] PyMOL 图像生成成功: {pymol_image_url}")
+                else:
+                    print(f"[QA v2] PyMOL 不可用")
+            except Exception as e:
+                print(f"[QA v2] PyMOL 图像生成失败: {e}")
+
         # ====== 步骤3：生成最终答案 ======
         # 合并所有上下文
         final_system = system_prompt
@@ -933,6 +1304,7 @@ UniProt ID: [例如: P29274]
             logger.warning(f"保存历史失败: {e}")
 
         print(f"[QA v2] 最终返回 sources: {sources}")
+        print(f"[QA v2] 返回 image_url: {pymol_image_url}")
 
         return jsonify({
             'answer': answer, 'model': result.get('model', model), 'success': True,
@@ -941,7 +1313,8 @@ UniProt ID: [例如: P29274]
                 'question_type': question_type, 'sources_count': len(sources),
                 'found_structures': structure_ids
             },
-            'sources': sources
+            'sources': sources,
+            'image_url': pymol_image_url  # PyMOL 生成的图像URL
         })
 
     except Exception as e:
@@ -1037,7 +1410,8 @@ def ask_question():
 1. **必须用中文回答**，仅蛋白质名称、结构ID、技术缩写等保留英文
 2. 回答要基于事实，引用具体的发现、数据或结论
 3. 如果上下文信息不足，请说明需要更多信息
-4. 保持回答简洁、专业、准确"""
+4. 保持回答简洁、专业、准确
+5. **重要：如果用户问题中涉及的蛋白/基因/结构在提供的上下文中没有找到相关信息，必须明确告知用户"抱歉，数据库中没有找到相关信息"，禁止编造任何文献、结构、序列或PDB ID**"""
 
             messages = [{"role": "system", "content": system_prompt}]
 
@@ -1148,7 +1522,8 @@ def ask_question():
 1. **必须用中文回答**，仅蛋白质名称、结构ID、技术缩写等保留英文
 2. 回答要基于事实，引用具体的发现、数据或结论
 3. 如果上下文信息不足，请说明需要更多信息
-4. 保持回答简洁、专业、准确"""
+4. 保持回答简洁、专业、准确
+5. **重要：如果用户问题中涉及的蛋白/基因/结构在提供的上下文中没有找到相关信息，必须明确告知用户"抱歉，数据库中没有找到相关信息"，禁止编造任何文献、结构、序列或PDB ID**"""
 
             messages = [{"role": "system", "content": system_prompt}]
 

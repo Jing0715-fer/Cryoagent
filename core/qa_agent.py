@@ -79,6 +79,7 @@ class AgentAction:
     options: List[ClarificationOption] = field(default_factory=list)  # 用于clarify类型
     tool_call: ToolCall = None   # 用于tool类型
     reasoning: str = ""           # 决策理由
+    extra_info: Dict[str, Any] = field(default_factory=dict)  # 额外信息（如 is_image_only）
 
     def to_dict(self) -> Dict:
         result = {
@@ -213,14 +214,77 @@ class QAAgent:
 
             # 4. 如果准备完毕，生成答案
             if action.type == ActionType.ANSWER:
-                answer = await self.generate_answer(question, context, tool_results)
-                return {
-                    "type": "answer",
-                    "content": answer,
-                    "iteration": iteration,
-                    "tool_results": tool_results,
-                    "reasoning": action.reasoning
-                }
+                # 检查是否是纯图片请求，如果是则跳过 AI 生成
+                is_image_only = action.extra_info.get("is_image_only", False)
+                if is_image_only:
+                    # 纯图片请求，直接返回精简响应
+                    logger.info("[Agent] 调用 _generate_image_only_answer...")
+                    answer = self._generate_image_only_answer(question, tool_results)
+                    logger.info(f"[Agent] 生成答案完成: {answer[:50]}...")
+
+                    # 清理 tool_results，移除不可序列化的对象
+                    cleaned_tool_results = []
+                    for tr in tool_results:
+                        cleaned_tr = {
+                            'tool_name': tr.get('tool_name', ''),
+                            'success': tr.get('success', False),
+                        }
+                        # 只保留可序列化的 result
+                        result_data = tr.get('result')
+                        if result_data and isinstance(result_data, dict):
+                            cleaned_result = {}
+                            for k, v in result_data.items():
+                                # 只保留基本类型
+                                if isinstance(v, (str, int, float, bool, type(None), list, dict)):
+                                    cleaned_result[k] = v
+                            cleaned_tr['result'] = cleaned_result
+                        cleaned_tool_results.append(cleaned_tr)
+
+                    logger.info(f"[Agent] tool_results 清理完成: {len(cleaned_tool_results)}")
+
+                    # 清理 extra_info
+                    cleaned_extra_info = {}
+                    if action.extra_info:
+                        for k, v in action.extra_info.items():
+                            if isinstance(v, (str, int, float, bool, type(None))):
+                                cleaned_extra_info[k] = v
+
+                    result = {
+                        "type": "answer",
+                        "content": answer,
+                        "iteration": iteration,
+                        "tool_results": cleaned_tool_results,
+                        "reasoning": action.reasoning,
+                        "extra_info": cleaned_extra_info
+                    }
+
+                    # 测试 JSON 序列化
+                    try:
+                        json_str = json.dumps(result)
+                        logger.info(f"[Agent] JSON 序列化成功，长度: {len(json_str)}")
+                    except Exception as e:
+                        logger.error(f"[Agent] JSON 序列化失败: {e}")
+                        result = {
+                            "type": "answer",
+                            "content": answer,
+                            "iteration": iteration,
+                            "tool_results": [],
+                            "reasoning": action.reasoning,
+                            "extra_info": {"is_image_only": True}
+                        }
+
+                    logger.info(f"[Agent] 准备返回结果...")
+                    return result
+                else:
+                    # 正常调用 AI 生成答案
+                    answer = await self.generate_answer(question, context, tool_results)
+                    return {
+                        "type": "answer",
+                        "content": answer,
+                        "iteration": iteration,
+                        "tool_results": tool_results,
+                        "reasoning": action.reasoning
+                    }
 
             # 5. 结束对话
             if action.type == ActionType.FINISH:
@@ -259,11 +323,16 @@ class QAAgent:
         # 检查是否已经有足够的信息
         if tool_results:
             # 分析工具结果，判断是否足以回答问题
-            enough_info = await self._check_sufficient_info(question, tool_results)
+            enough_info, extra_info = await self._check_sufficient_info(question, tool_results)
             if enough_info:
+                # 检查是否是纯图片请求
+                reasoning = "已获取足够信息生成答案"
+                if extra_info.get("is_image_only"):
+                    reasoning = "已获取足够信息生成答案 (纯图片请求)"
                 return AgentAction(
                     type=ActionType.ANSWER,
-                    reasoning="已获取足够信息生成答案"
+                    reasoning=reasoning,
+                    extra_info=extra_info
                 )
 
         # 检查是否需要澄清
@@ -389,65 +458,273 @@ class QAAgent:
                           tool_results: List[Dict], session_data: Dict) -> Optional[ToolCall]:
         """
         决定使用哪个工具
+
+        流程：
+        1. 第一轮：调用 AI 分析问题，判断需要什么工具
+        2. 后续轮次：根据已有结果决定下一步
         """
-        question_lower = question.lower()
         import re
+        question_lower = question.lower()
 
-        # 1. 检查是否需要获取结构详情
-        if any(keyword in question_lower for keyword in ["结构详情", "分辨率", "method", "实验方法", "详细信息"]):
-            # 尝试提取结构ID
-            pdb_pattern = r'\b[0-9][A-Za-z0-9]{3}\b'
-            emdb_pattern = r'EMD[-]?\d+'
+        # 0. 如果已经有搜索结果，不重复搜索
+        for tr in tool_results:
+            if tr.get("tool_name") in ["search_structures", "search_literature"] and tr.get("success"):
+                data = tr.get("result", {})
+                if data.get("count", 0) > 0:
+                    logger.info("[DecideTool] 已有搜索结果，不再重复搜索")
+                    return None  # 不再调用工具，直接生成答案
 
-            pdb_matches = re.findall(pdb_pattern, question)
-            emdb_matches = re.findall(emdb_pattern, question, re.IGNORECASE)
+        # 检查是否需要生成结构图像 (PyMOL)
+        pdb_pattern = r'\b[0-9][A-Za-z0-9]{3}\b'
+        pdb_matches = re.findall(pdb_pattern, question)
+        pdb_id = pdb_matches[0].upper() if pdb_matches else None
 
-            if pdb_matches or emdb_matches:
-                structure_id = pdb_matches[0].upper() if pdb_matches else emdb_matches[0].upper()
+        if any(keyword in question_lower for keyword in ["image", "图片", "图像", "可视化", "visualize", "show structure", "展示结构", "生成图像", "generate image", "cartoon", "stick", "ribbon", "surface"]):
+            if pdb_id:
+                style = "cartoon"
+                if "stick" in question_lower:
+                    style = "sticks"
+                elif "ribbon" in question_lower:
+                    style = "ribbon"
+                elif "surface" in question_lower:
+                    style = "surface"
+                elif "line" in question_lower:
+                    style = "line"
+
                 return ToolCall(
-                    tool_name="get_structure_details",
-                    params={"structure_id": structure_id}
+                    tool_name="pymol_image",
+                    params={"pdb_id": pdb_id, "style": style, "color": "rainbow"}
                 )
 
-        # 2. 检查是否需要序列比对
+        # 检查是否需要序列比对
         if any(keyword in question_lower for keyword in ["比对", "比较", "alignment", "compare", "相似度"]):
-            # 从上下文或session中获取序列
             sequences = self._extract_sequences_from_context(context, tool_results, session_data)
 
             if sequences.get("seq1") and sequences.get("seq2"):
                 return ToolCall(
                     tool_name="run_sequence_alignment",
-                    params={
-                        "sequence1": sequences["seq1"],
-                        "sequence2": sequences["seq2"],
-                        "algorithm": "global"
-                    }
+                    params={"sequence1": sequences["seq1"], "sequence2": sequences["seq2"], "algorithm": "global"}
                 )
             elif sequences.get("uniprot1") and sequences.get("uniprot2"):
                 return ToolCall(
                     tool_name="run_sequence_alignment",
-                    params={
-                        "uniprot1": sequences["uniprot1"],
-                        "uniprot2": sequences["uniprot2"],
-                        "algorithm": "global"
-                    }
+                    params={"uniprot1": sequences["uniprot1"], "uniprot2": sequences["uniprot2"], "algorithm": "global"}
                 )
 
-        # 3. 检查是否需要知识图谱查询
+        # 检查是否需要知识图谱查询
         if any(keyword in question_lower for keyword in ["关联", "相关", "邻居", "neighbor", "related"]):
-            pdb_pattern = r'\b[0-9][A-Za-z0-9]{3}\b'
-            matches = re.findall(pdb_pattern, question)
-            if matches:
+            if pdb_id:
                 return ToolCall(
                     tool_name="get_kg_neighbors",
-                    params={"structure_id": matches[0].upper(), "depth": 1}
+                    params={"structure_id": pdb_id, "depth": 1}
                 )
 
-        # 4. 默认使用文献搜索
+        # 检查是否需要获取结构详情
+        if any(keyword in question_lower for keyword in ["结构详情", "分辨率", "method", "实验方法", "详细信息", "详情"]):
+            if pdb_id:
+                return ToolCall(
+                    tool_name="get_structure_details",
+                    params={"structure_id": pdb_id}
+                )
+
+        # 其他情况：调用 AI 分析问题，判断使用什么工具
+        # 这是核心改进：第一轮让 AI 分析问题
+        analysis_result = await self._analyze_question_and_decide_tool(question, tool_results)
+        if analysis_result:
+            return analysis_result
+
+        # 如果 AI 分析没有返回工具，检查是否是简单问题
+        simple_question_patterns = [
+            "什么是", "是什么", "what is", "定义",
+            "解释", "explain", "介绍", "introduce",
+            "总结", "summarize", "摘要"
+        ]
+        is_simple = any(pattern in question_lower for pattern in simple_question_patterns)
+
+        if is_simple:
+            return None  # 直接回答
+
+        # 默认搜索文献
         return ToolCall(
             tool_name="search_literature",
             params={"query": question, "limit": 10}
         )
+
+    async def _analyze_question_and_decide_tool(self, question: str, tool_results: List[Dict]) -> Optional[ToolCall]:
+        """
+        使用 AI 分析问题，判断需要什么工具
+
+        根据数据库索引文档，AI 可以判断：
+        - 问题涉及结构/序列 → search_structures
+        - 问题涉及文献 → search_literature
+        - 问题涉及结构详情 → get_structure_details
+        """
+        try:
+            from utils.ai_client import get_ai_client, load_ai_config
+
+            config = load_ai_config()
+            client = get_ai_client(config)
+
+            # 数据库索引文档内容
+            db_index = """
+## 数据库索引说明
+
+### structures 表 - 存储结构元数据
+- 字段: id (PDB ID), title, resolution, method, organism, gene, protein_name
+- 用途: 查询结构的基本信息（分辨率、实验方法、标题等）
+
+### structure_entities 表 - 存储实体序列信息
+- 字段: structure_id, entity_poly_seq_one_letter_code (氨基酸序列), entity_poly_seq_length (序列长度), molecule_type, protein_name, gene_name
+- 用途: 查询氨基酸序列、序列长度
+
+### uniprot_structure_mapping 表 - UniProt 与结构映射
+- 字段: uniprot_id, structure_id, gene_name, protein_name
+- 用途: 根据 UniProt ID 查找对应结构
+
+## 可用工具说明
+
+1. search_structures: 搜索结构数据库
+   - 输入: query (搜索关键词), source (pdb/emdb), limit
+   - 返回: 结构列表，包含序列信息
+   - 适用: 问序列、结构、蛋白名称
+
+2. search_literature: 搜索文献数据库
+   - 输入: query (搜索关键词), limit
+   - 返回: 文献列表
+   - 适用: 问文献、论文
+
+3. get_structure_details: 获取结构详情
+   - 输入: structure_id (PDB ID)
+   - 返回: 结构详细信息
+   - 适用: 问特定 PDB 的详细信息
+
+4. pymol_image: 生成结构图像
+   - 输入: pdb_id, style, color
+   - 返回: 结构图像
+   - 适用: 需要结构可视化
+
+5. get_kg_neighbors: 获取知识图谱关联
+   - 输入: structure_id, depth
+   - 返回: 相关结构列表
+   - 适用: 问相关结构
+"""
+
+            # 构建已有结果摘要
+            results_summary = ""
+            if tool_results:
+                results_summary = "\n## 已完成的工具调用：\n"
+                for tr in tool_results:
+                    name = tr.get("tool_name", "unknown")
+                    success = tr.get("success", False)
+                    data = tr.get("result", {})
+                    count = data.get("count", 0)
+                    results_summary += f"- {name}: {'成功' if success else '失败'}, 返回 {count} 条结果\n"
+
+            prompt = f"""你是一个智能问答助手，负责分析用户问题并选择合适的工具。
+
+## 用户问题
+{question}
+
+{db_index}
+
+{results_summary}
+
+请分析这个问题，判断需要调用什么工具来回答。
+
+问题分析要点：
+1. 问题是否涉及蛋白质的序列？→ 使用 search_structures
+2. 问题是否涉及结构详情（分辨率、实验方法）？→ 使用 search_structures 或 get_structure_details
+3. 问题是否涉及文献？→ 使用 search_literature
+4. 问题是否需要生成图片？→ 使用 pymol_image
+5. 问题是否需要获取关联结构？→ 使用 get_kg_neighbors
+
+请按以下 JSON 格式返回分析结果：
+{{
+    "needs_tool": true/false,
+    "reasoning": "分析理由",
+    "tool_name": "工具名称（如果需要）",
+    "tool_params": {{"参数": "值"}},
+    "can_answer_directly": true/false（如果不需要工具可以直接回答）
+}}
+
+只返回 JSON，不要其他内容。"""
+
+            messages = [{"role": "user", "content": prompt}]
+            response = client.chat(messages)
+
+            if response.get('success'):
+                content = response.get('content', '')
+                import json
+                import re
+
+                # 提取 JSON
+                json_match = re.search(r'\{[\s\S]*\}', content)
+                if json_match:
+                    result = json.loads(json_match.group())
+                    logger.info(f"[AnalyzeQuestion] AI 分析结果: {result}")
+
+                    # 如果判断不需要工具，直接回答
+                    if result.get("can_answer_directly") or not result.get("needs_tool"):
+                        return None
+
+                    # 返回需要调用的工具
+                    tool_name = result.get("tool_name")
+                    tool_params = result.get("tool_params", {})
+
+                    if tool_name:
+                        # 如果需要搜索结构，提取蛋白名称
+                        if tool_name == "search_structures":
+                            protein_info = await self._extract_protein_name(question)
+                            if protein_info:
+                                tool_params["protein_info"] = protein_info
+
+                        return ToolCall(
+                            tool_name=tool_name,
+                            params=tool_params
+                        )
+        except Exception as e:
+            logger.warning(f"AI 分析问题失败: {e}")
+
+        return None
+
+    async def _extract_protein_name(self, question: str) -> Optional[Dict]:
+        """使用 AI 提取和标准化蛋白质名称"""
+        try:
+            from utils.ai_client import get_ai_client, load_ai_config
+
+            config = load_ai_config()
+            client = get_ai_client(config)
+
+            prompt = f"""从用户问题中提取蛋白质/基因名称，并标准化。
+
+用户问题：{question}
+
+请按以下 JSON 格式返回：
+{{
+    "standard_name": "标准蛋白名称(英文首字母大写，如 GPR179)",
+    "gene_name": "基因名称(如 GPR179)",
+    "uniprot_id": "UniProt ID(如 Q9H5V6)，如果没有则为空",
+    "variants": ["其他常用名称变体1", "其他常用名称变体2"],
+    "protein_type": "受体/酶/通道/抗体等，如果不确定则为空"
+}}
+
+只返回 JSON，不要其他内容。"""
+
+            messages = [{"role": "user", "content": prompt}]
+            response = client.chat(messages)
+
+            if response.get('success'):
+                content = response.get('content', '')
+                import json
+                import re
+                json_match = re.search(r'\{[^}]+\}', content, re.DOTALL)
+                if json_match:
+                    protein_info = json.loads(json_match.group())
+                    return protein_info
+        except Exception as e:
+            logger.warning(f"AI 提取蛋白名称失败: {e}")
+
+        return None
 
     def _extract_sequences_from_context(self, context: List[Dict],
                                        tool_results: List[Dict],
@@ -474,32 +751,66 @@ class QAAgent:
 
         return sequences
 
-    async def _check_sufficient_info(self, question: str, tool_results: List[Dict]) -> bool:
-        """检查是否已经获取足够的信息来回答问题"""
+    async def _check_sufficient_info(self, question: str, tool_results: List[Dict]) -> Tuple[bool, Dict[str, Any]]:
+        """
+        检查是否已经获取足够的信息来回答问题
+
+        Returns:
+            Tuple[bool, Dict]: (是否信息足够，附加标记)
+            - 对于纯图片请求，返回 (True, {"is_image_only": True})
+            - 对于其他请求，返回 (True/False, {})
+        """
         if not tool_results:
-            return False
+            logger.info("[CheckSufficient] tool_results is empty")
+            return False, {}
 
         question_lower = question.lower()
+        logger.info(f"[CheckSufficient] Checking {len(tool_results)} tool results for question: {question[:50]}")
+
+        extra_info = {}
+
+        # 检查是否问的是结构/序列详情
+        if any(kw in question_lower for kw in ["结构", "序列", "sequence", "structure", "分辨率", "resolution", "实验方法", "method"]):
+            for result in tool_results:
+                logger.info(f"[CheckSufficient] Checking result: {result.get('tool_name')}, success: {result.get('success')}")
+                if result.get("tool_name") == "search_structures" and result.get("success"):
+                    # 检查是否有结果
+                    data = result.get("result", {})
+                    count = data.get("count", 0)
+                    logger.info(f"[CheckSufficient] search_structures count: {count}")
+                    if count > 0:
+                        return True, {}
 
         # 检查是否问的是结构详情
         if any(kw in question_lower for kw in ["分辨率", "resolution", "实验方法", "method"]):
             for result in tool_results:
                 if result.get("tool_name") == "get_structure_details" and result.get("success"):
-                    return True
+                    return True, {}
 
         # 检查是否问的是比对结果
         if any(kw in question_lower for kw in ["比对", "相似", "alignment", "similarity"]):
             for result in tool_results:
                 if result.get("tool_name") == "run_sequence_alignment" and result.get("success"):
-                    return True
+                    return True, {}
 
         # 检查是否问的是文献
         if any(kw in question_lower for kw in ["文献", "论文", "article"]):
             for result in tool_results:
                 if result.get("tool_name") == "search_literature" and result.get("success"):
-                    return True
+                    return True, {}
 
-        return False
+        # 检查是否需要生成结构图像（纯图片请求）
+        image_keywords = ["image", "图片", "图像", "可视化", "visualize", "show", "展示", "生成图像", "cartoon", "stick", "ribbon", "surface", "line"]
+        if any(kw in question_lower for kw in image_keywords):
+            for result in tool_results:
+                if result.get("tool_name") == "pymol_image" and result.get("success"):
+                    # 纯图片请求，标记为 image_only，跳过 AI 生成
+                    extra_info["is_image_only"] = True
+                    logger.info(f"[CheckSufficient] Image-only request detected")
+                    return True, extra_info
+
+        logger.info("[CheckSufficient] Not enough info, returning False")
+        return False, {}
 
     async def execute_tool(self, tool_name: str, params: Dict) -> Dict:
         """执行工具"""
@@ -552,6 +863,41 @@ class QAAgent:
                                 f"   期刊: {journal} ({year})\n"
                             )
 
+                elif tool_name == "search_structures":
+                    items = data.get("results", [])
+                    if items:
+                        context_parts.append("## 相关结构：\n")
+                        for i, item in enumerate(items[:5], 1):
+                            pdb_id = item.get("pdb_id", "")
+                            title = item.get("title", "")
+                            resolution = item.get("resolution")
+                            method = item.get("method", "")
+                            sequence = item.get("sequence", "")
+                            seq_length = item.get("sequence_length")
+                            gene = item.get("gene", "")
+                            protein_name = item.get("protein_name", "")
+                            source = item.get("source", "structure_db")
+
+                            context_parts.append(f"{i}. PDB ID: {pdb_id or 'N/A'}\n")
+                            if title:
+                                context_parts.append(f"   标题: {title[:80]}\n")
+                            if protein_name:
+                                context_parts.append(f"   蛋白名称: {protein_name}\n")
+                            if gene:
+                                context_parts.append(f"   基因: {gene}\n")
+                            if resolution:
+                                context_parts.append(f"   分辨率: {resolution} Å\n")
+                            if method:
+                                context_parts.append(f"   实验方法: {method}\n")
+                            if source:
+                                context_parts.append(f"   数据来源: {source}\n")
+                            if sequence:
+                                # 显示完整序列（不截断）
+                                context_parts.append(f"   序列: {sequence}\n")
+                                context_parts.append(f"   序列长度: {len(sequence)} 残基\n")
+                            elif seq_length:
+                                context_parts.append(f"   序列长度: {seq_length} 残基\n")
+
                 elif tool_name == "get_structure_details":
                     struct = data.get("structure", {})
                     if struct:
@@ -577,6 +923,17 @@ class QAAgent:
                         context_parts.append(f"## 知识图谱关联 ({len(neighbors)}个相关结构)：\n")
                         for n in neighbors[:5]:
                             context_parts.append(f"- {n.get('structure_id', 'N/A')}: {n.get('relationship', 'related')}\n")
+
+                elif tool_name == "pymol_image":
+                    image_path = data.get("image_path")
+                    pdb_id = data.get("pdb_id")
+                    if image_path:
+                        context_parts.append(f"## 结构图像：\n")
+                        context_parts.append(f"- PDB ID: {pdb_id}\n")
+                        context_parts.append(f"- 图像路径: {image_path}\n")
+                        # 将相对路径转换为访问URL
+                        filename = image_path.split('/')[-1] if '/' in image_path else image_path
+                        context_parts.append(f"- 访问URL: /api/pymol/sessions/{filename}\n")
 
         if not context_parts:
             context_parts.append("未找到相关信息")
@@ -605,8 +962,15 @@ class QAAgent:
             else:
                 prompt = base_prompt
 
-            response = await client.chat(prompt)
-            return response
+            # client.chat 需要 messages 列表格式
+            messages = [{"role": "user", "content": prompt}]
+
+            # client.chat 是同步方法，返回 {'success': True, 'content': '...', 'model': '...'}
+            response = client.chat(messages)
+            if response.get('success'):
+                return response.get('content', '')
+            else:
+                raise Exception(response.get('error', 'Unknown error'))
         except Exception as e:
             logger.error(f"Error generating answer: {e}")
             # 回退到简单格式
@@ -626,6 +990,80 @@ class QAAgent:
             parts.append(f"已执行 {len(tool_results)} 个工具")
 
         return " | ".join(parts) if parts else "无上下文"
+
+    def _generate_image_only_answer(self, question: str, tool_results: List[Dict]) -> str:
+        """
+        为纯图片请求生成精简答案（不调用 AI）
+
+        Args:
+            question: 用户问题
+            tool_results: 工具执行结果
+
+        Returns:
+            精简答案字符串
+        """
+        for result in tool_results:
+            if result.get("tool_name") == "pymol_image" and result.get("success"):
+                data = result.get("result", {})
+                pdb_id = data.get("pdb_id", "")
+                image_path = data.get("image_path", "")
+                style = data.get("style", "")
+
+                # 生成精简答案
+                answer = f"已为您生成 {pdb_id} 的{style}结构图像。"
+                return answer
+
+        # 如果没有找到图片，返回默认答案
+        return "已为您完成请求。"
+
+    def _generate_fallback_answer(self, question: str, tool_results: List[Dict]) -> str:
+        """
+        生成降级答案（当 AI 超时时使用）
+
+        Args:
+            question: 用户问题
+            tool_results: 工具执行结果
+
+        Returns:
+            降级答案字符串
+        """
+        context_parts = []
+
+        for result in tool_results:
+            if not result.get('success'):
+                continue
+
+            tool_name = result.get('tool_name', '')
+            data = result.get('result', {})
+
+            if tool_name == 'pymol_image':
+                pdb_id = data.get('pdb_id', '')
+                image_path = data.get('image_path', '')
+                if image_path:
+                    filename = image_path.split('/')[-1]
+                    context_parts.append(f"[图片已生成] {pdb_id} - /api/pymol/sessions/{filename}")
+
+            elif tool_name == 'search_structures':
+                items = data.get('results', [])
+                if items:
+                    context_parts.append(f"[找到 {len(items)} 个结构]")
+                    for item in items[:3]:
+                        pdb_id = item.get('pdb_id', '')
+                        title = item.get('title', '')[:50]
+                        context_parts.append(f"  - {pdb_id}: {title}")
+
+            elif tool_name == 'search_literature':
+                items = data.get('results', [])
+                if items:
+                    context_parts.append(f"[找到 {len(items)} 篇文献]")
+                    for item in items[:3]:
+                        title = item.get('title', '')[:50]
+                        context_parts.append(f"  - {title}")
+
+        if context_parts:
+            return "AI 服务暂时不可用，以下是查询结果：\n\n" + "\n".join(context_parts)
+        else:
+            return "AI 服务暂时不可用，请稍后重试。"
 
 
 # ============================================
