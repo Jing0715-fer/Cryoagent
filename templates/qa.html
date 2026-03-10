@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+.main-content { padding: 0 !important; }
+</style>
 <div class="qa-page">
     <!-- Left Sidebar - Conversation History -->
     <div class="chat-sidebar" id="chat-sidebar">
@@ -15,15 +18,6 @@
         </div>
         <div class="sidebar-conversations" id="chat-history-list">
             <!-- Conversation history will be loaded here -->
-        </div>
-        <div class="sidebar-footer">
-            <div class="user-info">
-                <div class="user-avatar">U</div>
-                <div class="user-details">
-                    <div class="name">用户</div>
-                    <div class="email">user@example.com</div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -42,6 +36,12 @@
                 <h1 class="chat-title">智能问答</h1>
             </div>
             <div class="chat-header-right">
+                <button class="header-btn" onclick="toggleRightPanel()" title="搜索结果">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
                 <button class="header-btn" onclick="clearChatHistory()" title="清除历史">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6"></polyline>
@@ -138,14 +138,6 @@
         </div>
     </div>
 
-    <!-- Toggle Button for History Drawer -->
-    <button class="chat-history-toggle" id="chat-history-toggle" onclick="toggleChatHistory()">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-        </svg>
-    </button>
-
     <!-- Chat History Panel (Drawer) -->
     <div class="chat-history-overlay" id="chat-history-overlay" onclick="toggleChatHistory()"></div>
     <div class="chat-history-panel" id="chat-history-panel">
@@ -181,6 +173,39 @@
 
 {% block extra_js %}
 <script>
+// Show/hide right panel based on screen size
+(function() {
+    function checkScreenSize() {
+        const rightPanel = document.getElementById('side-panel');
+        if (!rightPanel) return;
+
+        // 大于 1500px 时显示右侧面板，小于等于 1500px 时隐藏
+        if (window.innerWidth > 1500) {
+            rightPanel.style.display = 'flex';
+        } else {
+            rightPanel.style.display = 'none';
+        }
+    }
+
+    // Run on load
+    checkScreenSize();
+
+    // Run on resize
+    window.addEventListener('resize', checkScreenSize);
+})();
+
+// Toggle right panel manually
+function toggleRightPanel() {
+    const rightPanel = document.getElementById('side-panel');
+    if (!rightPanel) return;
+
+    if (rightPanel.style.display === 'none') {
+        rightPanel.style.display = 'flex';
+    } else {
+        rightPanel.style.display = 'none';
+    }
+}
+
 // Toggle chat history drawer
 function toggleChatHistory() {
     const panel = document.getElementById('chat-history-panel');

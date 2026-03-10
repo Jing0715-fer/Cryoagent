@@ -313,7 +313,7 @@ def _save_session_data(session_id: str, data: dict):
     _sessions[session_id] = data
 
 
-def _get_context(session_id: str) -> list[Dict]:
+def _get_context(session_id: str) -> list[dict]:
     """获取会话上下文"""
     session_data = _get_session_data(session_id)
     return session_data.get('context', [])

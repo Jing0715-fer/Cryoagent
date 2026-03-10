@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 # 创建 Flask 应用
 app = Flask(__name__, template_folder='templates')
 app.config.from_object(Config)
+# 禁用静态文件缓存（开发环境）
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 # Load user configuration (ai_config.json) and override defaults
 from routes.config import load_config as load_ai_config
@@ -55,6 +57,11 @@ CORS(app)
 
 # 打印模板路径以便调试
 print(f"Template folder: {app.template_folder}")
+
+# 初始化数据库表
+from core.literature_db import Base, engine
+Base.metadata.create_all(engine)
+logger.info("Database tables created successfully")
 
 # 初始化Flask-Login
 from routes.auth import init_login_manager
@@ -93,13 +100,15 @@ app.register_blueprint(pymol.bp, url_prefix='/api/pymol')
 
 # HTML页面路由 - 需要登录
 @app.route('/')
+@login_required
 def index():
-    """主页面 - 允许访客访问"""
+    """主页面 - 需要登录"""
     return render_template('qa.html')
 
 @app.route('/literature')
+@login_required
 def literature_page():
-    """文献页面 - 允许访客访问"""
+    """文献页面 - 需要登录"""
     return render_template('literature.html')
 
 @app.route('/literature/<int:lit_id>')
@@ -415,12 +424,14 @@ def api_index():
     })
 
 if __name__ == '__main__':
+    import os
+    port = int(os.environ.get('PORT', 5000))
     print("Starting CryoAgent Pro Flask Application...")
     print("=" * 47)
-    print("Server running at: http://localhost:5000")
-    print("API endpoints available at: http://localhost:5000/api/")
+    print(f"Server running at: http://localhost:{port}")
+    print(f"API endpoints available at: http://localhost:{port}/api/")
     print("")
     print("Press Ctrl+C to stop")
     print("=" * 47)
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=True)
