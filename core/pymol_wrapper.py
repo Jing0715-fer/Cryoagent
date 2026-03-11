@@ -8,6 +8,7 @@ import json
 import logging
 import tempfile
 import shutil
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 
@@ -61,20 +62,27 @@ COLOR_SCHEMES = {
 class PyMOLWrapper:
     """PyMOL 封装类 - 无头模式运行"""
 
-    def __init__(self, workspace_dir: str = "pymol_sessions"):
+    def __init__(self, workspace_dir: str = None):
         """
         初始化 PyMOL 封装
 
         Args:
             workspace_dir: 工作目录，用于保存 session 和图像文件
+                          如果为 None，自动计算项目根目录下的 pymol_sessions
         """
-        self.workspace_dir = workspace_dir
+        if workspace_dir is None:
+            # 自动计算项目根目录下的 pymol_sessions 绝对路径
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            workspace_dir = os.path.join(project_root, 'pymol_sessions')
+
+        self.workspace_dir = workspace_dir  # 现在是绝对路径
         self.pymol_instance = None
         self.cmd = None
         self._initialized = False
 
         # 创建工作目录
         os.makedirs(self.workspace_dir, exist_ok=True)
+        logger.info(f"PyMOL workspace directory: {self.workspace_dir}")
 
         # 如果 PyMOL 可用，初始化
         if PYMOL_AVAILABLE:
@@ -83,11 +91,15 @@ class PyMOLWrapper:
     def _initialize_pymol(self):
         """初始化 PyMOL 实例"""
         try:
-            # 无头模式启动 PyMOL
-            pymol.finish_launching(['pymol', '-qc'])
+            # 禁用 PyRosetta 插件自动加载
+            import os
+            os.environ['PYMOL_NO_PLUGINS'] = '1'
+
+            # 无头模式启动 PyMOL，-K 禁用插件
+            pymol.finish_launching(['pymol', '-qc', '-K'])
             self.cmd = cmd
             self._initialized = True
-            logger.info("PyMOL initialized in headless mode")
+            logger.info("PyMOL initialized in headless mode (plugins disabled)")
         except Exception as e:
             logger.error(f"Failed to initialize PyMOL: {e}")
             self._initialized = False
@@ -518,7 +530,7 @@ class PyMOLWrapper:
 
     def cleanup(self):
         """清理 PyMOL 会话"""
-        if self.is_available():
+        if hasattr(self, 'cmd') and self.cmd is not None:
             try:
                 self.cmd.reinitialize()
                 logger.info("PyMOL session cleaned up")
@@ -526,20 +538,24 @@ class PyMOLWrapper:
                 logger.error(f"Error cleaning up PyMOL: {e}")
 
     def __del__(self):
-        """析构函数"""
-        self.cleanup()
+        """析构函数 - 不执行任何操作以避免崩溃"""
+        # PyMOL 的 reinitialize 在析构时可能导致崩溃
+        # 不调用 cleanup()
+        pass
 
 
-# 全局 PyMOL 实例
+# 全局 PyMOL 实例和线程锁
 _pymol_wrapper: Optional[PyMOLWrapper] = None
+_pymol_lock = threading.Lock()
 
 
 def get_pymol_wrapper() -> PyMOLWrapper:
-    """获取全局 PyMOL 封装实例"""
-    global _pymol_wrapper
-    if _pymol_wrapper is None:
-        _pymol_wrapper = PyMOLWrapper()
-    return _pymol_wrapper
+    """获取全局 PyMOL 封装实例（线程安全）"""
+    global _pymol_wrapper, _pymol_lock
+    with _pymol_lock:
+        if _pymol_wrapper is None:
+            _pymol_wrapper = PyMOLWrapper()
+        return _pymol_wrapper
 
 
 def check_pymol_availability() -> Dict:

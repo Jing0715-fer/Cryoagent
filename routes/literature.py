@@ -731,3 +731,83 @@ def vectorize_appendix(lit_id, appendix_id):
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+# ============================================
+# 索引进度跟踪
+# ============================================
+_index_progress = {
+    'status': 'idle',  # idle, running, completed, error
+    'message': '',
+    'current': 0,
+    'total': 0,
+    'progress_pct': 0,
+    'error': None
+}
+
+@bp.route('/index/progress', methods=['GET'])
+def get_index_progress():
+    """获取索引重建进度"""
+    return jsonify(_index_progress)
+
+# ============================================
+# 索引重建 API
+# ============================================
+
+@bp.route('/index/rebuild', methods=['POST'])
+@login_required
+def rebuild_index_api():
+    """重建文献索引（支持 LanceDB）"""
+    try:
+        from core.literature_agent import LiteratureManager
+        import threading
+
+        agent = LiteratureManager()
+
+        def run_rebuild():
+            global _index_progress
+            try:
+                _index_progress = {
+                    'status': 'running',
+                    'message': '开始重建索引...',
+                    'current': 0,
+                    'total': 100,
+                    'progress_pct': 0,
+                    'error': None
+                }
+                result = agent.rebuild_index(force=True)
+                _index_progress = {
+                    'status': 'completed',
+                    'message': '索引重建完成',
+                    'current': 100,
+                    'total': 100,
+                    'progress_pct': 100,
+                    'error': None
+                }
+                print(f"索引重建完成: {result}")
+            except Exception as e:
+                _index_progress = {
+                    'status': 'error',
+                    'message': '索引重建失败',
+                    'current': 0,
+                    'total': 100,
+                    'progress_pct': 0,
+                    'error': str(e)
+                }
+                print(f"索引重建失败: {e}")
+
+        # 异步执行索引重建
+        thread = threading.Thread(target=run_rebuild)
+        thread.daemon = True
+        thread.start()
+
+        return jsonify({
+            'success': True,
+            'message': '索引重建任务已在后台启动',
+            'task_id': 'rebuild_index'
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+

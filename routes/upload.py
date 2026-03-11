@@ -25,6 +25,14 @@ except ImportError as e:
     add_literature_entry = None
     print(f"⚠️ Upload dependencies warning: {e}")
 
+# LanceDB indexing
+try:
+    from core.lancedb_rag import get_unified_rag
+    LANCEDB_AVAILABLE = True
+except ImportError:
+    LANCEDB_AVAILABLE = False
+    print("⚠️ LanceDB not available for chunk indexing")
+
 
 def get_current_user_id():
     """获取当前登录用户的ID，未登录返回None"""
@@ -177,6 +185,32 @@ def upload_files():
                                     add_log(upload_id, f"✅ 结构映射已创建: {pdb_count}个PDB, {emdb_count}个EMDB", 'success')
                             except Exception as e:
                                 add_log(upload_id, f"⚠️ 创建结构映射失败: {e}", 'error')
+
+                            # 索引到 LanceDB（分块存储）
+                            if LANCEDB_AVAILABLE:
+                                try:
+                                    add_log(upload_id, f"📊 正在索引到 LanceDB...", 'info')
+                                    rag = get_unified_rag()
+
+                                    # 构建完整的文献数据用于分块
+                                    full_literature_data = {
+                                        'id': literature_id,
+                                        'title': literature_data.get('title', ''),
+                                        'abstract': literature_data.get('abstract', ''),
+                                        'full_text': parsed_data.get('full_text', ''),
+                                        'year': literature_data.get('year'),
+                                        'journal': literature_data.get('journal', ''),
+                                        'doi': literature_data.get('doi', ''),
+                                        'authors': literature_data.get('authors', []),
+                                        'keywords': literature_data.get('keywords', []),
+                                        'parsed_data': parsed_data.get('sections_json', {}),
+                                    }
+
+                                    # 索引分块到 LanceDB
+                                    chunk_count = rag.add_literature_chunks(full_literature_data)
+                                    add_log(upload_id, f"✅ LanceDB 索引完成: {chunk_count} 个 chunks", 'success')
+                                except Exception as e:
+                                    add_log(upload_id, f"⚠️ LanceDB 索引失败: {e}", 'error')
                         else:
                             add_log(upload_id, f"⚠️ 文献保存失败: DOI={doi}", 'error')
 

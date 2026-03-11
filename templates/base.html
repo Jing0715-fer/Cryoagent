@@ -542,8 +542,13 @@
     // === Cyberpunk Effects: Grid + Scanlines + Floating Particles ===
     (function() {
         var particleTimer = null;
-        var gridBg = document.querySelector('.grid-bg');
-        var scanlines = document.querySelector('.scanlines');
+        var gridBg = null;
+        var scanlines = null;
+
+        function getElements() {
+            gridBg = document.querySelector('.grid-bg');
+            scanlines = document.querySelector('.scanlines');
+        }
 
         function spawnParticle() {
             var particle = document.createElement('div');
@@ -554,10 +559,11 @@
             particle.style.left = Math.random() * 100 + '%';
             particle.style.animationDuration = (8 + Math.random() * 4) + 's';
             document.body.appendChild(particle);
-            setTimeout(function() { particle.remove(); }, 12000);
+            setTimeout(function() { if (particle && particle.parentNode) particle.remove(); }, 12000);
         }
 
         function startEffects() {
+            getElements();
             // Show grid background and scanlines
             if (gridBg) gridBg.style.display = 'block';
             if (scanlines) scanlines.style.display = 'block';
@@ -567,6 +573,7 @@
         }
 
         function stopEffects() {
+            getElements();
             // Hide grid background and scanlines
             if (gridBg) gridBg.style.display = 'none';
             if (scanlines) scanlines.style.display = 'none';
@@ -574,7 +581,7 @@
             if (particleTimer) { clearInterval(particleTimer); particleTimer = null; }
             // Remove all particles
             var particles = document.querySelectorAll('.particle');
-            particles.forEach(function(p) { p.remove(); });
+            particles.forEach(function(p) { if (p && p.parentNode) p.remove(); });
         }
 
         function checkTheme() {

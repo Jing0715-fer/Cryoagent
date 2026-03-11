@@ -15,6 +15,85 @@ from collections import defaultdict
 # 首先设置logger
 logger = logging.getLogger(__name__)
 
+# ---------- 蛋白质名称标准化工具 ----------
+def normalize_protein_name(name: str) -> str:
+    """
+    标准化蛋白质名称，处理希腊字母和特殊格式
+
+    将希腊字母转换为英文拼写，例如:
+    - Vγ9Vδ2 TCR -> V gamma9 V delta2 TCR
+    - α-synuclein -> alpha-synuclein
+    - TCR-β -> TCR-beta
+    """
+    if not name:
+        return name
+
+    # 希腊字母到英文的映射
+    greek_to_english = {
+        'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'δ': 'delta',
+        'ε': 'epsilon', 'ζ': 'zeta', 'η': 'eta', 'θ': 'theta',
+        'ι': 'iota', 'κ': 'kappa', 'λ': 'lambda', 'μ': 'mu',
+        'ν': 'nu', 'ξ': 'xi', 'ο': 'omicron', 'π': 'pi',
+        'ρ': 'rho', 'σ': 'sigma', 'τ': 'tau', 'υ': 'upsilon',
+        'φ': 'phi', 'χ': 'chi', 'ψ': 'psi', 'ω': 'omega',
+        # 大写希腊字母
+        'Α': 'Alpha', 'Β': 'Beta', 'Γ': 'Gamma', 'Δ': 'Delta',
+        'Ε': 'Epsilon', 'Ζ': 'Zeta', 'Η': 'Eta', 'Θ': 'Theta',
+        'Ι': 'Iota', 'Κ': 'Kappa', 'Λ': 'Lambda', 'Μ': 'Mu',
+        'Ν': 'Nu', 'Ξ': 'Xi', 'Ο': 'Omicron', 'Π': 'Pi',
+        'Ρ': 'Rho', 'Σ': 'Sigma', 'Τ': 'Tau', 'Υ': 'Upsilon',
+        'Φ': 'Phi', 'Χ': 'Chi', 'Ψ': 'Psi', 'Ω': 'Omega',
+    }
+
+    result = name
+    for greek, english in greek_to_english.items():
+        result = result.replace(greek, english)
+
+    return result
+
+def extract_gene_symbols(query: str) -> List[str]:
+    """
+    从查询中提取可能的基因符号
+
+    例如: "Vγ9Vδ2 TCR" -> ["TRGV9", "TRDV2", "TCR"]
+
+    常见的 TCR 基因名称映射:
+    - Vγ9 -> TRGV9
+    - Vδ2 -> TRDV2
+    - Vα -> TRAV
+    - Vβ -> TRBV
+    """
+    if not query:
+        return []
+
+    symbols = []
+    query_normalized = normalize_protein_name(query)
+
+    # TCR 基因名称映射
+    tcr_gene_map = {
+        'v gamma9': 'TRGV9', 'vgamma9': 'TRGV9', 'v gamma 9': 'TRGV9',
+        'v delta2': 'TRDV2', 'vdelta2': 'TRDV2', 'v delta 2': 'TRDV2',
+        'v alpha': 'TRAV', 'valpha': 'TRAV',
+        'v beta': 'TRBV', 'vbeta': 'TRBV',
+        'tcr': 'TCR',
+    }
+
+    query_lower = query_normalized.lower()
+
+    for pattern, gene in tcr_gene_map.items():
+        if pattern in query_lower and gene not in symbols:
+            symbols.append(gene)
+
+    # 提取标准基因名格式 (如 TRGV9, TRDV2, CD3D 等)
+    import re
+    gene_pattern = r'\b([A-Z]{2,4}[A-Z0-9]{1,4})\b'
+    matches = re.findall(gene_pattern, query.upper())
+    for m in matches:
+        if m not in symbols and len(m) >= 3:
+            symbols.append(m)
+
+    return symbols
+
 try:
     from core.structure_manager import StructureMetadataFetcher
     HAS_STRUCTURE_MANAGER = True
@@ -126,11 +205,15 @@ class ProteinNameMapper:
                         self.protein_name_map[protein_name] = []
                     self.protein_name_map[protein_name].extend(uniprot_ids)
                 
-                # 更新基因名映射
+                # 更新基因名映射 - 支持逗号分隔的多个基因名
                 if gene_name and gene_name != 'Unknown':
-                    if gene_name not in self.gene_name_map:
-                        self.gene_name_map[gene_name] = []
-                    self.gene_name_map[gene_name].extend(uniprot_ids)
+                    # 拆分逗号分隔的基因名
+                    for single_gene in gene_name.split(','):
+                        single_gene = single_gene.strip()
+                        if single_gene:
+                            if single_gene not in self.gene_name_map:
+                                self.gene_name_map[single_gene] = []
+                            self.gene_name_map[single_gene].extend(uniprot_ids)
         
         # 去重
         for name_map in [self.protein_name_map, self.gene_name_map]:
@@ -153,9 +236,16 @@ class ProteinNameMapper:
                 if uniprot_id in self.uniprot_structure_map:
                     all_structure_ids.update(self.uniprot_structure_map[uniprot_id])
         
-        # 3. 模糊匹配（包含关系）
+        # 3. 模糊匹配（包含关系）- 蛋白质名称
         for protein_key, uniprot_ids in self.protein_name_map.items():
             if protein_name in protein_key or protein_key in protein_name:
+                for uniprot_id in uniprot_ids:
+                    if uniprot_id in self.uniprot_structure_map:
+                        all_structure_ids.update(self.uniprot_structure_map[uniprot_id])
+
+        # 4. 模糊匹配（包含关系）- 基因名
+        for gene_key, uniprot_ids in self.gene_name_map.items():
+            if protein_name in gene_key or gene_key in protein_name:
                 for uniprot_id in uniprot_ids:
                     if uniprot_id in self.uniprot_structure_map:
                         all_structure_ids.update(self.uniprot_structure_map[uniprot_id])
@@ -2583,7 +2673,7 @@ class StructureOfflineDatabase:
             )
             return []
     
-    def _exact_search_structures(self, 
+    def _exact_search_structures(self,
                                 query: str = None,
                                 structure_type: Optional[StructureType] = None,
                                 organism: Optional[str] = None,
@@ -2597,46 +2687,60 @@ class StructureOfflineDatabase:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            
+
+            # 标准化查询（处理希腊字母）
+            normalized_query = normalize_protein_name(query) if query else None
+            gene_symbols = extract_gene_symbols(query) if query else []
+
             # 构建查询条件和参数
             conditions = []
             params = []
-            
+
             if structure_type:
                 conditions.append("type = ?")
                 params.append(structure_type.value)
-            
+
             if organism:
                 conditions.append("organism LIKE ?")
                 params.append(f"%{organism}%")
-            
+
             if gene:
                 conditions.append("gene LIKE ?")
                 params.append(f"%{gene}%")
-            
+
             if protein_name:
                 conditions.append("protein_name LIKE ?")
                 params.append(f"%{protein_name}%")
-            
+
             if min_resolution is not None:
                 conditions.append("resolution >= ?")
                 params.append(min_resolution)
-            
+
             if max_resolution is not None:
                 conditions.append("resolution <= ?")
                 params.append(max_resolution)
-            
+
             # 文本搜索（标题、蛋白名、基因等）
-            if query:
+            if normalized_query:
                 search_conditions = [
                     "title LIKE ?",
                     "protein_name LIKE ?",
                     "gene LIKE ?",
                     "organism LIKE ?"
                 ]
-                search_param = f"%{query}%"
+
+                # 构建参数列表
+                search_params = [f"%{normalized_query}%"] * len(search_conditions)
+
+                # 如果提取到基因符号，添加额外的搜索条件
+                if gene_symbols:
+                    for symbol in gene_symbols:
+                        search_conditions.append("gene LIKE ?")
+                        search_params.append(f"%{symbol}%")
+                    logger.info(f"搜索基因符号: {gene_symbols}")
+
                 conditions.append(f"({' OR '.join(search_conditions)})")
-                params.extend([search_param] * len(search_conditions))
+                params.extend(search_params)
             
             # 构建SQL
             where_clause = " AND ".join(conditions) if conditions else "1=1"

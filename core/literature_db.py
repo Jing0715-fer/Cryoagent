@@ -498,6 +498,7 @@ class QAChatHistory(Base):
     # 关联信息
     model_used = Column(String(100), nullable=True)  # 使用的AI模型
     sources = Column(JSON, default=list)  # 参考来源列表
+    result_json = Column(Text, nullable=True)  # 完整的工具结果JSON
 
     # 元数据
     question_type = Column(String(50), nullable=True)  # 问题类型: literature, structure, sequence, general
@@ -521,6 +522,7 @@ class QAChatHistory(Base):
             'answer': self.answer,
             'model_used': self.model_used,
             'sources': self.sources,
+            'result_json': self.result_json,
             'question_type': self.question_type,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
@@ -1828,7 +1830,8 @@ def save_qa_chat_history(
     sources: Optional[List[Dict]] = None,
     question_type: Optional[str] = None,
     session_id: Optional[str] = None,
-    user_id: Optional[int] = None
+    user_id: Optional[int] = None,
+    result_json: Optional[str] = None
 ) -> Optional[QAChatHistory]:
     """保存QA聊天记录"""
     session = create_literature_session()
@@ -1841,7 +1844,8 @@ def save_qa_chat_history(
             model_used=model_used,
             sources=sources or [],
             question_type=question_type,
-            session_id=session_id
+            session_id=session_id,
+            result_json=result_json
         )
         session.add(history)
         session.commit()
@@ -1924,6 +1928,76 @@ def delete_qa_chat_history(history_id: int, user_id: int = None) -> bool:
         return False
     finally:
         session.close()
+
+
+# ========== QA History Wrapper Functions (for Agent) ==========
+
+def save_qa_history(
+    question: str,
+    answer: str,
+    session_id: Optional[str] = None,
+    user_id: Optional[int] = None,
+    result_json: Optional[str] = None
+) -> Optional[QAChatHistory]:
+    """保存问答历史（Agent用）"""
+    # 解析 result_json 获取额外信息
+    sources = None
+    question_type = None
+    model_used = None
+
+    if result_json:
+        import json
+        try:
+            result_data = json.loads(result_json)
+            sources = result_data.get('sources', [])
+            question_type = result_data.get('type')
+            # 从 tool_results 中获取模型信息
+            tool_results = result_data.get('tool_results', [])
+            if tool_results:
+                model_used = tool_results[0].get('model') if tool_results else None
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return save_qa_chat_history(
+        question=question,
+        answer=answer,
+        session_id=session_id,
+        user_id=user_id,
+        sources=sources,
+        question_type=question_type,
+        model_used=model_used,
+        result_json=result_json
+    )
+
+
+def get_qa_history(
+    user_id: Optional[int] = None,
+    session_id: Optional[str] = None,
+    limit: int = 20
+) -> List[Dict[str, Any]]:
+    """获取问答历史（Agent用）"""
+    history = get_qa_chat_history(
+        user_id=user_id,
+        session_id=session_id,
+        limit=limit
+    )
+    return [h.to_dict() for h in history]
+
+
+def get_user_id_by_string(user_id_str: str) -> Optional[int]:
+    """将字符串用户ID转换为整数ID"""
+    if not user_id_str:
+        return None
+    try:
+        # 尝试直接转换
+        return int(user_id_str)
+    except (ValueError, TypeError):
+        pass
+    # 尝试从数据库获取用户
+    user = get_user_by_username(user_id_str)
+    if user:
+        return user.id
+    return None
 
 
 # ========== Protein Evaluation Functions ==========

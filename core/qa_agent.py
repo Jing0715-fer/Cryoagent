@@ -118,9 +118,10 @@ class ToolResult:
 class QAAgent:
     """智能问答Agent"""
 
-    def __init__(self, tool_registry, max_iterations: int = 5):
+    def __init__(self, tool_registry, max_iterations: int = 5, max_tokens: int = None):
         self.tool_registry = tool_registry
         self.max_iterations = max_iterations
+        self.max_tokens = max_tokens  # 最大输出token数
         self.tools = tool_registry.get_all_tools()
         self.tool_map = {t.name: t for t in self.tools}
         self.current_skill = None  # 当前激活的 Skill
@@ -134,7 +135,7 @@ class QAAgent:
             self.tools = [t for t in self.tools if t is not None]
 
     async def process(self, question: str, context: List[Dict],
-                     session_data: Dict = None, skill_id: str = None) -> Dict:
+                     session_data: Dict = None, skill_id: str = None, max_tokens: int = None) -> Dict:
         """
         处理用户问题
 
@@ -142,12 +143,17 @@ class QAAgent:
             question: 用户问题
             context: 对话上下文（历史消息和工具结果）
             session_data: 会话数据（可选）
+            skill_id: Skill ID（可选）
+            max_tokens: 最大输出token数（可选）
 
         Returns:
             Agent响应，包含type字段标识响应类型
         """
         if session_data is None:
             session_data = {}
+
+        # 存储max_tokens供后续使用
+        self.max_tokens = max_tokens
 
         # 加载 Skill（如果指定了 skill_id）
         if skill_id and not self.current_skill:
@@ -277,7 +283,7 @@ class QAAgent:
                     return result
                 else:
                     # 正常调用 AI 生成答案
-                    answer = await self.generate_answer(question, context, tool_results)
+                    answer = await self.generate_answer(question, context, tool_results, max_tokens=self.max_tokens)
                     return {
                         "type": "answer",
                         "content": answer,
@@ -466,13 +472,43 @@ class QAAgent:
         import re
         question_lower = question.lower()
 
-        # 0. 如果已经有搜索结果，不重复搜索
+        # 0. 如果已经执行过搜索工具，尝试优化搜索策略
         for tr in tool_results:
-            if tr.get("tool_name") in ["search_structures", "search_literature"] and tr.get("success"):
-                data = tr.get("result", {})
-                if data.get("count", 0) > 0:
-                    logger.info("[DecideTool] 已有搜索结果，不再重复搜索")
-                    return None  # 不再调用工具，直接生成答案
+            if tr.get("tool_name") in ["search_structures", "search_literature"]:
+                if tr.get("success"):
+                    data = tr.get("result", {})
+                    count = data.get("count", 0)
+                    if count > 0:
+                        logger.info("[DecideTool] 已有搜索结果，不再重复搜索")
+                        return None  # 有结果，直接生成答案
+                    else:
+                        # 搜索无结果，尝试优化搜索词
+                        logger.info("[DecideTool] 搜索无结果，尝试优化搜索词")
+                        # 提取之前的搜索词
+                        tool_params = tr.get("tool_params", {})
+                        old_query = tool_params.get("query", "")
+
+                        # 如果之前搜索词包含 "purification method"，尝试去掉
+                        if "purification" in old_query.lower() or "method" in old_query.lower():
+                            # 去掉修饰词，只搜索核心关键词
+                            new_query = question
+                            # 移除常见修饰词
+                            for word in ["purification", "method", "methods", "纯化", "方法", "实验", "protocol"]:
+                                new_query = new_query.replace(word, "").strip()
+                            # 清理多余空格
+                            new_query = " ".join(new_query.split())
+                            if new_query and len(new_query) > 2:
+                                logger.info(f"[DecideTool] 尝试新搜索词: {new_query}")
+                                return ToolCall(
+                                    tool_name=tr.get("tool_name"),
+                                    params={"query": new_query, "limit": 10}
+                                )
+
+                        # 如果无法优化搜索词，返回 None 让 Agent 生成答案
+                        logger.info("[DecideTool] 无法优化搜索词，直接生成答案")
+                        return None
+                else:
+                    logger.info("[DecideTool] 之前的搜索失败，尝试其他方法")
 
         # 检查是否需要生成结构图像 (PyMOL)
         pdb_pattern = r'\b[0-9][A-Za-z0-9]{3}\b'
@@ -766,37 +802,21 @@ class QAAgent:
 
         question_lower = question.lower()
         logger.info(f"[CheckSufficient] Checking {len(tool_results)} tool results for question: {question[:50]}")
+        logger.info(f"[CheckSufficient] question_lower: {question_lower}")
+        logger.info(f"[CheckSufficient] All tool results: {[r.get('tool_name') for r in tool_results]}")
 
         extra_info = {}
 
-        # 检查是否问的是结构/序列详情
-        if any(kw in question_lower for kw in ["结构", "序列", "sequence", "structure", "分辨率", "resolution", "实验方法", "method"]):
-            for result in tool_results:
-                logger.info(f"[CheckSufficient] Checking result: {result.get('tool_name')}, success: {result.get('success')}")
-                if result.get("tool_name") == "search_structures" and result.get("success"):
-                    # 检查是否有结果
-                    data = result.get("result", {})
-                    count = data.get("count", 0)
-                    logger.info(f"[CheckSufficient] search_structures count: {count}")
-                    if count > 0:
-                        return True, {}
-
-        # 检查是否问的是结构详情
-        if any(kw in question_lower for kw in ["分辨率", "resolution", "实验方法", "method"]):
-            for result in tool_results:
-                if result.get("tool_name") == "get_structure_details" and result.get("success"):
-                    return True, {}
-
-        # 检查是否问的是比对结果
-        if any(kw in question_lower for kw in ["比对", "相似", "alignment", "similarity"]):
-            for result in tool_results:
-                if result.get("tool_name") == "run_sequence_alignment" and result.get("success"):
-                    return True, {}
-
-        # 检查是否问的是文献
-        if any(kw in question_lower for kw in ["文献", "论文", "article"]):
-            for result in tool_results:
-                if result.get("tool_name") == "search_literature" and result.get("success"):
+        # 简化检查：只要有任何工具返回了成功结果，就认为信息足够
+        # 让 AI 来决定如何整理这些结果
+        for result in tool_results:
+            if result.get("success"):
+                data = result.get("result", {})
+                # 检查各种可能的结果计数
+                count = data.get("count", 0) or data.get("total_results", 0) or len(data.get("results", []))
+                logger.info(f"[CheckSufficient] Tool {result.get('tool_name')} data: count={data.get('count')}, total_results={data.get('total_results')}, results_len={len(data.get('results', []))}, final_count={count}")
+                if count > 0:
+                    logger.info(f"[CheckSufficient] Found {count} results from {result.get('tool_name')}, sufficient")
                     return True, {}
 
         # 检查是否需要生成结构图像（纯图片请求）
@@ -831,16 +851,96 @@ class QAAgent:
                 "error": str(e)
             }
 
+    async def _select_relevant_structures(self, question: str, structures: List[Dict], top_k: int = 5) -> List[Dict]:
+        """
+        使用 AI 筛选最相关的结构（当结果超过 5 个时）
+
+        Args:
+            question: 用户问题
+            structures: 结构列表
+            top_k: 返回的最大数量
+
+        Returns:
+            筛选后的结构列表
+        """
+        try:
+            from utils.ai_client import get_ai_client, load_ai_config
+
+            config = load_ai_config()
+            client = get_ai_client(config)
+
+            # 构建结构摘要
+            struct_summaries = []
+            for i, s in enumerate(structures):
+                pdb_id = s.get('pdb_id', 'N/A')
+                title = s.get('title', '')[:50]
+                gene = s.get('gene', '')
+                protein_name = s.get('protein_name', '')
+                seq_len = len(s.get('sequence', '')) if s.get('sequence') else s.get('sequence_length', 0)
+                struct_summaries.append(f"{i}: PDB={pdb_id}, Gene={gene}, Protein={protein_name[:30]}, SeqLen={seq_len}, Title={title}")
+
+            prompt = f"""用户问题：{question}
+
+请从以下结构中选择与问题最相关的 {top_k} 个结构（按相关性排序）：
+
+{chr(10).join(struct_summaries)}
+
+请按以下 JSON 格式返回选中的索引列表：
+{{"selected_indices": [0, 2, 5, ...]}}
+
+只返回 JSON，不要其他内容。选择最可能包含用户所需信息的结构。"""
+
+            messages = [{"role": "user", "content": prompt}]
+            response = client.chat(messages)
+
+            if response.get('success'):
+                import json
+                import re
+                content = response.get('content', '')
+                json_match = re.search(r'\{[\s\S]*\}', content)
+                if json_match:
+                    result = json.loads(json_match.group())
+                    indices = result.get('selected_indices', [])
+                    selected = [structures[i] for i in indices if 0 <= i < len(structures)]
+                    logger.info(f"[SelectStructures] AI selected {len(selected)} structures from {len(structures)}")
+                    return selected[:top_k]
+        except Exception as e:
+            logger.warning(f"AI 筛选结构失败: {e}")
+
+        # 回退：返回前 top_k 个
+        return structures[:top_k]
+
     async def generate_answer(self, question: str, context: List[Dict],
-                             tool_results: List[Dict]) -> str:
-        """生成最终答案"""
+                             tool_results: List[Dict], max_tokens: int = None) -> str:
+        """生成最终答案
+
+        Args:
+            question: 用户问题
+            context: 对话上下文
+            tool_results: 工具执行结果
+            max_tokens: 最大输出token数（可选，默认从配置读取）
+        """
         from utils.ai_client import get_ai_client, load_ai_config
 
         # 如果设置了 Skill，使用 Skill 的 system prompt
         system_prompt = self.current_skill.system_prompt if self.current_skill else ""
 
+        # 获取配置中的 max_tokens
+        config = load_ai_config()
+        if max_tokens is None:
+            max_tokens = config.get('max_tokens', 8096)
+
         # 准备上下文
         context_parts = []
+
+        # 收集所有结构用于智能筛选
+        all_structures = []
+        structure_tool_result = None
+        for result in tool_results:
+            if result.get("tool_name") == "search_structures" and result.get("success"):
+                structure_tool_result = result
+                items = result.get("result", {}).get("results", [])
+                all_structures.extend(items)
 
         # 添加工具结果
         for result in tool_results:
@@ -852,6 +952,7 @@ class QAAgent:
                     items = data.get("results", [])
                     if items:
                         context_parts.append("## 相关文献：\n")
+                        # 限制文献数量为 5 个
                         for i, item in enumerate(items[:5], 1):
                             title = item.get("title", "Unknown")
                             authors = item.get("authors", [])
@@ -867,7 +968,14 @@ class QAAgent:
                     items = data.get("results", [])
                     if items:
                         context_parts.append("## 相关结构：\n")
-                        for i, item in enumerate(items[:5], 1):
+
+                        # 如果超过 5 个结构，先让 AI 筛选
+                        if len(items) > 5:
+                            selected_items = await self._select_relevant_structures(question, items, top_k=5)
+                        else:
+                            selected_items = items
+
+                        for i, item in enumerate(selected_items, 1):
                             pdb_id = item.get("pdb_id", "")
                             title = item.get("title", "")
                             resolution = item.get("resolution")
@@ -892,8 +1000,32 @@ class QAAgent:
                             if source:
                                 context_parts.append(f"   数据来源: {source}\n")
                             if sequence:
-                                # 显示完整序列（不截断）
-                                context_parts.append(f"   序列: {sequence}\n")
+                                # 检查是否有实体列表（FASTA 格式）
+                                entities = item.get("entities", [])
+                                if entities:
+                                    context_parts.append(f"   序列 (FASTA 格式):\n")
+                                    for ent in entities:
+                                        entity_id = ent.get("entity_id", "")
+                                        chain = ent.get("chain_ids", "")
+                                        protein = ent.get("protein_name", "")
+                                        gene = ent.get("gene", "")
+                                        seq = ent.get("sequence", "")
+
+                                        # 构建 FASTA header: >PDB_ID|Chain|Protein|Gene
+                                        header_parts = [pdb_id]
+                                        if chain:
+                                            header_parts.append(f"Chain_{chain}")
+                                        if protein:
+                                            header_parts.append(protein[:30])  # 限制长度
+                                        if gene:
+                                            header_parts.append(gene)
+
+                                        fasta_header = "|".join(header_parts)
+                                        context_parts.append(f"   >{fasta_header}\n")
+                                        context_parts.append(f"   {seq}\n")
+                                else:
+                                    # 兼容旧格式
+                                    context_parts.append(f"   序列: {sequence}\n")
                                 context_parts.append(f"   序列长度: {len(sequence)} 残基\n")
                             elif seq_length:
                                 context_parts.append(f"   序列长度: {seq_length} 残基\n")
@@ -943,6 +1075,12 @@ class QAAgent:
             config = load_ai_config()
             client = get_ai_client(config)
 
+            # 检测是否涉及序列问题
+            question_lower = question.lower()
+            is_sequence_question = any(kw in question_lower for kw in [
+                "序列", "sequence", "氨基酸", "amino acid", "残基", "residue"
+            ])
+
             # 构建提示词
             base_prompt = f"""基于以下信息回答用户问题：
 
@@ -950,7 +1088,23 @@ class QAAgent:
 
 {''.join(context_parts)}
 
-请用中文生成一个简洁、准确的回答。"""
+**重要提示**：
+1. 如果用户询问序列，必须使用标准 FASTA 格式输出：
+   ```
+   >PDB_ID|Chain|Protein_Name|Gene
+   AMINOACIDSEQUENCE
+   ```
+2. 每个 chain 的序列单独一条，不要合并
+3. 序列必须完整输出，不要省略或截断
+4. 使用代码块格式显示序列，便于阅读和复制
+5. 如果有多个 PDB 结构，按结构分组显示
+6. 请用中文生成一个简洁、准确的回答"""
+
+            # 如果是序列问题，添加额外强调
+            if is_sequence_question:
+                base_prompt += """
+
+**特别强调**：用户询问的是序列信息，你必须在回答中完整显示相关序列！"""
 
             # 如果有 Skill，添加 Skill 的系统提示
             if system_prompt:
@@ -966,7 +1120,7 @@ class QAAgent:
             messages = [{"role": "user", "content": prompt}]
 
             # client.chat 是同步方法，返回 {'success': True, 'content': '...', 'model': '...'}
-            response = client.chat(messages)
+            response = client.chat(messages, max_tokens=max_tokens)
             if response.get('success'):
                 return response.get('content', '')
             else:
@@ -1005,6 +1159,9 @@ class QAAgent:
         for result in tool_results:
             if result.get("tool_name") == "pymol_image" and result.get("success"):
                 data = result.get("result", {})
+                # 处理嵌套的 result 结构
+                if "result" in data:
+                    data = data.get("result", {})
                 pdb_id = data.get("pdb_id", "")
                 image_path = data.get("image_path", "")
                 style = data.get("style", "")

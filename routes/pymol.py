@@ -12,8 +12,9 @@ logger = logging.getLogger(__name__)
 
 bp = Blueprint('pymol', __name__, url_prefix='/api/pymol')
 
-# 工作目录
-WORKSPACE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'pymol_data')
+# 工作目录 - 与 PyMOL wrapper 使用相同的目录
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WORKSPACE_DIR = os.path.join(PROJECT_ROOT, 'pymol_sessions')
 os.makedirs(WORKSPACE_DIR, exist_ok=True)
 
 
@@ -383,4 +384,51 @@ def complete_analysis():
 
     except Exception as e:
         logger.error(f"Complete analysis error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# 静态文件服务 - 用于提供生成的图像访问
+from flask import send_file
+
+@bp.route('/sessions/<filename>', methods=['GET'])
+def serve_session_image(filename):
+    """
+    提供 pymol_sessions 目录中的图像文件访问
+    自动处理大小写问题
+    预读取文件内容避免 send_file() 可能导致的崩溃
+    """
+    try:
+        # 使用统一的 WORKSPACE_DIR（动态计算的绝对路径）
+        sessions_dir = WORKSPACE_DIR
+
+        # 安全检查 - 只允许访问工作目录中的文件
+        filename = os.path.basename(filename)
+
+        # 检查文件是否存在，如果不存在尝试小写版本
+        file_path = os.path.join(sessions_dir, filename)
+        if not os.path.exists(file_path):
+            # 尝试小写版本
+            filename_lower = filename.lower()
+            file_path_lower = os.path.join(sessions_dir, filename_lower)
+            if os.path.exists(file_path_lower):
+                file_path = file_path_lower
+            else:
+                logger.warning(f"Image file not found: {file_path}")
+                return jsonify({'error': 'File not found'}), 404
+
+        # 预读取文件内容到内存，避免 send_file() 在文件传输时可能触发的崩溃
+        # 这可以防止 PyMOL 状态不稳定时导致的连接重置
+        with open(file_path, 'rb') as f:
+            file_content = f.read()
+
+        logger.info(f"Serving image: {file_path} ({len(file_content)} bytes)")
+        return Response(
+            file_content,
+            mimetype='image/png',
+            headers={'Content-Disposition': f'inline; filename="{filename}"'}
+        )
+    except Exception as e:
+        logger.error(f"Error serving image {filename}: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500

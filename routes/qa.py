@@ -31,7 +31,7 @@ def get_current_user_id():
     return None
 
 
-def _handle_agent_mode(question: str, session_id: str, original_data: dict):
+def _handle_agent_mode(question: str, session_id: str, original_data: dict, max_tokens: int = None):
     """
     处理 Agent 模式 - 调用 Agent 端点
     """
@@ -42,6 +42,28 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict):
     try:
         # 准备调用 Agent 的参数
         skill_id = original_data.get('skill_id')
+
+        # 获取会话历史作为上下文
+        context = []
+        try:
+            from core.literature_db import get_qa_chat_history_by_session
+            user_id = get_current_user_id()
+            if session_id:
+                history = get_qa_chat_history_by_session(session_id, user_id)
+                # 将历史转换为上下文格式
+                for h in history[-5:]:  # 只取最近5条
+                    context.append({
+                        'type': 'user',
+                        'content': h.question
+                    })
+                    if h.answer:
+                        context.append({
+                            'type': 'assistant',
+                            'content': h.answer
+                        })
+                print(f"[QA v2] 获取到 {len(history)} 条历史记录，上下文: {len(context)} 条")
+        except Exception as e:
+            logger.warning(f"获取历史失败: {e}")
 
         def run_agent():
             # 不使用 app_context()，避免阻塞
@@ -56,9 +78,19 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict):
             # 创建 Agent 并处理问题
             agent = create_agent(registry, skill_id=skill_id)
 
-            # 导入 asyncio 并运行
+            # 使用更安全的 asyncio 方式运行，避免与 PyMOL 线程冲突
             import asyncio
-            return asyncio.run(agent.process(question, [], {}, skill_id=skill_id))
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            if loop.is_running():
+                # 如果 loop 正在运行（不太可能在同步 Flask 中），创建新的
+                return asyncio.run(agent.process(question, context, {}, skill_id=skill_id, max_tokens=max_tokens))
+            else:
+                return loop.run_until_complete(agent.process(question, context, {}, skill_id=skill_id, max_tokens=max_tokens))
 
         # 直接执行 Agent，不使用线程池
         try:
@@ -89,24 +121,34 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict):
 
         # 提取图像 URL（如果有）
         image_url = None
-        print(f"[QA v2] tool_results count: {len(tool_results)}")
+        logger.info(f"[QA v2] tool_results count: {len(tool_results)}")
         for tr in tool_results:
-            print(f"[QA v2] tool: {tr.get('tool_name')}, success: {tr.get('success')}")
+            logger.info(f"[QA v2] tool: {tr.get('tool_name')}, success: {tr.get('success')}")
             if tr.get('tool_name') == 'pymol_image' and tr.get('success'):
-                image_path = tr.get('result', {}).get('image_path')
-                print(f"[QA v2] pymol_image result: image_path={image_path}")
+                # 数据结构: result.result.image_path (嵌套两层)
+                result_data = tr.get('result', {})
+                logger.info(f"[QA v2] result_data level 1: {result_data}")
+                # 处理嵌套的 result 结构
+                if 'result' in result_data:
+                    result_data = result_data.get('result', {})
+                    logger.info(f"[QA v2] result_data level 2: {result_data}")
+                image_path = result_data.get('image_path')
+                logger.info(f"[QA v2] pymol_image result: image_path={image_path}")
                 if image_path:
-                    # 提取文件名并处理大小写问题
-                    original_filename = image_path.split('/')[-1] if '/' in image_path else image_path
-                    filename = original_filename
+                    # 使用 os.path.basename 提取文件名
+                    filename = os.path.basename(image_path)
+
+                    # 使用统一的 sessions 目录（与 routes/pymol.py 一致）
+                    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    sessions_dir = os.path.join(project_root, 'pymol_sessions')
 
                     # 检查文件是否存在，如果不存在尝试小写版本
-                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                    sessions_dir = os.path.join(project_root, 'pymol_sessions')
                     if not os.path.exists(os.path.join(sessions_dir, filename)):
-                        filename_lower = original_filename.lower()
+                        filename_lower = filename.lower()
                         if os.path.exists(os.path.join(sessions_dir, filename_lower)):
                             filename = filename_lower
+                        else:
+                            logger.warning(f"Image file not found: {filename}")
 
                     image_url = f"/api/pymol/sessions/{filename}"
                     break
@@ -117,7 +159,7 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict):
             # 文献来源
             if tr.get('tool_name') == 'search_literature' and tr.get('success'):
                 lit_results = tr.get('result', {}).get('results', [])
-                for lit in lit_results[:3]:
+                for lit in lit_results:  # 显示全部来源
                     sources.append({
                         'type': 'literature',
                         'id': str(lit.get('id', '')),
@@ -126,7 +168,7 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict):
             # 结构来源
             if tr.get('tool_name') == 'search_structures' and tr.get('success'):
                 struct_results = tr.get('result', {}).get('results', [])
-                for struct in struct_results[:3]:
+                for struct in struct_results:  # 显示全部来源
                     sources.append({
                         'type': 'structure',
                         'id': struct.get('pdb_id', ''),
@@ -137,38 +179,50 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict):
         print(f"[QA v2] 准备保存历史记录...")
 
         # 保存历史（截断过大的结果）
+        # 支持 session_id 方式保存历史（未登录用户也能看到当前会话的历史）
         try:
             from core.literature_db import save_qa_history
             user_id = get_current_user_id()
-            print(f"[QA v2] user_id = {user_id}")
-            if user_id:
-                print(f"[QA v2] 开始保存历史，result 类型: {type(result)}")
-                # 截断过大的结果JSON，防止数据库存储失败
-                result_json_str = json.dumps(result)
-                max_history_size = 500000  # 500KB 限制
-                if len(result_json_str) > max_history_size:
-                    # 创建一个精简版本
-                    truncated_result = {
-                        'content': result.get('content', ''),
-                        'iteration': result.get('iteration', 0),
-                        'tool_results': []
+            print(f"[QA v2] user_id = {user_id}, session_id = {session_id}")
+            print(f"[QA v2] 开始保存历史，result 类型: {type(result)}")
+            # 截断过大的结果JSON，防止数据库存储失败
+            result_json_str = json.dumps(result)
+            max_history_size = 500000  # 500KB 限制
+            if len(result_json_str) > max_history_size:
+                # 创建一个精简版本，保留完整的数据来源信息
+                truncated_result = {
+                    'content': result.get('content', ''),
+                    'iteration': result.get('iteration', 0),
+                    'tool_results': []
+                }
+                # 保留工具名称、成功状态和结果数据（用于显示来源）
+                for tr in result.get('tool_results', []):
+                    tool_name = tr.get('tool_name', '')
+                    truncated_tr = {
+                        'tool_name': tool_name,
+                        'success': tr.get('success', False)
                     }
-                    # 只保留工具名称和成功状态
-                    for tr in result.get('tool_results', []):
-                        truncated_result['tool_results'].append({
-                            'tool_name': tr.get('tool_name', ''),
-                            'success': tr.get('success', False)
-                        })
-                    result_json_str = json.dumps(truncated_result)
-                    logger.warning(f"结果数据过大，已截断保存: {len(result_json_str)} bytes")
+                    # 保留搜索结果用于显示来源
+                    if tool_name in ['search_literature', 'search_structures']:
+                        truncated_tr['result'] = tr.get('result', {})
+                    # 保留图片信息
+                    if tool_name == 'pymol_image':
+                        truncated_tr['result'] = {
+                            'pdb_id': tr.get('result', {}).get('pdb_id'),
+                            'image_path': tr.get('result', {}).get('image_path')
+                        }
+                    truncated_result['tool_results'].append(truncated_tr)
+                result_json_str = json.dumps(truncated_result)
+                logger.warning(f"结果数据过大，已截断保存: {len(result_json_str)} bytes")
 
-                save_qa_history(
-                    question=question,
-                    answer=answer,
-                    session_id=session_id,
-                    user_id=user_id,
-                    result_json=result_json_str
-                )
+            save_qa_history(
+                question=question,
+                answer=answer,
+                session_id=session_id,
+                user_id=user_id,  # 可以为 None，但 session_id 会保存
+                result_json=result_json_str
+            )
+            print(f"[QA v2] 历史保存成功")
         except Exception as e:
             logger.warning(f"保存历史失败: {e}")
 
@@ -358,7 +412,8 @@ def ask_question_v2():
         # ====== 统一使用 Agent 模式 ======
         # Agent 模式会自动判断是否需要搜索文献/结构，并调用相应工具
         print(f"[QA v2] 使用统一 Agent 模式...")
-        return _handle_agent_mode(question, session_id, data)
+        max_tokens = data.get('max_tokens')  # 获取前端传来的 max_tokens
+        return _handle_agent_mode(question, session_id, data, max_tokens=max_tokens)
 
         # 分析问题类型
         pdb_pattern = r'[1-9][A-Za-z0-9]{3}'
@@ -1677,15 +1732,40 @@ def suggest_questions():
 
 @bp.route('/history', methods=['GET'])
 def get_qa_history():
-    """获取QA聊天历史列表"""
+    """获取QA聊天历史列表
+
+    支持两种模式：
+    1. 登录用户：获取用户的所有历史记录
+    2. 未登录用户：通过 session_id 获取当前会话的历史记录
+    """
     try:
         literature_id = request.args.get('literature_id', type=int)
+        session_id = request.args.get('session_id')  # 支持按session获取
         limit = request.args.get('limit', 20, type=int)
         offset = request.args.get('offset', 0, type=int)
 
         from core.literature_db import get_qa_chat_history
         user_id = get_current_user_id()
-        history_list = get_qa_chat_history(literature_id=literature_id, limit=limit, offset=offset, user_id=user_id)
+
+        # 优先使用 user_id，如果没有则使用 session_id
+        if user_id:
+            history_list = get_qa_chat_history(
+                literature_id=literature_id,
+                limit=limit,
+                offset=offset,
+                user_id=user_id
+            )
+        elif session_id:
+            # 未登录用户：按 session_id 获取历史
+            history_list = get_qa_chat_history(
+                literature_id=literature_id,
+                limit=limit,
+                offset=offset,
+                session_id=session_id
+            )
+        else:
+            # 既没有 user_id 也没有 session_id，返回空列表
+            history_list = []
 
         return jsonify({
             'success': True,

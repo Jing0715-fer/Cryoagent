@@ -3053,7 +3053,8 @@ class UnifiedRAGSystem:
                 final_results = prioritized_results
 
             # 构建知识图谱
-            self.knowledge_graph.build_from_search_results(final_results)
+            if self.knowledge_graph is not None:
+                self.knowledge_graph.build_from_search_results(final_results)
 
             process_time = time.time() - start_time
 
@@ -3082,7 +3083,7 @@ class UnifiedRAGSystem:
                 'content_chunks_count': len(content_chunks),
                 'detected_structures': structure_ids,
                 'process_time': process_time,
-                'knowledge_graph_stats': self.knowledge_graph.get_graph_statistics()
+                'knowledge_graph_stats': self.knowledge_graph.get_graph_statistics() if self.knowledge_graph else {}
             }
 
             # 添加结构增强信息
@@ -3163,7 +3164,7 @@ class UnifiedRAGSystem:
                 return []
             
             # 获取知识图谱中的相关实体
-            related_entities = self.knowledge_graph.get_related_entities(doc_id, max_depth=1)
+            related_entities = self.knowledge_graph.get_related_entities(doc_id, max_depth=1) if self.knowledge_graph else []
             
             related_docs = []
             for entity in related_entities[:max_related]:
@@ -3188,7 +3189,7 @@ class UnifiedRAGSystem:
         """获取系统统计"""
         stats = {
             'index_statistics': self.vector_indexer.get_statistics(),
-            'knowledge_graph': self.knowledge_graph.get_graph_statistics(),
+            'knowledge_graph': self.knowledge_graph.get_graph_statistics() if self.knowledge_graph else {},
             'capabilities': {
                 'vector_search': True,
                 'structure_enhancement': HAS_STRUCTURE_MANAGER,
@@ -3234,6 +3235,51 @@ class IntegratedLiteratureIndexer:
     def index_literature(self, literature_list: List[Dict[str, Any]], rebuild: bool = False, include_structures: bool = True) -> bool:
         """索引文献（向后兼容）"""
         return self.rag_system.index_literature(literature_list, rebuild=rebuild, include_structures=include_structures)
+
+    def search(self, query: str, top_k: int = 10) -> List[Dict]:
+        """搜索文献（向后兼容）- 返回 content chunks"""
+        try:
+            # UnifiedRAGSystem 使用 retrieve 方法，不是 search
+            if hasattr(self.rag_system, 'retrieve'):
+                from core.literature_index import EntityType
+                # 调用 retrieve 方法
+                result = self.rag_system.retrieve(
+                    query,
+                    top_k=top_k,
+                    entity_types=[EntityType.LITERATURE]
+                )
+                # retrieve 返回的是 retrieved_documents，不是 documents
+                docs = result.get('retrieved_documents', [])
+                logger.info(f"Search found {len(docs)} documents, keys: {result.keys() if isinstance(result, dict) else 'not dict'}")
+                return [
+                    {
+                        'id': doc.get('doc_id', ''),
+                        'literature_id': doc.get('source_id', ''),
+                        'score': doc.get('similarity_score', 0),
+                        'title': doc.get('title', ''),
+                        'content': doc.get('content', ''),
+                        'entity_type': doc.get('entity_type', ''),
+                        'is_content_chunk': doc.get('is_content_chunk', False),
+                        'metadata': doc.get('metadata', {})
+                    }
+                    for doc in docs
+                ]
+            else:
+                logger.warning("UnifiedRAGSystem 没有 retrieve 方法，回退到数据库搜索")
+                return self._fallback_search(query, top_k)
+        except Exception as e:
+            logger.warning(f"搜索失败: {e}")
+            return self._fallback_search(query, top_k)
+
+    def _fallback_search(self, query: str, top_k: int = 10) -> List[Dict]:
+        """回退到数据库搜索"""
+        try:
+            from core.literature_db import search_literature
+            entries = search_literature(query, limit=top_k)
+            return entries
+        except Exception as e:
+            logger.warning(f"回退搜索也失败: {e}")
+            return []
     
     def _index_structures(self, structure_ids: List[str]):
         """索引结构数据（向后兼容）"""

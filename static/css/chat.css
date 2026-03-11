@@ -944,6 +944,24 @@ body .main-content.qa-content {
     color: white;
 }
 
+/* Agent mode button */
+.agent-mode-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.agent-mode-btn.active {
+    background: #8b5cf6;
+    border-color: #8b5cf6;
+    color: white;
+}
+
 /* Responsive - hide right panel on smaller screens */
 @media (max-width: 1300px) {
     .qa-page .chat-right-panel,

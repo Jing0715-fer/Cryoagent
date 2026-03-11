@@ -51,6 +51,12 @@ LITERATURE_SCHEMA = {
     "metadata": "string",  # JSON 字符串
     "created_at": "timestamp",
     "updated_at": "timestamp",
+    # Chunk 支持字段
+    "doc_id": "string",          # 来源文档 ID
+    "chunk_index": "int",        # chunk 索引
+    "section": "string",         # 来源章节 (abstract, introduction, methods, etc.)
+    "doc_type": "string",        # 文档类型: "metadata" | "content_chunk"
+    "chunk_length": "int",       # chunk 长度
     # 向量字段在创建表时动态添加
 }
 

@@ -116,36 +116,48 @@ def search_literature_executor(query: str, limit: int = 10, **kwargs) -> Dict:
     from flask import current_app
     try:
         with current_app.app_context():
-            from core.literature_index import LiteratureIndexManager
+            from core.literature_index import IntegratedLiteratureIndexer
             from core.literature_db import search_literature
 
             # 尝试使用向量搜索
             try:
-                manager = LiteratureIndexManager()
+                manager = IntegratedLiteratureIndexer()
                 results = manager.search(query, top_k=limit)
                 if results:
-                    # 获取完整文献信息
-                    lit_ids = [r.get('id') or r.get('literature_id') for r in results]
-                    literature_list = []
-                    for lit_id in lit_ids:
-                        if lit_id:
-                            entry = search_literature(lit_id)
-                            if entry:
-                                literature_list.append(entry)
+                    # 向量搜索结果已包含 title, authors, journal, year 等信息
+                    # 直接使用这些结果，不需要再查询数据库
+                    logger.info(f"Vector search found {len(results)} results")
                     return {
                         "query": query,
-                        "count": len(literature_list),
-                        "results": literature_list
+                        "count": len(results),
+                        "total_results": len(results),
+                        "results": results
                     }
             except Exception as e:
                 logger.warning(f"Vector search failed, falling back to database: {e}")
 
             # 回退到数据库搜索
             entries = search_literature(query, limit=limit)
+            # 将 LiteratureEntry 对象转换为字典列表
+            literature_list = []
+            for entry in entries:
+                if hasattr(entry, '__dict__'):
+                    literature_list.append({
+                        'id': getattr(entry, 'id', None),
+                        'title': getattr(entry, 'title', ''),
+                        'authors': getattr(entry, 'authors', ''),
+                        'journal': getattr(entry, 'journal', ''),
+                        'year': getattr(entry, 'year', None),
+                        'doi': getattr(entry, 'doi', ''),
+                        'abstract': getattr(entry, 'abstract', ''),
+                    })
+                else:
+                    literature_list.append(entry)
             return {
                 "query": query,
-                "count": len(entries),
-                "results": entries
+                "count": len(literature_list),
+                "total_results": len(literature_list),
+                "results": literature_list
             }
     except Exception as e:
         logger.error(f"Error in search_literature: {e}")
@@ -155,34 +167,191 @@ def search_literature_executor(query: str, limit: int = 10, **kwargs) -> Dict:
 def search_structures_executor(query: str, source: str = "pdb", limit: int = 10, **kwargs) -> Dict:
     """执行结构搜索"""
     try:
-        from core.structure_manager import StructureManager
-        from core.structure_database import StructureDatabase
+        from core.structure_database import get_enhanced_structure_manager
 
-        db = StructureDatabase()
-        manager = StructureManager(db)
+        manager = get_enhanced_structure_manager()
+        db = manager.database  # 获取底层的 StructureOfflineDatabase
 
-        # 根据来源搜索
-        if source.lower() == "pdb":
-            results = db.search_structures(pdb_id=query.upper(), limit=limit)
-        elif source.lower() == "emdb":
-            results = db.search_structures(emdb_id=query.upper(), limit=limit)
-        else:
-            # 通用搜索
-            results = db.search_structures(query=query, limit=limit)
+        # 获取 protein_info（如果 AI 已经提取了蛋白信息）
+        protein_info = kwargs.get("protein_info", {})
+        all_results = []
+        searched_queries = set()
+
+        # 构建搜索查询列表
+        search_queries = [query]
+
+        if protein_info:
+            # 添加标准名称
+            if protein_info.get("standard_name"):
+                search_queries.append(protein_info["standard_name"])
+            # 添加基因名称
+            if protein_info.get("gene_name"):
+                search_queries.append(protein_info["gene_name"])
+            # 添加 UniProt ID
+            if protein_info.get("uniprot_id"):
+                search_queries.append(protein_info["uniprot_id"])
+            # 添加变体
+            if protein_info.get("variants"):
+                search_queries.extend(protein_info["variants"])
+
+        # 去重并搜索
+        for q in search_queries:
+            q = q.strip()
+            if not q or q in searched_queries:
+                continue
+            searched_queries.add(q)
+
+            # 搜索结构数据库
+            try:
+                results = db.search_structures(query=q, limit=limit)
+                if results:
+                    all_results.extend(results)
+            except Exception as e:
+                logger.warning(f"Search failed for {q}: {e}")
+
+            # 通过 protein_mapper 查找
+            if not any(r.get("pdb_id") or r.get("id") for r in all_results if r):
+                try:
+                    if hasattr(manager, 'protein_mapper') and manager.protein_mapper:
+                        structure_ids = manager.protein_mapper.find_structures_by_protein_name(q)
+                        if structure_ids:
+                            for sid in structure_ids[:limit]:
+                                struct = db.get_structure(sid)
+                                if struct and struct not in all_results:
+                                    all_results.append(struct)
+                except Exception as e:
+                    logger.warning(f"protein_mapper search failed for {q}: {e}")
+
+        results = all_results
+
+        # 如果仍然没有结果，从 UniProt 获取序列作为回退
+        if not results:
+            # 尝试使用 UniProt ID 或基因名
+            search_uniprot = protein_info.get("uniprot_id") or protein_info.get("gene_name") or query
+            try:
+                from core.uniprot_client import UniProtAPIClient
+                client = UniProtAPIClient()
+                uniprot_data = client.get_sequence(search_uniprot)
+                if uniprot_data:
+                    results = [{
+                        "pdb_id": None,
+                        "title": f"UniProt: {search_uniprot}",
+                        "resolution": None,
+                        "method": "UniProt",
+                        "emdb_id": None,
+                        "sequence": uniprot_data.get("sequence", ""),
+                        "sequence_length": uniprot_data.get("length", 0),
+                        "source": "uniprot"
+                    }]
+            except Exception as e:
+                logger.warning(f"UniProt fallback search failed: {e}")
+
+        # 去重并获取实体序列
+        seen = set()
+        unique_results = []
+        for r in results:
+            if r:
+                pid = r.get("id") or r.get("pdb_id") or r.get("structure_id")
+                if pid and pid not in seen:
+                    seen.add(pid)
+
+                    # 从 structure_entities 表获取序列
+                    # 实际字段名：
+                    # - sequence: 氨基酸序列
+                    # - length: 序列长度
+                    # - molecule_type: 分子类型 (polypeptide(L), protein, DNA, RNA)
+                    # - molecule_name: 分子名称
+                    # - gene_names: 基因名称
+                    try:
+                        import sqlite3
+                        conn = sqlite3.connect(db.db_path)
+                        conn.row_factory = sqlite3.Row
+                        cursor = conn.cursor()
+                        # 使用模糊匹配 molecule_type，因为可能是 'polypeptide(L)'
+                        cursor.execute('''
+                            SELECT entity_id, sequence, length, molecule_type, molecule_name, gene_names, chain_ids, in_chains
+                            FROM structure_entities
+                            WHERE structure_id = ? AND (molecule_type LIKE '%protein%' OR molecule_type LIKE '%polypeptide%')
+                        ''', (pid,))
+                        entities = cursor.fetchall()
+                        conn.close()
+
+                        logger.info(f"[search_structures] Found {len(entities)} entities for {pid}")
+
+                        # 构建实体列表，每个实体单独保留（不合并序列）
+                        if entities:
+                            entity_list = []
+                            all_sequences = []
+                            total_length = 0
+                            molecule_names = set()
+                            gene_names_set = set()
+
+                            for entity in entities:
+                                entity_dict = dict(entity)
+                                seq = entity_dict.get("sequence", "")
+                                entity_id = entity_dict.get("entity_id", "")
+                                chain_ids = entity_dict.get("chain_ids", "") or entity_dict.get("in_chains", "")
+                                molecule_name = entity_dict.get("molecule_name", "")
+                                gene_name = entity_dict.get("gene_names", "")
+
+                                if seq:
+                                    # 保存实体详情
+                                    entity_list.append({
+                                        "entity_id": entity_id,
+                                        "chain_ids": chain_ids,
+                                        "protein_name": molecule_name,
+                                        "gene": gene_name,
+                                        "sequence": seq,
+                                        "length": len(seq)
+                                    })
+                                    all_sequences.append(seq)
+                                    total_length += len(seq)
+
+                                if molecule_name:
+                                    molecule_names.add(molecule_name)
+                                if gene_name:
+                                    gene_names_set.add(gene_name)
+
+                            # 保存实体列表（供 FASTA 格式输出）
+                            r["entities"] = entity_list
+
+                            # 兼容旧格式：合并序列
+                            if all_sequences:
+                                r["sequence"] = "\n".join(all_sequences)
+                                r["sequence_length"] = total_length
+                                logger.info(f"[search_structures] Got {len(entity_list)} entities, total sequence length: {total_length}")
+                            if molecule_names:
+                                r["protein_name"] = ", ".join(molecule_names)
+                            if gene_names_set:
+                                r["gene"] = ", ".join(gene_names_set)
+                    except Exception as e:
+                        logger.warning(f"Failed to get entity sequences for {pid}: {e}")
+
+                    unique_results.append(r)
+                elif not pid and r not in unique_results:
+                    unique_results.append(r)
 
         return {
             "query": query,
             "source": source,
-            "count": len(results),
+            "count": len(unique_results),
             "results": [
                 {
-                    "pdb_id": r.get("pdb_id") or r.get("structure_id"),
+                    "pdb_id": r.get("id") or r.get("pdb_id") or r.get("structure_id"),
                     "title": r.get("title", ""),
                     "resolution": r.get("resolution"),
-                    "method": r.get("experimental_method", ""),
-                    "emdb_id": r.get("emdb_id")
+                    "method": r.get("method", ""),
+                    "emdb_id": r.get("emdb_id"),
+                    "source": r.get("source", "structure_db"),
+                    # 新增：实体列表（每个实体单独一条序列）
+                    "entities": r.get("entities", []),
+                    # 保留兼容性
+                    "sequence": r.get("sequence", ""),
+                    "sequence_length": r.get("sequence_length") or len(r.get("sequence", "")) if r.get("sequence") else None,
+                    "gene": r.get("gene", ""),
+                    "protein_name": r.get("protein_name", "")
                 }
-                for r in results[:limit]
+                for r in unique_results[:limit]
             ]
         }
     except Exception as e:
@@ -201,16 +370,16 @@ def run_sequence_alignment_executor(sequence1: str, sequence2: str = None,
 
         # 处理UniProt ID
         if uniprot1:
-            from core.uniprot_client import UniProtClient
-            client = UniProtClient()
+            from core.uniprot_client import UniProtAPIClient
+            client = UniProtAPIClient()
             seq1_data = client.get_sequence(uniprot1)
             if not seq1_data:
                 return {"success": False, "error": f"UniProt ID {uniprot1} not found"}
             sequence1 = seq1_data.get("sequence", "")
 
         if uniprot2:
-            from core.uniprot_client import UniProtClient
-            client = UniProtClient()
+            from core.uniprot_client import UniProtAPIClient
+            client = UniProtAPIClient()
             seq2_data = client.get_sequence(uniprot2)
             if not seq2_data:
                 return {"success": False, "error": f"UniProt ID {uniprot2} not found"}
@@ -240,10 +409,11 @@ def run_sequence_alignment_executor(sequence1: str, sequence2: str = None,
 def get_structure_details_executor(structure_id: str, **kwargs) -> Dict:
     """获取结构详情"""
     try:
-        from core.structure_database import StructureDatabase
+        from core.structure_database import get_enhanced_structure_manager
         from flask import current_app
 
-        db = StructureDatabase()
+        manager = get_enhanced_structure_manager()
+        db = manager.database
 
         # 先在离线数据库中查找
         structure = db.get_structure(structure_id.upper())
@@ -327,9 +497,10 @@ def get_user_history_executor(user_id: str = None, session_id: str = None,
 def compare_structures_executor(structure_id1: str, structure_id2: str, **kwargs) -> Dict:
     """执行蛋白质结构比较"""
     try:
-        from core.structure_database import StructureDatabase
+        from core.structure_database import get_enhanced_structure_manager
 
-        db = StructureDatabase()
+        manager = get_enhanced_structure_manager()
+        db = manager.database
 
         # 获取两个结构的信息
         struct1 = db.get_structure(structure_id1.upper())
@@ -390,9 +561,10 @@ def compare_structures_executor(structure_id1: str, structure_id2: str, **kwargs
 def analyze_resolution_executor(structure_id: str, threshold: float = 3.0, **kwargs) -> Dict:
     """执行分辨率分析"""
     try:
-        from core.structure_database import StructureDatabase
+        from core.structure_database import get_enhanced_structure_manager
 
-        db = StructureDatabase()
+        manager = get_enhanced_structure_manager()
+        db = manager.database
         structure = db.get_structure(structure_id.upper())
 
         if not structure:
@@ -639,7 +811,19 @@ def initialize_tools():
     # 1. 文献搜索工具
     literature_tool = AgentTool(
         name="search_literature",
-        description="搜索科学文献数据库。根据关键词查找相关文献，返回文献标题、作者、期刊等信息。",
+        description="""搜索科学文献数据库。根据关键词查找相关文献，返回文献标题、作者、期刊等信息。
+
+适用场景：
+- 问某蛋白/基因相关的文献
+- 问某技术的文献
+- 问某实验方法的文献
+
+返回数据：
+- title: 文献标题
+- authors: 作者列表
+- journal: 期刊名称
+- year: 发表年份
+- abstract: 摘要（如有）""",
         category="search",
         parameters=[
             ToolParameter(name="query", description="搜索关键词", type="string", required=True),
@@ -650,14 +834,35 @@ def initialize_tools():
     registry.register_executor("search_literature", search_literature_executor)
 
     # 2. 结构搜索工具
+    # 数据库索引：
+    # - structures 表: id(PDB), title, resolution, method, gene, protein_name
+    # - structure_entities 表: entity_poly_seq_one_letter_code(序列), entity_poly_seq_length, molecule_type
+    # - uniprot_structure_mapping 表: uniprot_id, structure_id, gene_name
     structure_tool = AgentTool(
         name="search_structures",
-        description="搜索蛋白质结构数据库(PDB/EMDB)。根据ID或关键词查找相关结构信息。",
+        description="""搜索蛋白质结构数据库(PDB/EMDB)。根据ID或关键词查找相关结构信息。
+
+适用场景：
+- 问蛋白质的序列是什么
+- 问结构的分辨率、实验方法
+- 根据蛋白名称/基因名查找对应结构
+- 查询某个PDB ID的详细信息
+
+返回数据：
+- pdb_id: PDB ID
+- title: 结构标题
+- resolution: 分辨率(Å)
+- method: 实验方法(X-ray/Cryo-EM)
+- sequence: 氨基酸序列
+- sequence_length: 序列长度
+- gene: 基因名称
+- protein_name: 蛋白名称""",
         category="search",
         parameters=[
-            ToolParameter(name="query", description="搜索关键词或结构ID", type="string", required=True),
+            ToolParameter(name="query", description="搜索关键词（蛋白名称/基因名/PDB ID）", type="string", required=True),
             ToolParameter(name="source", description="结构来源(pdb/emdb)", type="string", required=False, default="pdb"),
-            ToolParameter(name="limit", description="返回结果数量限制", type="integer", required=False, default=10)
+            ToolParameter(name="limit", description="返回结果数量限制", type="integer", required=False, default=10),
+            ToolParameter(name="protein_info", description="AI提取的蛋白信息（可选，包含standard_name, gene_name, uniprot_id等）", type="object", required=False, default=None)
         ]
     )
     registry.register(structure_tool)
@@ -902,8 +1107,11 @@ def initialize_tools():
             if image_path:
                 return {
                     "success": True,
-                    "pdb_id": pdb_id,
-                    "image_path": image_path
+                    "result": {
+                        "pdb_id": pdb_id,
+                        "image_path": image_path,
+                        "style": style
+                    }
                 }
             return {
                 "success": False,

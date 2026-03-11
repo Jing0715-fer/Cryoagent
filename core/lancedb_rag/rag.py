@@ -223,6 +223,87 @@ class UnifiedLanceRAG:
         logger.info(f"已添加 {len(records)} 条文献记录")
         return len(records)
 
+    def add_literature_chunks(
+        self,
+        literature_entry: Dict[str, Any],
+        chunk_size: int = 500,
+        chunk_overlap: int = 50,
+        batch_size: int = 32,
+    ) -> int:
+        """
+        将文献分块后存储到 LanceDB
+
+        使用现有的 UnifiedDocumentGenerator 分块逻辑，
+        为每个 chunk 生成 embedding 并存储。
+
+        Args:
+            literature_entry: 文献数据，包含 full_text, sections, abstract 等
+            chunk_size: 分块大小（字符），默认 500
+            chunk_overlap: 重叠大小（字符），默认 50
+            batch_size: 批处理大小，默认 32
+
+        Returns:
+            添加的 chunk 数量
+        """
+        if not self._literature_table:
+            self.initialize_tables()
+
+        # 动态导入避免循环依赖
+        from core.literature_index import UnifiedDocumentGenerator
+
+        # 使用现有的分块逻辑
+        generator = UnifiedDocumentGenerator()
+        # 设置 chunk 配置
+        generator.config = type('Config', (), {
+            'chunk_size': chunk_size,
+            'chunk_overlap': chunk_overlap
+        })()
+
+        # 生成 chunks
+        chunks = generator.chunk_literature_content(literature_entry)
+
+        if not chunks:
+            logger.warning(f"文献 {literature_entry.get('id')} 未生成任何 chunks")
+            return 0
+
+        # 准备文本用于 embedding
+        texts = [chunk.content for chunk in chunks]
+
+        # 批量生成 embeddings
+        embeddings = self.embedding_manager.encode(texts, batch_size=batch_size)
+
+        # 准备 LanceDB 记录
+        records = []
+        for chunk, embedding in zip(chunks, embeddings):
+            record = {
+                "id": chunk.doc_id,
+                "doc_id": chunk.source_id,
+                "title": chunk.title[:500] if chunk.title else "",
+                "abstract": "",  # chunks 没有单独的 abstract
+                "full_text": chunk.content,
+                "entity_type": "literature",
+                "section": chunk.metadata.get("section", ""),
+                "chunk_index": chunk.metadata.get("chunk_index", 0),
+                "doc_type": chunk.metadata.get("doc_type", "content_chunk"),
+                "chunk_length": chunk.metadata.get("chunk_length", len(chunk.content)),
+                "year": chunk.metadata.get("year", 0),
+                "journal": chunk.metadata.get("journal", ""),
+                "doi": literature_entry.get("doi", ""),
+                "authors": literature_entry.get("authors", []),
+                "keywords": literature_entry.get("keywords", []),
+                "metadata": json.dumps(chunk.metadata),
+                "embedding": embedding,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            }
+            records.append(record)
+
+        # 插入 LanceDB
+        self._literature_table.add(records)
+
+        logger.info(f"已添加 {len(records)} 条文献 chunk 记录 (文献 ID: {literature_entry.get('id')})")
+        return len(records)
+
     def add_structure(
         self,
         documents: List[Dict[str, Any]],
@@ -273,6 +354,7 @@ class UnifiedLanceRAG:
         """准备文献记录"""
         return {
             "id": doc.get("id", ""),
+            "doc_id": doc.get("doc_id", doc.get("id", "")),  # 支持 chunk 文档
             "doi": doc.get("doi", ""),
             "arxiv_id": doc.get("arxiv_id", ""),
             "pmid": doc.get("pmid", ""),
@@ -290,6 +372,11 @@ class UnifiedLanceRAG:
             "discussion": doc.get("discussion", ""),
             "conclusions": doc.get("conclusions", ""),
             "metadata": json.dumps(doc.get("metadata", {})),
+            # Chunk 支持字段
+            "chunk_index": doc.get("chunk_index", 0),
+            "section": doc.get("section", ""),
+            "doc_type": doc.get("doc_type", "metadata"),
+            "chunk_length": doc.get("chunk_length", 0),
             "embedding": embedding,
             "created_at": datetime.now(),
             "updated_at": datetime.now(),
@@ -555,6 +642,107 @@ class UnifiedLanceRAG:
             logger.error(f"重排序失败: {e}")
 
         return results[:top_k]
+
+    def retrieve_chunks(
+        self,
+        query: str,
+        top_k: int = 10,
+        doc_id: Optional[str] = None,
+        sections: Optional[List[str]] = None,
+        use_rerank: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        检索相关内容块
+
+        专门用于检索 chunk 级别的文献内容，提供更细粒度的上下文。
+
+        Args:
+            query: 查询文本
+            top_k: 返回结果数量
+            doc_id: 可选，限定来源文档 ID
+            sections: 可选，限定章节列表 (如 ["methods", "results"])
+            use_rerank: 是否使用重排序
+
+        Returns:
+            包含 chunk 内容、来源文献信息、相关性分数的结果列表
+        """
+        if not self._literature_table:
+            self.initialize_tables()
+
+        # 生成查询 embedding
+        query_embedding = self.embedding_manager.encode(query)[0]
+
+        # 向量检索
+        try:
+            search_builder = self._literature_table.search(query_embedding)
+
+            # 添加过滤条件
+            if doc_id:
+                # LanceDB 的 where 子句
+                search_builder = search_builder.where(f"doc_id = '{doc_id}'")
+
+            if sections:
+                # 构建 OR 条件
+                section_conditions = " OR ".join([f"section = '{s}'" for s in sections])
+                if doc_id:
+                    search_builder = search_builder.where(f"doc_id = '{doc_id}' AND ({section_conditions})")
+                else:
+                    search_builder = search_builder.where(section_conditions)
+
+            results = search_builder.limit(top_k * 3).to_list()
+
+        except Exception as e:
+            logger.error(f"Chunk 检索失败: {e}")
+            return []
+
+        # 格式化结果
+        formatted_results = []
+        for r in results:
+            # 只返回 content_chunk 类型的文档
+            if r.get("doc_type") != "content_chunk":
+                continue
+
+            formatted_results.append({
+                "id": r.get("id"),
+                "doc_id": r.get("doc_id"),
+                "chunk_index": r.get("chunk_index", 0),
+                "section": r.get("section", ""),
+                "title": r.get("title", ""),
+                "content": r.get("full_text", ""),
+                "score": r.get("_distance", 0),
+                "year": r.get("year"),
+                "journal": r.get("journal", ""),
+            })
+
+        # 重排序
+        if use_rerank and self.reranker and formatted_results:
+            try:
+                # 准备重排序文档
+                docs_for_rerank = [{"content": r["content"], "id": r["id"]} for r in formatted_results]
+                reranked = self.reranker.rerank(
+                    query=query,
+                    documents=docs_for_rerank,
+                    top_k=top_k,
+                )
+
+                # 重新排序结果
+                reranked_results = []
+                for rr in reranked:
+                    orig_id = rr.get("document", {}).get("id") or rr.get("id")
+                    for orig in formatted_results:
+                        if orig["id"] == orig_id:
+                            orig["rerank_score"] = rr.get("rerank_score", 0)
+                            orig["score"] = rr.get("rerank_score", orig["score"])
+                            reranked_results.append(orig)
+                            break
+
+                formatted_results = reranked_results[:top_k]
+
+            except Exception as e:
+                logger.warning(f"重排序失败: {e}")
+                formatted_results = formatted_results[:top_k]
+
+        return formatted_results[:top_k]
 
     def _adaptive_search(
         self,

@@ -80,6 +80,7 @@ from routes import auth
 from routes import qa_agent
 from routes import skills
 from routes import pymol
+from routes import rag_evaluation
 
 # 注册所有蓝图
 app.register_blueprint(auth.bp)
@@ -97,6 +98,7 @@ app.register_blueprint(evaluation.bp, url_prefix='/api/evaluation')
 app.register_blueprint(qa_agent.bp, url_prefix='/api/qa/agent')
 app.register_blueprint(skills.bp)
 app.register_blueprint(pymol.bp, url_prefix='/api/pymol')
+app.register_blueprint(rag_evaluation.bp)
 
 # HTML页面路由 - 需要登录
 @app.route('/')
@@ -434,4 +436,4 @@ if __name__ == '__main__':
     print("Press Ctrl+C to stop")
     print("=" * 47)
 
-    app.run(host='0.0.0.0', port=port, debug=True)
+app.run(host='0.0.0.0', port=port, debug=True)

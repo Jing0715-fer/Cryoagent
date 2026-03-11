@@ -4,10 +4,12 @@
   "api_key": "sk-cp-Z0lrWRE3uyJ68uuGsHICJtTVJtqJDcGTs4-uqM2BsAzN-8fVE3iEXZKaVbmXEaQQ4EcgwSay-aD2XGMN6GZMfRJ5-wDouTsVReEvWvBYOjsAx5bjjAJn7Gk",
   "chat_model": "Minimax-M2.5",
   "embedding_model": "all-MiniLM-L6-v2",
-  "vector_engine": "faiss",
-  "search_type": "vector",
-  "reranker_enabled": false,
+  "vector_engine": "lancedb",
+  "search_type": "hybrid",
+  "reranker_enabled": true,
+  "reranker_model": "cross-encoder",
   "jina_api_key": "",
+  "max_tokens": 8096,
   "models": [
     {
       "api_base": "https://api.minimaxi.com/anthropic",

@@ -22,6 +22,9 @@ function initPage() {
     // 初始化 RAG 按钮状态
     initRagButton();
 
+    // 初始化 Agent 模式按钮状态
+    initAgentModeButton();
+
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {
         // Auto-resize textarea
@@ -45,6 +48,14 @@ function initPage() {
 
     // Load chat history from server
     loadChatHistoryFromServer();
+
+    // 为已存在的消息添加复制按钮
+    setTimeout(() => {
+        const container = document.getElementById('chat-messages');
+        if (container) {
+            addCopyButtons(container);
+        }
+    }, 500);
 }
 
 // Start a new session - 清除当前会话，开始新会话
@@ -128,7 +139,14 @@ function startNewSession() {
 async function loadChatHistoryFromServer() {
     console.log('[QA] 正在加载聊天历史...');
     try {
-        const response = await fetch('/api/qa/history?limit=50');
+        // 构建 URL，如果有 session_id 则发送
+        let url = '/api/qa/history?limit=50';
+        if (currentSessionId) {
+            url += `&session_id=${encodeURIComponent(currentSessionId)}`;
+        }
+        console.log('[QA] 请求URL:', url);
+
+        const response = await fetch(url);
         console.log('[QA] 历史API响应状态:', response.status);
         const data = await response.json();
         console.log('[QA] 历史数据:', data);
@@ -294,15 +312,84 @@ async function loadHistorySession(sessionId) {
             // 用户消息
             addChatMessage('user', entry.question || '', []);
 
-            // AI 回答
-            const sources = entry.sources || [];
+            // AI 回答 - 尝试从 result_json 中提取来源
+            let sources = entry.sources || [];
+
+            // 如果有 result_json，尝试解析出完整的来源信息
+            if (entry.result_json) {
+                try {
+                    const result = JSON.parse(entry.result_json);
+                    const toolResults = result.tool_results || [];
+
+                    // 从 tool_results 提取来源
+                    for (const tr of toolResults) {
+                        if (tr.tool_name === 'search_literature' && tr.result) {
+                            const results = tr.result.results || [];
+                            for (const lit of results) {
+                                sources.push({
+                                    type: 'literature',
+                                    id: String(lit.id || ''),
+                                    title: (lit.title || '').substring(0, 100)
+                                });
+                            }
+                        }
+                        if (tr.tool_name === 'search_structures' && tr.result) {
+                            const results = tr.result.results || [];
+                            for (const struct of results) {
+                                sources.push({
+                                    type: 'structure',
+                                    id: struct.pdb_id || '',
+                                    title: (struct.title || '').substring(0, 100)
+                                });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('解析 result_json 失败:', e);
+                }
+            }
+
             addChatMessage('assistant', entry.answer || '', sources);
         });
 
         // 更新搜索结果面板（显示最后一条消息的来源）
         if (sessionItems.length > 0) {
             const lastItem = sessionItems[sessionItems.length - 1];
-            updateSearchResults(lastItem.sources || []);
+            let lastSources = lastItem.sources || [];
+
+            // 同样尝试从 result_json 解析最后一条的来源
+            if (lastItem.result_json) {
+                try {
+                    const result = JSON.parse(lastItem.result_json);
+                    const toolResults = result.tool_results || [];
+                    for (const tr of toolResults) {
+                        if (tr.tool_name === 'search_literature' && tr.result) {
+                            const results = tr.result.results || [];
+                            for (const lit of results) {
+                                lastSources.push({
+                                    type: 'literature',
+                                    id: String(lit.id || ''),
+                                    title: (lit.title || '').substring(0, 100)
+                                });
+                            }
+                        }
+                        if (tr.tool_name === 'search_structures' && tr.result) {
+                            const results = tr.result.results || [];
+                            for (const struct of results) {
+                                lastSources.push({
+                                    type: 'structure',
+                                    id: struct.pdb_id || '',
+                                    title: (struct.title || '').substring(0, 100)
+                                });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('解析 result_json 失败:', e);
+                }
+            }
+
+            updateSearchResults(lastSources);
         }
 
         // 关闭历史面板（如果在移动端）
@@ -483,9 +570,19 @@ async function clearChatHistory() {
 }
 
 // Add message to chat
-function addChatMessage(role, content, sources = []) {
+function addChatMessage(role, content, sources = [], imageUrl = null) {
     const container = document.getElementById('chat-messages');
-    if (!container) return;
+    console.log('[QA.js] addChatMessage called:', { role, content: content?.substring(0, 50), sources: sources?.length, imageUrl });
+
+    if (!container) {
+        console.error('[QA.js] chat-messages container not found!');
+        return;
+    }
+
+    // Null safety checks
+    if (!content) content = '';
+    if (!sources || !Array.isArray(sources)) sources = [];
+    if (!imageUrl) imageUrl = null;
 
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
@@ -518,6 +615,16 @@ function addChatMessage(role, content, sources = []) {
         `;
     }
 
+    // Image display
+    let imageHtml = '';
+    if (imageUrl) {
+        imageHtml = `
+            <div class="message-image">
+                <img src="${escapeHtml(imageUrl)}" alt="结构图像" style="max-width: 100%; border-radius: 8px; margin-top: 10px;" onerror="this.style.display='none'">
+            </div>
+        `;
+    }
+
     // Simple markdown-like formatting - 同时去除首尾空白
     const formattedContent = formatMessage(content).trim();
 
@@ -525,12 +632,16 @@ function addChatMessage(role, content, sources = []) {
         ${avatar}
         <div class="message-content">
             <div class="message-text">${formattedContent}</div>
+            ${imageHtml}
             ${sourcesHtml}
         </div>
     `;
 
     container.appendChild(messageDiv);
     container.scrollTop = container.scrollHeight;
+
+    // 为代码块添加复制按钮
+    addCopyButtons(messageDiv);
 }
 
 // Format message content with Markdown support
@@ -587,6 +698,49 @@ function formatMessage(text) {
     return formatted;
 }
 
+// Add copy buttons to code blocks
+function addCopyButtons(container) {
+    const preBlocks = container.querySelectorAll('.message-text pre');
+    preBlocks.forEach(pre => {
+        // 跳过已有复制按钮的
+        if (pre.querySelector('.copy-btn')) return;
+
+        const code = pre.querySelector('code');
+        if (!code) return;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.title = '复制';
+        // 使用 SVG 图标
+        copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>`;
+        copyBtn.onclick = async (e) => {
+            e.preventDefault();
+            const textToCopy = code.textContent || '';
+            try {
+                await navigator.clipboard.writeText(textToCopy);
+                // 切换到勾选图标
+                copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>`;
+                copyBtn.classList.add('copied');
+                setTimeout(() => {
+                    copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>`;
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('复制失败:', err);
+            }
+        };
+        pre.appendChild(copyBtn);
+    });
+}
+
 // Escape HTML
 function escapeHtml(text) {
     const div = document.createElement('div');
@@ -611,8 +765,12 @@ function showToast(message, type = 'info') {
     container.appendChild(toast);
 
     setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
+        if (toast && toast.parentNode) {
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                if (toast && toast.parentNode) toast.remove();
+            }, 300);
+        }
     }, 3000);
 }
 
@@ -677,9 +835,22 @@ function initRagButton() {
     }
 }
 
+// Initialize Agent mode button state on page load
+function initAgentModeButton() {
+    const agentBtn = document.getElementById('agent-mode-btn');
+    if (agentBtn) {
+        agentBtn.classList.toggle('active', agentMode);
+        agentBtn.innerHTML = agentMode ? '🤖 Agent' : '📝 Normal';
+    }
+}
+
 // Main send chat message function
 async function sendChatMessage() {
     if (isProcessing) return;
+
+    // 初始化变量以防止引用错误
+    let imageUrl = null;
+    let sources = [];
 
     const input = document.getElementById('chat-input');
     const message = input?.value.trim();
@@ -737,17 +908,31 @@ async function sendChatMessage() {
         // 尝试解析为普通JSON响应
         try {
             const data = await response.json();
-            if (data.success && data.answer) {
-                finalAnswer = data.answer;
-                sources = data.sources || [];
-                // 保存返回的session_id
+            if (data.success) {
+                if (data.result) {
+                    // 新格式：{'success': true, 'result': {type, content, image_url, ...}}
+                    finalAnswer = data.result.content || '';
+                    sources = data.result.sources || [];
+                    imageUrl = data.result.image_url || null;
+                    console.log('[QA.js] 使用新格式：content=', finalAnswer.substring(0, 50), 'imageUrl=', imageUrl);
+                } else if (data.answer) {
+                    // 旧格式：{'success': true, 'answer': ..., 'image_url': ...}
+                    finalAnswer = data.answer;
+                    sources = data.sources || [];
+                    imageUrl = data.image_url || null;
+                    console.log('[QA.js] 使用旧格式：content=', finalAnswer.substring(0, 50), 'imageUrl=', imageUrl);
+                } else {
+                    console.error('API 返回成功但没有内容:', data);
+                }
+                // 保存返回的 session_id
                 if (data.session_id) {
                     currentSessionId = data.session_id;
                     localStorage.setItem('currentSessionId', currentSessionId);
                     console.log('Session ID:', currentSessionId);
                 }
-            } else if (data.error) {
-                throw new Error(data.error);
+            } else {
+                console.error('API 返回错误:', data);
+                throw new Error(data.error || 'Unknown error');
             }
         } catch (e) {
             console.error('JSON parse error:', e);
@@ -756,7 +941,6 @@ async function sendChatMessage() {
 
         // 如果上面的JSON解析失败，尝试SSE流式处理作为fallback
         if (!finalAnswer) {
-
         // 更新步骤状态的函数
         const updateStep = (stepNum, stepName, message) => {
             for (let i = 1; i <= 5; i++) {
@@ -798,6 +982,9 @@ async function sendChatMessage() {
                             finalAnswer += event.content || '';
                         } else if (event.type === 'sources') {
                             sources = event.sources || [];
+                        } else if (event.type === 'image_url') {
+                            // 图像 URL 事件
+                            imageUrl = event.image_url || null;
                         } else if (event.type === 'done') {
                             // 完成
                             updateStep(5, '生成回答', '回答生成完成');
@@ -805,6 +992,7 @@ async function sendChatMessage() {
                             // 普通 JSON 响应
                             finalAnswer = event.answer;
                             sources = event.sources || [];
+                            imageUrl = event.image_url || null;
                         }
                     } catch (e) {
                         // 可能是不是 JSON 的原始内容
@@ -825,8 +1013,8 @@ async function sendChatMessage() {
             sources = window.lastSources;
         }
 
-        // Add assistant message
-        addChatMessage('assistant', finalAnswer || '抱歉，我没有找到相关信息。', sources);
+        // Add assistant message (包含 image_url)
+        addChatMessage('assistant', finalAnswer || '抱歉，我没有找到相关信息。', sources, imageUrl);
         chatHistory.push({ role: 'assistant', content: finalAnswer || '' });
 
         // Refresh history list
@@ -886,6 +1074,9 @@ async function sendAgentMessage() {
     // Enter conversation mode
     enterConversationMode();
 
+    // [DEBUG] 检查 agentMode 状态
+    console.log('[QA.js] agentMode:', agentMode);
+
     try {
         // Create loading message
         const loadingDiv = createLoadingMessage();
@@ -893,12 +1084,18 @@ async function sendAgentMessage() {
 
         console.log('[QA Agent] Sending message:', trimmedMessage, 'session_id:', currentSessionId);
 
-        const response = await fetch('/api/qa/agent', {
+        // 使用 ask-v2 端点，支持自动路由
+        // 获取 max_tokens 配置
+        const maxTokensInput = document.getElementById('max-tokens');
+        const maxTokens = maxTokensInput ? parseInt(maxTokensInput.value, 10) || 8096 : 8096;
+
+        const response = await fetch('/api/qa/ask-v2', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 question: trimmedMessage,
-                session_id: currentSessionId
+                session_id: currentSessionId,
+                max_tokens: maxTokens
             })
         });
 
@@ -906,8 +1103,13 @@ async function sendAgentMessage() {
 
         const data = await response.json();
 
+        // [DEBUG] 打印后端返回的原始数据
+        console.log('[QA.js] 收到后端响应:', JSON.stringify(data, null, 2));
+
         // Remove loading
-        loadingDiv.remove();
+        if (loadingDiv && loadingDiv.parentNode) {
+            loadingDiv.remove();
+        }
 
         if (!data.success) {
             throw new Error(data.error || 'Agent处理失败');
@@ -920,11 +1122,29 @@ async function sendAgentMessage() {
         }
 
         // Process result based on type
-        await processAgentResult(data.result);
+        // Support both new format (data.result) and old format (data.answer, data.image_url)
+        if (data.result) {
+            // New format: {'success': True, 'result': {type, content, image_url, ...}, ...}
+            await processAgentResult(data.result);
+        } else if (data.answer !== undefined) {
+            // Old format: {'answer': ..., 'image_url': ..., 'success': True, ...}
+            // Convert to new format
+            const convertedResult = {
+                type: 'answer',
+                content: data.answer,
+                image_url: data.image_url || null,
+                tool_results: data.tool_results || []
+            };
+            await processAgentResult(convertedResult);
+        } else {
+            console.error('No result in response:', data);
+            addChatMessage('assistant', '抱歉，发生了错误: 未收到有效响应', []);
+        }
 
     } catch (error) {
         console.error('QA Agent Error:', error);
-        loadingDiv?.remove();
+        const loading = document.getElementById('loading-message');
+        if (loading) loading.remove();
         addChatMessage('assistant', '抱歉，发生了错误: ' + error.message, []);
         showToast('问答失败: ' + error.message, 'error');
     } finally {
@@ -971,7 +1191,10 @@ async function handleClarificationResponse(value) {
         });
 
         const data = await response.json();
-        loadingDiv.remove();
+        // Remove loading
+        if (loadingDiv && loadingDiv.parentNode) {
+            loadingDiv.remove();
+        }
 
         if (!data.success) {
             throw new Error(data.error || '处理失败');
@@ -986,12 +1209,24 @@ async function handleClarificationResponse(value) {
         // Clear clarification state
         currentClarification = null;
 
-        // Process result
-        await processAgentResult(data.result);
+        // Process result - support both new and old format
+        if (data.result) {
+            await processAgentResult(data.result);
+        } else if (data.answer !== undefined) {
+            const convertedResult = {
+                type: 'answer',
+                content: data.answer,
+                image_url: data.image_url || null,
+                tool_results: data.tool_results || []
+            };
+            await processAgentResult(convertedResult);
+        }
 
     } catch (error) {
         console.error('Clarification Error:', error);
-        loadingDiv.remove();
+        if (loadingDiv && loadingDiv.parentNode) {
+            loadingDiv.remove();
+        }
         addChatMessage('assistant', '处理选择时出错: ' + error.message, []);
     } finally {
         isProcessing = false;
@@ -1000,6 +1235,14 @@ async function handleClarificationResponse(value) {
 
 // Process agent result based on type
 async function processAgentResult(result) {
+    console.log('[QA.js] processAgentResult called with:', JSON.stringify(result, null, 2));
+
+    if (!result || !result.type) {
+        console.error('Invalid result:', result);
+        addChatMessage('assistant', '抱歉，发生了错误: 响应格式无效', []);
+        return;
+    }
+
     switch (result.type) {
         case 'clarification':
             // Show clarification options
@@ -1007,11 +1250,18 @@ async function processAgentResult(result) {
             break;
 
         case 'answer':
-            // Show answer
-            addChatMessage('assistant', result.content, []);
+            // Show answer with image if available
+            const imageUrl = result.image_url || null;
+            const sources = result.sources || [];
+            console.log('[QA.js] answer case: content=', result.content, 'imageUrl=', imageUrl, 'sources=', sources);
+            addChatMessage('assistant', result.content, sources, imageUrl);
             // Update search results if there are tool results
             if (result.tool_results && result.tool_results.length > 0) {
                 processToolResults(result.tool_results);
+            }
+            // Update search results panel
+            if (sources.length > 0) {
+                updateSearchResults(sources);
             }
             break;
 

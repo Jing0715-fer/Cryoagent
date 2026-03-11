@@ -10,7 +10,7 @@ import logging
 print(f"DEBUG: Loading routes.qa_agent from {__file__}")
 
 # Add project root to path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -101,13 +101,19 @@ def agent_process():
         context = _get_context(session_id)
 
         # 异步执行Agent（传入 skill_id）
+        # 需要在应用上下文中执行，以便工具可以使用 Flask app
+        from flask import Flask
+        import app as flask_app_module
+
+        def run_agent():
+            with flask_app_module.app.app_context():
+                return asyncio.run(
+                    get_agent(skill_id=skill_id).process(question, context, session_data, skill_id=skill_id)
+                )
+
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(
-                asyncio.run,
-                get_agent(skill_id=skill_id).process(question, context, session_data, skill_id=skill_id)
-            )
-            result = future.result()
+            result = executor.submit(run_agent).result()
 
         # 保存会话数据
         _save_session_data(session_id, session_data)
@@ -155,6 +161,7 @@ def agent_stream():
     SSE流式输出Agent执行过程
     """
     import uuid
+    import app as flask_app_module
 
     try:
         question = request.args.get('question', '')
@@ -171,24 +178,26 @@ def agent_stream():
             yield f"data: {json.dumps({'type': 'start', 'session_id': session_id})}\n\n"
 
             try:
-                # 获取Agent
-                agent = get_agent()
-                session_data = _get_session_data(session_id)
-                context = _get_context(session_id)
+                # 在应用上下文中执行
+                with flask_app_module.app.app_context():
+                    # 获取Agent
+                    agent = get_agent()
+                    session_data = _get_session_data(session_id)
+                    context = _get_context(session_id)
 
-                # 发送分析消息
-                yield f"data: {json.dumps({'type': 'thinking', 'message': '正在分析问题...'})}\n\n"
+                    # 发送分析消息
+                    yield f"data: {json.dumps({'type': 'thinking', 'message': '正在分析问题...'})}\n\n"
 
-                # 模拟流式输出（实际实现中可以根据迭代逐步发送）
-                result = asyncio.run(agent.process(question, context, session_data))
+                    # 模拟流式输出（实际实现中可以根据迭代逐步发送）
+                    result = asyncio.run(agent.process(question, context, session_data))
 
-                # 发送工具执行结果
-                if result.get('tool_results'):
-                    for tool_result in result['tool_results']:
-                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_result['tool_name'], 'success': tool_result['success']})}\n\n"
+                    # 发送工具执行结果
+                    if result.get('tool_results'):
+                        for tool_result in result['tool_results']:
+                            yield f"data: {json.dumps({'type': 'tool_result', 'tool': tool_result['tool_name'], 'success': tool_result['success']})}\n\n"
 
-                # 发送最终结果
-                yield f"data: {json.dumps({'type': 'result', 'result': result})}\n\n"
+                    # 发送最终结果
+                    yield f"data: {json.dumps({'type': 'result', 'result': result})}\n\n"
 
             except Exception as e:
                 logger.error(f"Error in stream: {e}")
@@ -347,11 +356,13 @@ def _handle_clarification_response(session_id: str, clarification_id: str,
 def _save_qa_history(user_id: str, session_id: str, question: str, result: dict):
     """保存问答历史"""
     try:
-        from core.literature_db import save_qa_history
+        from core.literature_db import save_qa_history, get_user_id_by_string
 
         if user_id:
+            # 将字符串用户ID转换为整数
+            user_id_int = get_user_id_by_string(user_id)
             save_qa_history(
-                user_id=user_id,
+                user_id=user_id_int,
                 session_id=session_id,
                 question=question,
                 answer=result.get('content', '') if result.get('type') == 'answer' else '',

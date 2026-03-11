@@ -608,22 +608,49 @@ window.loadStats = loadStats;
 window.ThemeManager = ThemeManager;
 
 // Rebuild index function
-async function rebuildIndex() {
-    if (!confirm('确定要重建索引吗？这可能需要几分钟时间。')) return;
+function rebuildIndex() {
+    // 创建确认弹窗
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+        <div class="confirm-dialog">
+            <h3>重建索引</h3>
+            <p>确定要重建索引吗？这可能需要几分钟时间。</p>
+            <div class="confirm-buttons">
+                <button class="btn-cancel">取消</button>
+                <button class="btn-confirm">确定</button>
+            </div>
+        </div>
+    `;
 
-    try {
-        const response = await fetch('/api/index/rebuild', { method: 'POST' });
-        const data = await response.json();
-        if (data.success) {
-            showToast('索引重建任务已在后台启动', 'success');
-            // 开始轮询进度
-            startProgressPolling();
-        } else {
-            showToast('启动失败: ' + (data.error || '未知错误'), 'error');
+    document.body.appendChild(overlay);
+
+    // 绑定事件
+    const cancelBtn = overlay.querySelector('.btn-cancel');
+    const confirmBtn = overlay.querySelector('.btn-confirm');
+
+    const closeDialog = () => overlay.remove();
+
+    cancelBtn.onclick = closeDialog;
+    confirmBtn.onclick = async () => {
+        closeDialog();
+        try {
+            const response = await fetch('/api/literature/index/rebuild', { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast('索引重建任务已在后台启动', 'success');
+            } else {
+                showToast('启动失败: ' + (data.error || '未知错误'), 'error');
+            }
+        } catch (e) {
+            showToast('请求失败: ' + e.message, 'error');
         }
-    } catch (e) {
-        showToast('请求失败: ' + e.message, 'error');
-    }
+    };
+
+    // 点击遮罩关闭
+    overlay.onclick = (e) => {
+        if (e.target === overlay) closeDialog();
+    };
 }
 
 window.rebuildIndex = rebuildIndex;
