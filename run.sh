@@ -5,15 +5,24 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Check for virtual environment
-if [ -d "venv" ]; then
-    source venv/bin/activate
+# Use homebrew miniconda environment (has PyMOL working)
+CONDA_ENV="/opt/anaconda3/envs/cryoagent"
+
+if [ -d "$CONDA_ENV" ]; then
+    echo "Using conda environment: cryoagent"
+    PYTHON="$CONDA_ENV/bin/python"
+else
+    # Check for virtual environment
+    if [ -d "venv" ]; then
+        source venv/bin/activate
+    fi
+    PYTHON="python"
 fi
 
 # Install dependencies if needed
-if ! python -c "import flask" 2>/dev/null; then
+if ! $PYTHON -c "import flask" 2>/dev/null; then
     echo "Installing Flask dependencies..."
-    pip install flask flask-cors gunicorn
+    $PYTHON -m pip install flask flask-cors gunicorn
 fi
 
 # Set Python path
@@ -28,4 +37,4 @@ echo ""
 echo "Press Ctrl+C to stop"
 echo "============================================"
 
-python app.py
+$PYTHON app.py

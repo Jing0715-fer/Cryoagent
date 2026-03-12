@@ -588,6 +588,9 @@ class ProteinEvaluation(Base):
     feishu_doc_url = Column(String(500))
     feishu_doc_id = Column(String(100))
 
+    # 批量评估关联
+    batch_id = Column(Integer, ForeignKey('batch_evaluations.id'), nullable=True)
+
     # 时间戳
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
@@ -615,11 +618,121 @@ class ProteinEvaluation(Base):
             'report': self.report,
             'feishu_doc_url': self.feishu_doc_url,
             'feishu_doc_id': self.feishu_doc_id,
+            'batch_id': self.batch_id,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+
+# ---------- 批量评估任务表 ----------
+class BatchEvaluation(Base):
+    """批量评估任务"""
+    __tablename__ = "batch_evaluations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200))  # 批量评估名称
+    uniprot_ids = Column(JSON)  # UniProt ID 列表
+    status = Column(String(20), default='pending')  # pending, processing, completed, failed
+    progress = Column(Integer, default=0)  # 0-100
+    logs = Column(JSON)  # 运行日志
+
+    # 评估结果
+    interaction_data = Column(JSON)  # 蛋白互作数据
+    batch_ai_analysis = Column(JSON)  # 批量AI分析结果
+    batch_report = Column(Text)  # 综合分析报告
+
+    # 配置
+    config = Column(JSON)
+
+    # 时间戳
+    created_at = Column(DateTime, default=datetime.now)
+    completed_at = Column(DateTime)
+
+    def __repr__(self):
+        return f"<BatchEvaluation(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'uniprot_ids': self.uniprot_ids,
+            'status': self.status,
+            'progress': self.progress,
+            'logs': self.logs,
+            'interaction_data': self.interaction_data,
+            'batch_ai_analysis': self.batch_ai_analysis,
+            'batch_report': self.batch_report,
+            'config': self.config,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None
+        }
+
+
+# ---------- 蛋白相互作用数据表 ----------
+class ProteinInteraction(Base):
+    """蛋白相互作用数据"""
+    __tablename__ = "protein_interactions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    batch_id = Column(Integer, ForeignKey('batch_evaluations.id'), nullable=False)
+    protein_a = Column(String(20), nullable=False)  # UniProt ID A
+    protein_b = Column(String(20), nullable=False)  # UniProt ID B
+    interaction_type = Column(String(50))  # 相互作用类型
+    score = Column(Float)  # 相互作用置信度分数
+    source = Column(String(50))  # 数据来源 (String, BioGRID, etc.)
+    data_json = Column(JSON)  # 原始数据
+
+    def __repr__(self):
+        return f"<ProteinInteraction(id={self.id}, a='{self.protein_a}', b='{self.protein_b}')>"
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'batch_id': self.batch_id,
+            'protein_a': self.protein_a,
+            'protein_b': self.protein_b,
+            'interaction_type': self.interaction_type,
+            'score': self.score,
+            'source': self.source,
+            'data_json': self.data_json
+        }
+
+
+# ---------- AI提示模板表 ----------
+class PromptTemplate(Base):
+    """AI 提示模板表"""
+    __tablename__ = "prompt_templates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)  # 模板名称
+    content = Column(Text, nullable=False)  # 模板内容
+    is_default = Column(Boolean, default=False)  # 是否为默认模板
+    description = Column(Text)  # 模板描述
+    template_type = Column(String(20), default='single')  # 模板类型: single 或 batch
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def __repr__(self):
+        return f"<PromptTemplate(id={self.id}, name='{self.name}', type='{self.template_type}')>"
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'content': self.content,
+            'is_default': self.is_default,
+            'description': self.description,
+            'template_type': self.template_type,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+# ---------- 添加批量评估关联字段到ProteinEvaluation ----------
+# 在ProteinEvaluation类中添加batch_id字段（在feishu_doc_id之后）
+# 注意：需要先检查列是否存在，这里先定义添加列的函数
 
 
 # ---------- 数据库初始化与迁移 ----------
@@ -2115,6 +2228,303 @@ def search_protein_evaluations(query: str, limit: int = 20) -> List[ProteinEvalu
         session.close()
 
 
+# ========== 批量评估 CRUD ==========
+def create_batch_evaluation(name: str, uniprot_ids: List[str], config: Dict = None) -> Optional[BatchEvaluation]:
+    """创建批量评估记录"""
+    session = create_literature_session()
+    try:
+        batch = BatchEvaluation(
+            name=name,
+            uniprot_ids=uniprot_ids,
+            config=config or {},
+            status='pending',
+            progress=0,
+            logs=[],
+            created_at=datetime.now()
+        )
+        session.add(batch)
+        session.commit()
+        session.refresh(batch)
+        logger.info(f"创建批量评估成功: ID={batch.id}, UniProt IDs={len(uniprot_ids)}")
+        return batch
+    except Exception as e:
+        logger.error(f"创建批量评估失败: {e}")
+        session.rollback()
+        return None
+    finally:
+        session.close()
+
+
+def get_batch_evaluation(batch_id: int) -> Optional[BatchEvaluation]:
+    """获取批量评估记录"""
+    session = create_literature_session()
+    try:
+        return session.query(BatchEvaluation).filter(BatchEvaluation.id == batch_id).first()
+    finally:
+        session.close()
+
+
+def get_all_batch_evaluations(limit: int = 50, offset: int = 0) -> List[BatchEvaluation]:
+    """获取所有批量评估记录"""
+    session = create_literature_session()
+    try:
+        return session.query(BatchEvaluation).order_by(
+            BatchEvaluation.created_at.desc()
+        ).offset(offset).limit(limit).all()
+    finally:
+        session.close()
+
+
+def update_batch_evaluation(batch_id: int, updates: Dict[str, Any]) -> bool:
+    """更新批量评估记录"""
+    session = create_literature_session()
+    try:
+        batch = session.query(BatchEvaluation).filter(BatchEvaluation.id == batch_id).first()
+        if not batch:
+            return False
+
+        for key, value in updates.items():
+            if hasattr(batch, key):
+                setattr(batch, key, value)
+
+        # 自动更新完成时间
+        if updates.get('status') == 'completed':
+            batch.completed_at = datetime.now()
+
+        session.commit()
+        logger.info(f"更新批量评估成功: ID={batch_id}")
+        return True
+    except Exception as e:
+        logger.error(f"更新批量评估失败: {e}")
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+def delete_batch_evaluation(batch_id: int) -> bool:
+    """删除批量评估记录"""
+    session = create_literature_session()
+    try:
+        batch = session.query(BatchEvaluation).filter(BatchEvaluation.id == batch_id).first()
+        if not batch:
+            return False
+        session.delete(batch)
+        session.commit()
+        logger.info(f"删除批量评估成功: ID={batch_id}")
+        return True
+    except Exception as e:
+        logger.error(f"删除批量评估失败: {e}")
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+# ========== 蛋白相互作用 CRUD ==========
+def create_protein_interaction(batch_id: int, protein_a: str, protein_b: str,
+                                interaction_type: str = None, score: float = None,
+                                source: str = None, data_json: Dict = None) -> Optional[ProteinInteraction]:
+    """创建蛋白相互作用记录"""
+    session = create_literature_session()
+    try:
+        interaction = ProteinInteraction(
+            batch_id=batch_id,
+            protein_a=protein_a.upper(),
+            protein_b=protein_b.upper(),
+            interaction_type=interaction_type,
+            score=score,
+            source=source,
+            data_json=data_json
+        )
+        session.add(interaction)
+        session.commit()
+        session.refresh(interaction)
+        return interaction
+    except Exception as e:
+        logger.error(f"创建蛋白相互作用失败: {e}")
+        session.rollback()
+        return None
+    finally:
+        session.close()
+
+
+def get_protein_interactions(batch_id: int) -> List[ProteinInteraction]:
+    """获取批量评估的蛋白相互作用列表"""
+    session = create_literature_session()
+    try:
+        return session.query(ProteinInteraction).filter(ProteinInteraction.batch_id == batch_id).all()
+    finally:
+        session.close()
+
+
+def delete_protein_interactions(batch_id: int) -> bool:
+    """删除批量评估的所有蛋白相互作用记录"""
+    session = create_literature_session()
+    try:
+        session.query(ProteinInteraction).filter(ProteinInteraction.batch_id == batch_id).delete()
+        session.commit()
+        return True
+    except Exception as e:
+        logger.error(f"删除蛋白相互作用失败: {e}")
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+# ========== 提示模板 CRUD ==========
+def create_prompt_template(name: str, content: str, description: str = '', is_default: bool = False, template_type: str = 'single') -> Optional[PromptTemplate]:
+    """创建提示模板"""
+    session = create_literature_session()
+    try:
+        # 如果设为默认模板，先取消其他默认
+        if is_default:
+            session.query(PromptTemplate).filter(
+                PromptTemplate.is_default == True,
+                PromptTemplate.template_type == template_type
+            ).update({'is_default': False})
+
+        template = PromptTemplate(
+            name=name,
+            content=content,
+            description=description,
+            is_default=is_default,
+            template_type=template_type
+        )
+        session.add(template)
+        session.commit()
+        session.refresh(template)
+        logger.info(f"创建提示模板成功: ID={template.id}, name={name}")
+        return template
+    except Exception as e:
+        logger.error(f"创建提示模板失败: {e}")
+        session.rollback()
+        return None
+    finally:
+        session.close()
+
+
+def get_prompt_template(template_id: int) -> Optional[PromptTemplate]:
+    """获取提示模板"""
+    session = create_literature_session()
+    try:
+        return session.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    finally:
+        session.close()
+
+
+def get_all_prompt_templates(template_type: str = None) -> List[PromptTemplate]:
+    """获取所有提示模板"""
+    session = create_literature_session()
+    try:
+        query = session.query(PromptTemplate)
+        if template_type:
+            query = query.filter(PromptTemplate.template_type == template_type)
+        return query.order_by(PromptTemplate.is_default.desc(), PromptTemplate.name).all()
+    finally:
+        session.close()
+
+
+def get_default_prompt_template(template_type: str = 'single') -> Optional[PromptTemplate]:
+    """获取默认提示模板"""
+    session = create_literature_session()
+    try:
+        template = session.query(PromptTemplate).filter(
+            PromptTemplate.is_default == True,
+            PromptTemplate.template_type == template_type
+        ).first()
+        # 如果没有默认模板，返回第一个
+        if not template:
+            template = session.query(PromptTemplate).filter(
+                PromptTemplate.template_type == template_type
+            ).first()
+        return template
+    finally:
+        session.close()
+
+
+def update_prompt_template(template_id: int, updates: Dict[str, Any]) -> bool:
+    """更新提示模板"""
+    session = create_literature_session()
+    try:
+        template = session.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+        if not template:
+            return False
+
+        template_type = template.template_type
+
+        # 如果设为默认模板，先取消其他默认
+        if updates.get('is_default'):
+            session.query(PromptTemplate).filter(
+                PromptTemplate.is_default == True,
+                PromptTemplate.template_type == template_type
+            ).update({'is_default': False})
+
+        for key, value in updates.items():
+            if hasattr(template, key):
+                setattr(template, key, value)
+
+        template.updated_at = datetime.now()
+        session.commit()
+        logger.info(f"更新提示模板成功: ID={template_id}")
+        return True
+    except Exception as e:
+        logger.error(f"更新提示模板失败: {e}")
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+def delete_prompt_template(template_id: int) -> bool:
+    """删除提示模板"""
+    session = create_literature_session()
+    try:
+        template = session.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+        if not template:
+            return False
+        session.delete(template)
+        session.commit()
+        logger.info(f"删除提示模板成功: ID={template_id}")
+        return True
+    except Exception as e:
+        logger.error(f"删除提示模板失败: {e}")
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
+def set_default_prompt_template(template_id: int) -> bool:
+    """设置默认模板"""
+    session = create_literature_session()
+    try:
+        template = session.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+        if not template:
+            return False
+
+        template_type = template.template_type
+
+        # 先取消所有默认
+        session.query(PromptTemplate).filter(
+            PromptTemplate.is_default == True,
+            PromptTemplate.template_type == template_type
+        ).update({'is_default': False})
+
+        # 设置新的默认
+        template.is_default = True
+        session.commit()
+        logger.info(f"设置默认提示模板成功: ID={template_id}")
+        return True
+    except Exception as e:
+        logger.error(f"设置默认提示模板失败: {e}")
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+
 # 在 literature_db.py 中添加辅助函数
 def _ensure_json_serializable(value):
     """确保值是JSON可序列化的"""
@@ -2900,21 +3310,98 @@ def check_and_add_missing_columns():
     """检查并添加缺失的数据库字段"""
     try:
         from sqlalchemy import inspect
-        
+
         inspector = inspect(engine)
+
+        # 检查 literature_entries 表
         columns = [col['name'] for col in inspector.get_columns('literature_entries')]
-        
+
         # 预期的列
         expected_columns = {
             'search_text_blob': 'TEXT'
         }
-        
+
         for column_name, column_type in expected_columns.items():
             if column_name not in columns:
                 logger.info(f"添加缺失的字段: {column_name}")
                 with engine.connect() as conn:
                     conn.execute(text(f"ALTER TABLE literature_entries ADD COLUMN {column_name} {column_type}"))
                     conn.commit()
-                    
+
+        # 检查 protein_evaluations 表，添加 batch_id 列
+        try:
+            eval_columns = [col['name'] for col in inspector.get_columns('protein_evaluations')]
+            if 'batch_id' not in eval_columns:
+                logger.info("添加缺失的字段: batch_id")
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE protein_evaluations ADD COLUMN batch_id INTEGER REFERENCES batch_evaluations(id)"))
+                    conn.commit()
+        except Exception as e:
+            logger.warning(f"检查 protein_evaluations 表字段时出错: {e}")
+
+        # 检查 batch_evaluations 表是否存在，如果不存在则创建
+        try:
+            tables = inspector.get_table_names()
+            if 'batch_evaluations' not in tables:
+                logger.info("创建批量评估表...")
+                with engine.connect() as conn:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS batch_evaluations (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            name VARCHAR(200),
+                            uniprot_ids JSON,
+                            status VARCHAR(20) DEFAULT 'pending',
+                            progress INTEGER DEFAULT 0,
+                            logs JSON,
+                            interaction_data JSON,
+                            batch_ai_analysis JSON,
+                            batch_report TEXT,
+                            config JSON,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            completed_at DATETIME
+                        )
+                    """))
+                    conn.commit()
+
+            # 检查 protein_interactions 表是否存在
+            if 'protein_interactions' not in tables:
+                logger.info("创建蛋白相互作用表...")
+                with engine.connect() as conn:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS protein_interactions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            batch_id INTEGER NOT NULL,
+                            protein_a VARCHAR(20) NOT NULL,
+                            protein_b VARCHAR(20) NOT NULL,
+                            interaction_type VARCHAR(50),
+                            score FLOAT,
+                            source VARCHAR(50),
+                            data_json JSON,
+                            FOREIGN KEY (batch_id) REFERENCES batch_evaluations(id)
+                        )
+                    """))
+                    conn.commit()
+
+            # 检查 prompt_templates 表是否存在
+            if 'prompt_templates' not in tables:
+                logger.info("创建提示模板表...")
+                with engine.connect() as conn:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS prompt_templates (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            name VARCHAR(100) NOT NULL,
+                            content TEXT NOT NULL,
+                            is_default BOOLEAN DEFAULT 0,
+                            description TEXT,
+                            template_type VARCHAR(20) DEFAULT 'single',
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    conn.commit()
+
+        except Exception as e:
+            logger.warning(f"检查/创建新表时出错: {e}")
+
     except Exception as e:
         logger.warning(f"检查字段时出错: {e}")

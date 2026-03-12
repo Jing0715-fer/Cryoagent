@@ -269,15 +269,36 @@ class ProteinEvaluationService:
                 'progress': 50
             })
 
-            # 步骤3: 运行BLAST搜索
-            sequence = uniprot_data.get('sequence', '') if uniprot_data else ''
-            step_start = time.time()
-            blast_results = self._run_blast_search(uniprot_id, sequence) if uniprot_id else {}
-            step_time = time.time() - step_start
-            step_times['blast_search'] = step_time
+            # 步骤3: 计算PDB覆盖度并决定是否运行BLAST搜索
+            # 条件: 覆盖度 < 50% 或 PDB数量 < 5 时才执行BLAST
+            protein_length = uniprot_data.get('sequence', 0) if uniprot_data else 0
+            if isinstance(protein_length, str):
+                protein_length = 0  # sequence字段应该是数字
 
-            logger.info(f"[步骤3/6] BLAST搜索: 耗时 {step_time:.2f}秒")
-            logger.info(f"  - 找到 {len(blast_results.get('results', []))} 个相似蛋白")
+            # 获取protein_length的正确字段
+            protein_length = uniprot_data.get('sequence_length', 0) if uniprot_data else 0
+
+            pdb_count = len(pdb_data.get('structures', []))
+            coverage_info = self._calculate_pdb_coverage(pdb_data, protein_length, uniprot_id)
+            coverage_pct = coverage_info.get('coverage_percent', 0)
+
+            logger.info(f"  - PDB覆盖度: {coverage_pct:.1f}% (蛋白长度: {protein_length} aa, 覆盖残基: {coverage_info.get('covered_residues', 0)} aa)")
+
+            # 判断是否需要运行BLAST
+            need_blast = coverage_pct < 50 or pdb_count < 5
+
+            if need_blast:
+                logger.info(f"  - 开始BLAST搜索 (覆盖度 {coverage_pct:.1f}% < 50% 或 PDB {pdb_count} < 5)")
+                sequence = uniprot_data.get('sequence', '') if uniprot_data else ''
+                step_start = time.time()
+                blast_results = self._run_blast_search(uniprot_id, sequence) if uniprot_id else {}
+                step_time = time.time() - step_start
+                step_times['blast_search'] = step_time
+                logger.info(f"[步骤3/6] BLAST搜索: 耗时 {step_time:.2f}秒")
+                logger.info(f"  - 找到 {len(blast_results.get('results', []))} 个相似蛋白")
+            else:
+                logger.info(f"  - 跳过BLAST搜索 (覆盖度 {coverage_pct:.1f}% >= 50% 且 PDB {pdb_count} >= 5)")
+                blast_results = {}
 
             update_protein_evaluation(evaluation_id, {
                 'blast_results': blast_results,
@@ -684,6 +705,59 @@ class ProteinEvaluationService:
             logger.warning(f"获取PubMed摘要失败: {e}")
 
         return pdb_data
+
+    def _calculate_pdb_coverage(self, pdb_data: Dict, protein_length: int, target_uniprot_id: str = None) -> Dict[str, Any]:
+        """计算 PDB 对蛋白质序列的覆盖度"""
+        if not pdb_data or not pdb_data.get('structures') or protein_length <= 0:
+            return {'coverage_percent': 0, 'covered_residues': 0, 'pdb_count': 0}
+
+        # 获取每个 PDB 结构的序列覆盖范围
+        covered_residues = set()
+        pdb_ids = [s.get('pdb_id') for s in pdb_data.get('structures', [])]
+
+        try:
+            for pdb_id in pdb_ids:
+                try:
+                    # 使用 PDBe API 获取 UniProt 映射和序列范围
+                    url = f"https://www.ebi.ac.uk/pdbe/api/mappings/all_isoforms/{pdb_id.lower()}"
+                    resp = http_session.get(url, timeout=10)
+
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        pdb_entry = data.get(pdb_id.lower(), {})
+                        uniprot_data = pdb_entry.get('UniProt', {})
+
+                        for uniprot_id, uniprot_info in uniprot_data.items():
+                            # 如果指定了目标 UniProt，只处理匹配的
+                            if target_uniprot_id and uniprot_id.upper() != target_uniprot_id.upper():
+                                # 跳过不匹配的 UniProt（比如 isoform ID 如 P04637-2）
+                                if not uniprot_id.startswith(target_uniprot_id.upper()):
+                                    continue
+
+                            mappings = uniprot_info.get('mappings', [])
+                            for mapping in mappings:
+                                unp_start = mapping.get('unp_start')
+                                unp_end = mapping.get('unp_end')
+
+                                if unp_start and unp_end:
+                                    for pos in range(unp_start, unp_end + 1):
+                                        covered_residues.add(pos)
+                except Exception as e:
+                    logger.warning(f"获取 {pdb_id} 覆盖度失败: {e}")
+                    continue
+
+        except Exception as e:
+            logger.warning(f"计算 PDB 覆盖度失败: {e}")
+
+        # 计算覆盖度（不超过100%）
+        covered_count = len(covered_residues)
+        coverage_percent = min((covered_count / protein_length * 100), 100) if protein_length > 0 else 0
+
+        return {
+            'coverage_percent': coverage_percent,
+            'covered_residues': covered_count,
+            'pdb_count': len(pdb_ids)
+        }
 
     @retry_on_failure(max_retries=3, delay=2.0)
     def _run_blast_search(self, uniprot_id: str, sequence: str = None) -> Dict[str, Any]:
