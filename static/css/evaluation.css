@@ -171,19 +171,22 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 20px;
-    background: #3b82f6;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
     color: #fff;
     border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
 }
 
 .btn-start:hover {
-    background: #2563eb;
+    background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
 }
 
 .btn-secondary {
@@ -203,6 +206,105 @@
 .btn-secondary:hover {
     background: #f9fafb;
     border-color: #9ca3af;
+}
+
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: #6366F1;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary:hover {
+    background: #4338CA;
+}
+
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: #fff;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-danger:hover {
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
+.btn-save {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 24px;
+    background: #6366F1;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-save:hover {
+    background: #4338CA;
+}
+
+.btn-settings {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-settings:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.history-toggle-mobile {
+    display: none;
+    width: 100%;
+    padding: 12px;
+    background: #6366F1;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 12px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.history-toggle-mobile:hover {
+    background: #4F46E5;
 }
 
 /* Progress Section */
@@ -467,7 +569,7 @@
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 1500px) {
     .evaluation-page {
         flex-direction: column;
     }
@@ -490,6 +592,27 @@
 
     .info-grid {
         grid-template-columns: 1fr;
+    }
+
+    /* 响应式布局 - 小屏幕隐藏历史面板 */
+    /* Note: Column layout is controlled by JS */
+
+    /* 小屏幕显示切换按钮 */
+    .history-toggle-mobile {
+        display: flex !important;
+    }
+
+    .page-header {
+        flex-direction: row !important;
+        align-items: center !important;
+    }
+
+    .header-actions {
+        flex-shrink: 0;
+    }
+
+    .eval-tabs {
+        flex-shrink: 0;
     }
 }
 
