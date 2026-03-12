@@ -69,7 +69,6 @@
                     <div class="form-group">
                         <label for="vector-engine">向量引擎</label>
                         <select id="vector-engine" name="vector_engine">
-                            <option value="faiss" {{ 'selected' if vector_engine == 'faiss' else '' }}>FAISS</option>
                             <option value="lancedb" {{ 'selected' if vector_engine == 'lancedb' else '' }}>LanceDB</option>
                         </select>
                         <span class="form-hint">选择向量搜索引擎（LanceDB 支持混合搜索）</span>

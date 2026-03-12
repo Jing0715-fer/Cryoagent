@@ -27,7 +27,7 @@ except ImportError as e:
 
 # LanceDB indexing
 try:
-    from core.lancedb_rag import get_unified_rag
+    from core.literature_index import get_unified_rag_system
     LANCEDB_AVAILABLE = True
 except ImportError:
     LANCEDB_AVAILABLE = False

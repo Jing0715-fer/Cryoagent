@@ -9,9 +9,9 @@ let currentSessionId = null;  // 当前会话ID
 
 // Initialize QA page
 function initPage() {
-    // DeepSeek 模式：默认开始新会话，不恢复之前的 session_id
-    currentSessionId = null;
-    console.log('开始新会话');
+    // 从 localStorage 恢复 session_id
+    currentSessionId = localStorage.getItem('currentSessionId') || null;
+    console.log('恢复会话 ID:', currentSessionId || '新会话');
 
     // 添加 new-session 类（简洁欢迎界面）
     const qaPage = document.querySelector('.qa-page');
@@ -19,11 +19,7 @@ function initPage() {
         qaPage.classList.add('new-session');
     }
 
-    // 初始化 RAG 按钮状态
-    initRagButton();
-
-    // 初始化 Agent 模式按钮状态
-    initAgentModeButton();
+    // RAG 和 Agent 模式已固定开启，无需初始化按钮
 
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {
@@ -584,6 +580,20 @@ function addChatMessage(role, content, sources = [], imageUrl = null) {
     if (!sources || !Array.isArray(sources)) sources = [];
     if (!imageUrl) imageUrl = null;
 
+    // 过滤无效 chunks - 过滤掉内容太短或包含版权关键词的 chunks
+    const originalSourcesCount = sources.length;
+    sources = sources.filter(s => {
+        // 非 literature 类型保留
+        if (s.type !== 'literature') return true;
+        const content = s.content || '';
+        // 过滤版权关键词
+        const invalidKeywords = ['creative commons', 'copyright', 'license', 'author(s)', 'original author', 'permitting parties', 'permitted under', 'open access'];
+        const hasInvalidKeyword = invalidKeywords.some(kw => content.toLowerCase().includes(kw));
+        // 过滤内容太短的
+        return content.length > 100 && !hasInvalidKeyword;
+    });
+    console.log('[QA.js] 过滤 sources:', originalSourcesCount, '->', sources.length);
+
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
 
@@ -601,7 +611,13 @@ function addChatMessage(role, content, sources = [], imageUrl = null) {
                         if (s.type === 'structure') {
                             url = '/structure/' + s.id;
                         } else if (s.type === 'literature') {
-                            url = '/literature/' + s.id;
+                            // 检测 chunk ID 格式: literature_5_full_chunk_185
+                            const idStr = String(s.id);
+                            if (idStr.startsWith('literature_') && idStr.includes('_full_chunk_')) {
+                                url = '/literature/chunk/' + idStr;
+                            } else {
+                                url = '/literature/' + s.id;
+                            }
                         }
                         return `
                         <li>
@@ -784,13 +800,36 @@ function updateSearchResults(sources) {
         return;
     }
 
+    // 过滤无效 chunks - 过滤掉内容太短或包含版权关键词的 chunks
+    sources = sources.filter(s => {
+        // 非 literature 类型保留
+        if (s.type !== 'literature') return true;
+        const content = s.content || '';
+        // 过滤版权关键词
+        const invalidKeywords = ['creative commons', 'copyright', 'license', 'author(s)', 'original author', 'permitting parties', 'permitted under', 'open access'];
+        const hasInvalidKeyword = invalidKeywords.some(kw => content.toLowerCase().includes(kw));
+        // 过滤内容太短的
+        return content.length > 100 && !hasInvalidKeyword;
+    });
+
+    if (!sources || sources.length === 0) {
+        panel.innerHTML = '<p class="empty-state">未找到相关来源</p>';
+        return;
+    }
+
     panel.innerHTML = sources.map(s => {
         // 根据类型决定链接
         let url = '#';
         if (s.type === 'structure') {
             url = '/structure/' + s.id;
         } else if (s.type === 'literature') {
-            url = '/literature/' + s.id;
+            // 检测 chunk ID 格式: literature_5_full_chunk_185
+            const idStr = String(s.id);
+            if (idStr.startsWith('literature_') && idStr.includes('_full_chunk_')) {
+                url = '/literature/chunk/' + idStr;
+            } else {
+                url = '/literature/' + s.id;
+            }
         }
         return `
         <div class="search-result-item" onclick="window.location.href='${url}'">
@@ -816,36 +855,19 @@ function askQuestion(question) {
     }
 }
 
-// Toggle RAG button
-function toggleRag() {
-    const ragBtn = document.getElementById('rag-btn');
-    const ragCheckbox = document.getElementById('use-rag');
-    if (ragBtn && ragCheckbox) {
-        ragBtn.classList.toggle('active');
-        ragCheckbox.checked = ragBtn.classList.contains('active');
-    }
-}
+// Removed: toggleRag() - RAG is always enabled
+// Removed: toggleAgentMode() - Agent mode is always on
+// Removed: initRagButton() - No longer needed
+// Removed: initAgentModeButton() - No longer needed
 
-// Initialize RAG button state on page load
-function initRagButton() {
-    const ragBtn = document.getElementById('rag-btn');
-    const ragCheckbox = document.getElementById('use-rag');
-    if (ragBtn && ragCheckbox) {
-        ragBtn.classList.toggle('active', ragCheckbox.checked);
-    }
-}
-
-// Initialize Agent mode button state on page load
-function initAgentModeButton() {
-    const agentBtn = document.getElementById('agent-mode-btn');
-    if (agentBtn) {
-        agentBtn.classList.toggle('active', agentMode);
-        agentBtn.innerHTML = agentMode ? '🤖 Agent' : '📝 Normal';
-    }
-}
-
-// Main send chat message function
+// Main send chat message function - Simplified to always use Agent mode
 async function sendChatMessage() {
+    // Always use Agent mode
+    await sendAgentMessage();
+}
+
+// Send chat message using Agent API
+async function sendAgentMessage() {
     if (isProcessing) return;
 
     // 初始化变量以防止引用错误
@@ -1037,14 +1059,25 @@ async function sendChatMessage() {
 }
 
 // ============================================
-// Agent Mode Functions - 智能问答Agent
+// Simplified Mode - Agent only, RAG always on
 // ============================================
 
-let agentMode = true; // Enable agent mode by default
-let currentClarification = null; // Store current clarification question
+let agentMode = true; // Always use Agent mode
 
-// Send chat message using Agent API
-async function sendAgentMessage() {
+// Simplified: Always use Agent mode
+function askQuestion(question) {
+    const input = document.getElementById('chat-input');
+    if (input) {
+        input.value = question;
+        input.focus();
+        sendAgentMessage();
+    }
+}
+
+// Removed: toggleRag() - RAG is always enabled
+// Removed: toggleAgentMode() - Agent mode is always on
+// Removed: initRagButton() - No longer needed
+// Removed: initAgentModeButton() - No longer needed
     if (isProcessing) return;
 
     const input = document.getElementById('chat-input');
@@ -1506,17 +1539,6 @@ function updateThinkingPanel(panel, event) {
     }
 }
 
-// Toggle between agent mode and normal mode
-function toggleAgentMode() {
-    agentMode = !agentMode;
-    const btn = document.getElementById('agent-mode-btn');
-    if (btn) {
-        btn.classList.toggle('active', agentMode);
-        btn.innerHTML = agentMode ? '🤖 Agent' : '📝 Normal';
-    }
-    showToast(`已切换到${agentMode ? '智能Agent' : '标准'}模式`, 'info');
-}
-
 // Make functions globally available
 window.initPage = initPage;
 window.startNewSession = startNewSession;
@@ -1524,7 +1546,7 @@ window.enterConversationMode = enterConversationMode;
 window.sendChatMessage = sendChatMessage;
 window.addChatMessage = addChatMessage;
 window.askQuestion = askQuestion;
-window.toggleRag = toggleRag;
+// Removed: window.toggleRag - RAG is always enabled
 window.showToast = showToast;
 window.updateSearchResults = updateSearchResults;
 window.loadChatHistory = loadChatHistoryFromServer;
@@ -1537,5 +1559,5 @@ window.truncateText = truncateText;
 // Agent mode functions
 window.sendAgentMessage = sendAgentMessage;
 window.handleClarificationResponse = handleClarificationResponse;
-window.toggleAgentMode = toggleAgentMode;
+// Removed: window.toggleAgentMode - Agent mode is always on
 window.processAgentResult = processAgentResult;

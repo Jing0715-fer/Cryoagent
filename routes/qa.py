@@ -163,7 +163,8 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict, max_
                     sources.append({
                         'type': 'literature',
                         'id': str(lit.get('id', '')),
-                        'title': lit.get('title', '')[:100]
+                        'title': lit.get('title', '')[:100],
+                        'content': lit.get('content', '')  # 添加 content 字段用于前端过滤
                     })
             # 结构来源
             if tr.get('tool_name') == 'search_structures' and tr.get('success'):
@@ -354,58 +355,21 @@ def ask_question_v2():
         if not question:
             return jsonify({'error': 'Question is required'}), 400
 
-        # ====== 自动路由：检测使用 RAG 还是 Agent ======
         question_lower = question.lower()
 
-        # 需要使用 Agent 模式的特征
-        need_agent_patterns = [
-            # 多轮对话相关
-            "继续", "上文", "之前", "continue", "previous", "follow up",
-            # 复杂分析
-            "对比", "比较", "差异", "compare", "vs", "versus",
-            # 序列相关 - 移至RAG模式处理，因为RAG有更好的向量搜索
-            # "序列", "sequence", "alignment", "比对",
-            # 结构分析
-            "分析", "analysis", "rmsd", "align",
-            # 多步骤任务
-            "先", "然后", "再", "first", "then", "next",
-            # 明确要求
-            "使用agent", "用agent", "agent模式",
-        ]
+        # ====== 简化模式：始终使用 Agent + RAG ======
+        # 忽略 force_mode 参数，始终使用 Agent 模式
+        use_agent_mode = True
+        rag_needed = True
 
-        # 简单 RAG 就能解决的问题
-        is_simple_question = any(kw in question_lower for kw in [
-            "是什么", "什么是", "what is", "定义", "definition",
-            "解释", "explain", "介绍", "introduce",
-            "总结", "summarize", "摘要",
-        ])
-
-        # 检测是否有复杂特征
-        needs_agent = any(pattern in question_lower for pattern in need_agent_patterns)
-
-        # 如果用户指定了模式
-        if force_mode == 'agent':
-            needs_agent = True
-        elif force_mode == 'rag':
-            needs_agent = False
-
-        # 决定使用哪种模式
-        # 先提取明确的 PDB/EMDB ID（需要在路由决策之前）
+        # 提取明确的 PDB/EMDB ID
         pdb_pattern = r'[1-9][A-Za-z0-9]{3}'
         emdb_pattern = r'EMD[A-Z]?\d+'
         explicit_pdb_ids = re.findall(pdb_pattern, question.upper())
         explicit_emdb_ids = re.findall(emdb_pattern, question.upper())
         explicit_structure_ids = explicit_pdb_ids + explicit_emdb_ids
 
-        use_agent_mode = needs_agent or (not is_simple_question and (
-            # 需要多轮工具调用的情况
-            # 包含图片/可视化请求（无论是否有明确 PDB ID）
-            any(kw in question_lower for kw in ["图片", "image", "可视化", "visualize", "cartoon", "stick"]) or
-            # 需要多次搜索的情况
-            any(kw in question_lower for kw in ["相关", "related", "关联", "邻居"])
-        ))
-
-        print(f"[QA v2] 路由决策: use_agent_mode={use_agent_mode}, needs_agent={needs_agent}, is_simple={is_simple_question}, explicit_structure_ids={explicit_structure_ids}")
+        print(f"[QA v2] 路由决策: use_agent_mode={use_agent_mode}, rag_needed={rag_needed}, explicit_structure_ids={explicit_structure_ids}")
         print(f"[QA v2] 问题包含关键词检查：question_lower='{question_lower[:50]}...'")
         print(f"[QA v2] 检查 image/cartoon 关键词：{any(kw in question_lower for kw in ['图片', 'image', '可视化', 'visualize', 'cartoon', 'stick'])}")
 
@@ -507,18 +471,63 @@ UniProt ID: [例如: P29274]
                     methods_preview = methods[:5000] if len(methods) > 5000 else methods
                     literature_context += f"\n\n【实验方法/Methods】:\n{methods_preview}"
 
-        # RAG文献搜索 - 用于检索相关文献的methods等详细内容
-        # 检测是否需要RAG搜索（纯化、方法、序列、通用问题等）
-        rag_keywords = ['纯化', 'purif', 'method', '方法', '表达', '克隆', 'construct', 'sample',
-                       '制备', '蛋白', 'protein', '序列', 'sequence', '氨基酸', '结构', 'structure',
-                       'pdb', 'emdb', '基因', 'gene', '结合', 'binding', '功能', 'function']
-        rag_needed = question_type in ["sequence", "structure"] or any(keyword in question.lower() for keyword in rag_keywords)
+        # RAG文献搜索 - 始终执行（RAG默认开启，无需检测关键词）
+        print(f"[QA v2] 执行RAG文献搜索...")
+        literature_source_ids = []  # 用于去重
 
-        if rag_needed:
-            print(f"[QA v2] 执行RAG文献搜索...")
-            literature_source_ids = []  # 用于去重
+        # ====== 首先：使用 LanceDB 向量搜索获取相关 chunks ======
+        try:
+            print(f"[QA v2] 使用 LanceDB 向量搜索...")
+            from core.search_factory import search_vector
+            from core.literature_index import EntityType
 
-            # 首先：直接从数据库搜索有methods的文献
+            # 构建搜索查询
+            search_query = question
+            if standardized_gene:
+                search_query += f" {standardized_gene}"
+
+            # 执行向量搜索
+            vector_results = search_vector(
+                query=search_query,
+                top_k=10,
+                entity_filter=EntityType.LITERATURE,
+                search_type='hybrid'
+            )
+
+            print(f"[QA v2] LanceDB 搜索返回 {len(vector_results)} 个结果")
+
+            # 处理向量搜索结果 - 直接添加到 literature_context
+            if vector_results:
+                literature_context += "\n\n【LanceDB向量搜索检索到的相关文献内容】:\n"
+
+                for i, result in enumerate(vector_results[:8], 1):
+                    doc = result.get('document', {})
+                    content = doc.get('full_text', '') or doc.get('content', '') or doc.get('abstract', '')
+                    title = doc.get('title', '')
+                    result_id = result.get('id', '')
+
+                    if content:
+                        literature_context += f"\n{'='*60}\n"
+                        literature_context += f"文献片段 {i}: {title[:100]}\n"
+                        literature_context += f"ID: {result_id}\n"
+                        literature_context += f"{'='*60}\n"
+                        literature_context += f"{content}\n"
+
+                        # 添加到 sources
+                        sources.append({
+                            'id': str(result_id),
+                            'title': title[:100],
+                            'type': 'literature'
+                        })
+
+                print(f"[QA v2] LanceDB 向量搜索完成，添加了 {len(vector_results)} 个 chunks")
+
+        except Exception as e:
+            import traceback
+            print(f"[QA v2] LanceDB 向量搜索失败: {e}")
+            traceback.print_exc()
+
+            # 继续原有的数据库搜索作为补充
             try:
                 from core.literature_db import get_literature_entry
                 import sqlite3
@@ -1680,13 +1689,36 @@ def ai_search():
 
         search_query = result['content']
 
-        # Now search in literature database
-        from core.literature_db import search_literature
-        results = search_literature(query=search_query, limit=top_k)
+        # Now search using vector search (LanceDB)
+        from core.search_factory import search_vector
+        search_results = search_vector(
+            query=search_query,
+            top_k=top_k,
+            entity_filter=EntityType.LITERATURE,
+            search_type='hybrid'
+        )
+
+        # Convert vector search results to literature format
+        literature_results = []
+        for r in search_results:
+            doc = r.get('document', {})
+            # 使用 full_text 或 content 字段
+            text_content = doc.get('full_text', '') or doc.get('content', '') or doc.get('abstract', '')
+            literature_results.append({
+                'id': r.get('id'),
+                'title': doc.get('title', ''),
+                'authors': doc.get('authors', []),
+                'journal': doc.get('journal', ''),
+                'year': doc.get('year'),
+                'doi': doc.get('doi', ''),
+                'abstract': text_content,  # 返回完整内容
+                'content': text_content,
+                'score': r.get('score', 0),
+            })
 
         return jsonify({
             'answer': f"搜索查询: {search_query}",
-            'literature': results,
+            'literature': literature_results,
             'structures': []
         })
     except Exception as e:

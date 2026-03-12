@@ -958,11 +958,16 @@ class QAAgent:
                             authors = item.get("authors", [])
                             journal = item.get("journal", "")
                             year = item.get("year", "")
+                            # 包含摘要/内容字段
+                            abstract = item.get("abstract", "") or item.get("content", "")
                             context_parts.append(
                                 f"{i}. {title}\n"
                                 f"   作者: {', '.join(authors[:3])}{' et al.' if len(authors) > 3 else ''}\n"
                                 f"   期刊: {journal} ({year})\n"
                             )
+                            # 如果有摘要/内容，添加到 prompt
+                            if abstract:
+                                context_parts.append(f"   内容摘要: {abstract}\n")
 
                 elif tool_name == "search_structures":
                     items = data.get("results", [])

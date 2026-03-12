@@ -112,47 +112,40 @@ def get_tool_registry() -> ToolRegistry:
 # ============================================
 
 def search_literature_executor(query: str, limit: int = 10, **kwargs) -> Dict:
-    """执行文献搜索"""
+    """执行文献搜索 - 使用 LanceDB 向量搜索"""
     from flask import current_app
     try:
         with current_app.app_context():
-            from core.literature_index import IntegratedLiteratureIndexer
-            from core.literature_db import search_literature
+            from core.search_factory import search_vector
+            from core.literature_index import EntityType
 
-            # 尝试使用向量搜索
-            try:
-                manager = IntegratedLiteratureIndexer()
-                results = manager.search(query, top_k=limit)
-                if results:
-                    # 向量搜索结果已包含 title, authors, journal, year 等信息
-                    # 直接使用这些结果，不需要再查询数据库
-                    logger.info(f"Vector search found {len(results)} results")
-                    return {
-                        "query": query,
-                        "count": len(results),
-                        "total_results": len(results),
-                        "results": results
-                    }
-            except Exception as e:
-                logger.warning(f"Vector search failed, falling back to database: {e}")
+            # 使用 LanceDB 向量搜索
+            results = search_vector(
+                query=query,
+                top_k=limit,
+                entity_filter=EntityType.LITERATURE,
+                search_type='hybrid'
+            )
 
-            # 回退到数据库搜索
-            entries = search_literature(query, limit=limit)
-            # 将 LiteratureEntry 对象转换为字典列表
+            # 转换结果为统一格式
             literature_list = []
-            for entry in entries:
-                if hasattr(entry, '__dict__'):
-                    literature_list.append({
-                        'id': getattr(entry, 'id', None),
-                        'title': getattr(entry, 'title', ''),
-                        'authors': getattr(entry, 'authors', ''),
-                        'journal': getattr(entry, 'journal', ''),
-                        'year': getattr(entry, 'year', None),
-                        'doi': getattr(entry, 'doi', ''),
-                        'abstract': getattr(entry, 'abstract', ''),
-                    })
-                else:
-                    literature_list.append(entry)
+            for r in results:
+                doc = r.get('document', {})
+                # 使用 full_text 或 content 字段
+                text_content = doc.get('full_text', '') or doc.get('content', '') or doc.get('abstract', '')
+                literature_list.append({
+                    'id': r.get('id'),
+                    'title': doc.get('title', ''),
+                    'authors': doc.get('authors', []),
+                    'journal': doc.get('journal', ''),
+                    'year': doc.get('year'),
+                    'doi': doc.get('doi', ''),
+                    'abstract': text_content,  # 返回完整内容
+                    'content': text_content,
+                    'score': r.get('score', 0),
+                })
+
+            logger.info(f"Vector search found {len(literature_list)} results")
             return {
                 "query": query,
                 "count": len(literature_list),

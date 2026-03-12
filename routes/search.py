@@ -72,7 +72,7 @@ def search_literature_api():
 def vector_search():
     """
     Vector similarity search endpoint
-    Supports both FAISS and LanceDB engines based on configuration
+    Uses LanceDB engine
     """
     try:
         data = request.json
@@ -83,7 +83,7 @@ def vector_search():
         if not query:
             return jsonify({'error': 'Query is required'}), 400
 
-        # Get configured search engine (FAISS or LanceDB)
+        # Get configured search engine (LanceDB)
         engine_type = get_search_engine_type()
         logger.info(f"Vector search using {engine_type} engine")
 

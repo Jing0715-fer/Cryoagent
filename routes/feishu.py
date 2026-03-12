@@ -793,31 +793,24 @@ def rebuild_index():
 
                     logger.info(f"Document title: {doc_data.get('title', 'N/A')}, content length: {len(doc_data.get('content', ''))}")
 
-                    # 检查FAISS是否可用
-                    try:
-                        import faiss
-                        # FAISS可用，添加到索引
-                        doc = UnifiedDocument(
-                            doc_id=doc_data.get("doc_id", f"feishu_{uuid.uuid4().hex[:8]}"),
-                            entity_type=EntityType.LITERATURE,
-                            source_id=doc_data.get("source_id", ""),
-                            title=doc_data.get("title", ""),
-                            content=doc_data.get("content", ""),
-                            metadata={
-                                **doc_data.get("metadata", {}),
-                                "feishu_doc_id": doc_data.get("doc_id"),
-                                "is_feishu": True
-                            }
-                        )
+                    # 添加到 LanceDB 索引
+                    doc = UnifiedDocument(
+                        doc_id=doc_data.get("doc_id", f"feishu_{uuid.uuid4().hex[:8]}"),
+                        entity_type=EntityType.LITERATURE,
+                        source_id=doc_data.get("source_id", ""),
+                        title=doc_data.get("title", ""),
+                        content=doc_data.get("content", ""),
+                        metadata={
+                            **doc_data.get("metadata", {}),
+                            "feishu_doc_id": doc_data.get("doc_id"),
+                            "is_feishu": True
+                        }
+                    )
 
-                        # 添加到索引
-                        rag_system.add_document(doc)
-                        count += 1
-                        logger.info(f"已索引文档: {doc_data.get('title', '未知')}")
-                    except ImportError:
-                        # FAISS不可用，只记录文档信息
-                        count += 1
-                        logger.info(f"FAISS未安装，跳过向量索引，文档已记录: {doc_data.get('title', '未知')}")
+                    # 添加到索引
+                    rag_system.add_document(doc)
+                    count += 1
+                    logger.info(f"已索引文档: {doc_data.get('title', '未知')}")
 
                 except Exception as e:
                     logger.error(f"索引文档 {filename} 失败: {e}")

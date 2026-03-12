@@ -275,6 +275,54 @@ class UnifiedLanceRAG:
         # 准备 LanceDB 记录
         records = []
         for chunk, embedding in zip(chunks, embeddings):
+            # 处理 authors 字段 - 转换为字符串列表
+            authors_raw = literature_entry.get("authors", [])
+            authors_list = []
+            if isinstance(authors_raw, list):
+                for a in authors_raw:
+                    if isinstance(a, dict):
+                        # 结构体格式 {"name": "John", "affiliation": "MIT"}
+                        authors_list.append(a.get("name", str(a)))
+                    else:
+                        authors_list.append(str(a))
+            elif isinstance(authors_raw, str):
+                try:
+                    # 尝试解析 JSON 字符串
+                    parsed = json.loads(authors_raw)
+                    if isinstance(parsed, list):
+                        for a in parsed:
+                            if isinstance(a, dict):
+                                authors_list.append(a.get("name", str(a)))
+                            else:
+                                authors_list.append(str(a))
+                except:
+                    authors_list = [authors_raw]
+            else:
+                authors_list = []
+
+            # 处理 keywords 字段 - 转换为字符串列表
+            keywords_raw = literature_entry.get("keywords", [])
+            keywords_list = []
+            if isinstance(keywords_raw, list):
+                for k in keywords_raw:
+                    if isinstance(k, dict):
+                        keywords_list.append(k.get("keyword", str(k)))
+                    else:
+                        keywords_list.append(str(k))
+            elif isinstance(keywords_raw, str):
+                try:
+                    parsed = json.loads(keywords_raw)
+                    if isinstance(parsed, list):
+                        for k in parsed:
+                            if isinstance(k, dict):
+                                keywords_list.append(k.get("keyword", str(k)))
+                            else:
+                                keywords_list.append(str(k))
+                except:
+                    keywords_list = [keywords_raw]
+            else:
+                keywords_list = []
+
             record = {
                 "id": chunk.doc_id,
                 "doc_id": chunk.source_id,
@@ -289,8 +337,8 @@ class UnifiedLanceRAG:
                 "year": chunk.metadata.get("year", 0),
                 "journal": chunk.metadata.get("journal", ""),
                 "doi": literature_entry.get("doi", ""),
-                "authors": literature_entry.get("authors", []),
-                "keywords": literature_entry.get("keywords", []),
+                "authors": authors_list,
+                "keywords": keywords_list,
                 "metadata": json.dumps(chunk.metadata),
                 "embedding": embedding,
                 "created_at": datetime.now(),
@@ -827,6 +875,31 @@ class UnifiedLanceRAG:
         """清除会话"""
         if self.session_memory:
             self.session_memory.clear_session(session_id)
+
+    def clear_literature(self):
+        """清空文献表"""
+        if self._literature_table:
+            try:
+                # 删除所有记录
+                self._literature_table.delete("true")
+                logger.info("已清空文献表")
+            except Exception as e:
+                logger.warning(f"清空文献表失败: {e}")
+
+    def clear_structure(self):
+        """清空结构表"""
+        if self._structure_table:
+            try:
+                self._structure_table.delete("true")
+                logger.info("已清空结构表")
+            except Exception as e:
+                logger.warning(f"清空结构表失败: {e}")
+
+    def clear_all(self):
+        """清空所有表"""
+        self.clear_literature()
+        self.clear_structure()
+        logger.info("已清空所有索引表")
 
     # ============= 统计信息 =============
 

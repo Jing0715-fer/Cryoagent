@@ -35,8 +35,8 @@ class Config:
     EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'deepseek-embed')
     EMBEDDING_DIMENSION = int(os.environ.get('EMBEDDING_DIMENSION', '1536'))
 
-    # Vector search engine configuration ('faiss' or 'lancedb')
-    VECTOR_ENGINE = os.environ.get('VECTOR_ENGINE', 'faiss')
+    # Vector search engine configuration ('lancedb')
+    VECTOR_ENGINE = os.environ.get('VECTOR_ENGINE', 'lancedb')
 
     # LanceDB RAG configuration
     LANCEDB_PATH = os.environ.get('LANCEDB_PATH', os.path.join(_data_dir, 'lancedb'))

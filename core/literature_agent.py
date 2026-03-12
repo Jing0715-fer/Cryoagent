@@ -3969,18 +3969,6 @@ class LiteratureManager:
         """获取索引状态"""
         if self.index_manager:
             return self.index_manager.check_index_integrity()
-        elif self.indexer and hasattr(self.indexer, 'faiss_indexer'):
-            # 简单检查
-            faiss_indexer = self.indexer.faiss_indexer
-            has_index = faiss_indexer.faiss_index is not None
-            return {
-                "overall": "loaded" if has_index else "not_loaded",
-                "faiss": {
-                    "exists": has_index,
-                    "chunks": len(faiss_indexer.text_chunks) if hasattr(faiss_indexer, 'text_chunks') else 0
-                },
-                "needs_rebuild": not has_index
-            }
         else:
             return {
                 "overall": "unavailable",
@@ -3989,35 +3977,22 @@ class LiteratureManager:
             }
     
     def rebuild_index(self, force: bool = False) -> Dict[str, Any]:
-        """重建文献索引"""
+        """重建文献索引（使用 LanceDB）"""
         start_time = time.time()
-        
+
         try:
-            logger.info("开始重建文献索引")
-            
-            # 检查索引管理器
-            if self.index_manager:
-                integrity = self.index_manager.check_index_integrity()
-                
-                # 如果不需要强制重建且索引正常，跳过
-                if not force and not integrity.get("needs_rebuild"):
-                    logger.info("索引正常，跳过重建")
-                    return {
-                        "success": True,
-                        "message": "索引正常，无需重建",
-                        "skipped": True
-                    }
-            
+            logger.info("开始重建文献索引 (LanceDB)")
+
             # 获取所有已解析的文献
             session = create_literature_session()
             literature_entries = session.query(LiteratureEntry).filter(
                 LiteratureEntry.status.in_([LiteratureStatus.PARSED, LiteratureStatus.INDEXED])
             ).all()
-            
+
             if not literature_entries:
                 session.close()
                 return {"success": False, "error": "没有已解析的文献可索引"}
-            
+
             # 转换为字典格式
             literature_list = []
             for entry in literature_entries:
@@ -4030,52 +4005,71 @@ class LiteratureManager:
                     import traceback
                     traceback.print_exc()
                     continue
-            
+
             session.close()
-            
+
             if not literature_list:
                 return {"success": False, "error": "没有有效的文献数据可索引"}
-            
-            logger.info(f"准备索引 {len(literature_list)} 篇文献")
-            
-            # 构建索引
-            if self.indexer:
-                success = self.indexer.index_literature(literature_list, rebuild=True, include_structures=False)
 
-                if success:
-                    # 更新文献状态
-                    self._update_indexed_status(literature_entries)
+            logger.info(f"准备索引 {len(literature_list)} 篇文献到 LanceDB")
 
-                    process_time = time.time() - start_time
-                    logger.info(f"✅ 索引重建完成 ({process_time:.2f}秒): {len(literature_list)} 篇文献")
-                    logger.info("   - 元数据文档: 1 篇文献 x 1 个文档")
-                    logger.info("   - 内容 Chunks: 每篇文献的章节/摘要/关键发现已chunk化并向量化")
+            # 强制重建：删除现有表并创建新的 RAG 实例
+            import lancedb
+            try:
+                db = lancedb.connect('core/data/lancedb')
+                for t in ['literature', 'structure', 'session_memory']:
+                    try:
+                        db.drop_table(t)
+                    except:
+                        pass
+                logger.info("已删除旧表")
+            except Exception as e:
+                logger.warning(f"删除旧表失败: {e}")
 
-                    return {
-                        "success": True,
-                        "message": f"索引重建完成: {len(literature_list)} 篇文献 (包含内容chunks)",
-                        "literature_count": len(literature_list),
-                        "index_type": "vector",
-                        "timestamp": datetime.now().isoformat(),
-                        "process_time": process_time
-                    }
-                else:
-                    process_time = time.time() - start_time
-                    return {
-                        "success": False,
-                        "error": "索引构建失败",
-                        "literature_count": len(literature_list),
-                        "process_time": process_time
-                    }
-            else:
-                process_time = time.time() - start_time
-                return {
-                    "success": False,
-                    "error": "索引器不可用",
-                    "literature_count": len(literature_list),
-                    "process_time": process_time
-                }
-                
+            # 创建新的 RAG 实例并初始化表
+            from core.lancedb_rag import UnifiedLanceRAG, RAGConfig
+            config = RAGConfig(
+                db_path='core/data/lancedb',
+                vector_dim=384,
+                embedding_model='all-MiniLM-L6-v2',
+                default_top_k=10,
+                use_rerank=False,
+            )
+            lancedb_rag = UnifiedLanceRAG(config=config)
+            lancedb_rag.initialize_tables(overwrite=True)
+            logger.info("新表已创建")
+
+            # 索引文献（包含 chunks）
+            total_chunks = 0
+            for lit_data in literature_list:
+                try:
+                    chunks_count = lancedb_rag.add_literature_chunks(
+                        lit_data,
+                        chunk_size=500,
+                        chunk_overlap=50,
+                        batch_size=32
+                    )
+                    total_chunks += chunks_count
+                except Exception as e:
+                    logger.error(f"索引文献 {lit_data.get('id')} 失败: {e}")
+                    continue
+
+            # 更新文献状态
+            self._update_indexed_status(literature_entries)
+
+            process_time = time.time() - start_time
+            logger.info(f"✅ LanceDB 索引重建完成 ({process_time:.2f}秒): {len(literature_list)} 篇文献, {total_chunks} 个 chunks")
+
+            return {
+                "success": True,
+                "message": f"LanceDB 索引重建完成: {len(literature_list)} 篇文献, {total_chunks} 个内容chunks",
+                "literature_count": len(literature_list),
+                "chunk_count": total_chunks,
+                "index_type": "lancedb",
+                "timestamp": datetime.now().isoformat(),
+                "process_time": process_time
+            }
+
         except Exception as e:
             process_time = time.time() - start_time
             logger.error(f"重建索引失败 ({process_time:.2f}秒): {e}")

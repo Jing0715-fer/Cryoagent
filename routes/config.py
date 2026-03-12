@@ -140,7 +140,7 @@ def config_page():
         embedding_model = request.form.get('embedding_model', '').strip()
 
         # Vector database config
-        vector_engine = request.form.get('vector_engine', 'faiss').strip()
+        vector_engine = request.form.get('vector_engine', 'lancedb').strip()
         search_type = request.form.get('search_type', 'vector').strip()
         reranker_enabled = request.form.get('reranker_enabled') == 'on'
 
@@ -233,7 +233,7 @@ def config_page():
     embedding_provider = config.get('embedding_provider', 'local')
     embedding_api_key = config.get('embedding_api_key', '')
     embedding_api_base = config.get('embedding_api_base', '')
-    vector_engine = config.get('vector_engine', 'faiss')
+    vector_engine = config.get('vector_engine', 'lancedb')
     search_type = config.get('search_type', 'vector')
     reranker_enabled = config.get('reranker_enabled', False)
     jina_api_key = config.get('jina_api_key', '')
@@ -301,13 +301,13 @@ def save_ai_config():
         provider_defaults = API_PROVIDERS.get(api_provider, API_PROVIDERS['openai'])
 
         # Vector config
-        vector_engine = data.get('vector_engine', 'faiss').strip()
+        vector_engine = data.get('vector_engine', 'lancedb').strip()
         search_type = data.get('search_type', 'vector').strip()
         reranker_enabled = data.get('reranker_enabled', False)
 
         # Validate vector_engine value
-        if vector_engine not in ['faiss', 'lancedb']:
-            return jsonify({'success': False, 'message': f'Invalid vector_engine: {vector_engine}. Must be "faiss" or "lancedb"'})
+        if vector_engine not in ['lancedb']:
+            return jsonify({'success': False, 'message': f'Invalid vector_engine: {vector_engine}. Must be "lancedb"'})
 
         config = {
             'api_provider': api_provider,

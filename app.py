@@ -118,6 +118,18 @@ def literature_page():
 def literature_detail_page(lit_id):
     return render_template('literature_detail.html', lit_id=lit_id)
 
+@app.route('/literature/chunk/<chunk_id>')
+@login_required
+def literature_chunk_page(chunk_id):
+    """文献 Chunk 详情页 - 支持 literature_5_full_chunk_185 格式"""
+    import re
+    # 解析 chunk_id 格式: literature_5_full_chunk_185
+    match = re.match(r'literature_(\d+)_full_chunk_(\d+)', chunk_id)
+    if match:
+        lit_id = int(match.group(1))
+        return redirect(url_for('literature_detail_page', lit_id=lit_id))
+    abort(404)
+
 @app.route('/structures')
 @login_required
 def structures_page():
@@ -425,6 +437,7 @@ def api_index():
         ]
     })
 
+# Start the application
 if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5000))
@@ -436,4 +449,4 @@ if __name__ == '__main__':
     print("Press Ctrl+C to stop")
     print("=" * 47)
 
-app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=True)

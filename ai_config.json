@@ -1,8 +1,8 @@
 {
   "api_provider": "anthropic",
-  "api_base": "https://api.minimaxi.com/anthropic",
-  "api_key": "sk-cp-Z0lrWRE3uyJ68uuGsHICJtTVJtqJDcGTs4-uqM2BsAzN-8fVE3iEXZKaVbmXEaQQ4EcgwSay-aD2XGMN6GZMfRJ5-wDouTsVReEvWvBYOjsAx5bjjAJn7Gk",
-  "chat_model": "Minimax-M2.5",
+  "api_base": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+  "api_key": "sk-sp-1a4076d080b442cb906d95c9a207ed6c",
+  "chat_model": "qwen3.5-plus",
   "embedding_model": "all-MiniLM-L6-v2",
   "vector_engine": "lancedb",
   "search_type": "hybrid",
@@ -26,7 +26,15 @@
       "chat_model": "gemini-3-flash-preview",
       "id": "model_1772532018763",
       "name": "Google Germini"
+    },
+    {
+      "id": "model_1773193536026",
+      "name": "Qwen",
+      "api_base": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+      "api_key": "sk-sp-1a4076d080b442cb906d95c9a207ed6c",
+      "chat_model": "qwen3.5-plus",
+      "api_format": "anthropic"
     }
   ],
-  "active_model_id": "model_2"
+  "active_model_id": "model_1773193536026"
 }

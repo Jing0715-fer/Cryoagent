@@ -11,7 +11,7 @@ from .config import bp as config_bp
 from .feishu import bp as feishu_bp
 from .evaluation import bp as evaluation_bp
 
-# Handle optional search module (requires faiss)
+# Handle search module
 try:
     from .search import bp as search_bp
     HAS_SEARCH = True

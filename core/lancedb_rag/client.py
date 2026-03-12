@@ -102,27 +102,6 @@ class TableConfig:
 class LanceDBClient:
     """LanceDB 客户端管理类"""
 
-    DEFAULT_TABLES = {
-        "literature": TableConfig(
-            name="literature",
-            schema=LITERATURE_SCHEMA,
-            vector_column="embedding",
-            vector_dim=1536
-        ),
-        "structure": TableConfig(
-            name="structure",
-            schema=STRUCTURE_SCHEMA,
-            vector_column="embedding",
-            vector_dim=1536
-        ),
-        "session_memory": TableConfig(
-            name="session_memory",
-            schema=SESSION_MEMORY_SCHEMA,
-            vector_column=None,
-            vector_dim=0
-        ),
-    }
-
     def __init__(
         self,
         db_path: Optional[str] = None,
@@ -142,6 +121,28 @@ class LanceDBClient:
 
         self.db_path = db_path or self._get_default_db_path()
         self.vector_dim = vector_dim
+
+        # 动态创建表配置，使用传入的 vector_dim
+        self.DEFAULT_TABLES = {
+            "literature": TableConfig(
+                name="literature",
+                schema=LITERATURE_SCHEMA,
+                vector_column="embedding",
+                vector_dim=vector_dim
+            ),
+            "structure": TableConfig(
+                name="structure",
+                schema=STRUCTURE_SCHEMA,
+                vector_column="embedding",
+                vector_dim=vector_dim
+            ),
+            "session_memory": TableConfig(
+                name="session_memory",
+                schema=SESSION_MEMORY_SCHEMA,
+                vector_column=None,
+                vector_dim=0
+            ),
+        }
         self.storage_options = storage_options
         self._db = None
         self._tables = {}
