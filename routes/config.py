@@ -342,6 +342,17 @@ def save_ai_config():
                 current_app.config['VECTOR_ENGINE'] = vector_engine
                 logger.info(f"Applied VECTOR_ENGINE={vector_engine} to app.config")
 
+                # Apply reranker settings
+                current_app.config["USE_RERANK"] = reranker_enabled
+                logger.info(f"Applied USE_RERANK={reranker_enabled} to app.config")
+
+                # Apply Jina API key to environment and app config
+                jina_key = config.get("jina_api_key", "").strip()
+                if jina_key:
+                    os.environ["JINA_API_KEY"] = jina_key
+                    current_app.config["RERANKER_API_KEY"] = jina_key
+                    logger.info("Applied JINA_API_KEY to environment and app.config")
+
             msg = '本地Embedding模型配置已保存' if is_local_embedding else '配置已保存'
             return jsonify({'success': True, 'message': msg})
         else:

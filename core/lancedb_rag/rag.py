@@ -39,10 +39,10 @@ class RAGConfig:
     """RAG 系统配置"""
     # LanceDB 配置
     db_path: Optional[str] = None
-    vector_dim: int = 1536
+    vector_dim: int = 384  # 修改为与索引一致的默认值 (all-MiniLM-L6-v2)
 
     # 嵌入模型配置
-    embedding_model: str = "deepseek-embed"
+    embedding_model: str = "all-MiniLM-L6-v2"  # 修改为实际使用的模型
     embedding_api_base: Optional[str] = None
     embedding_api_key: Optional[str] = None
 
@@ -562,8 +562,9 @@ class UnifiedLanceRAG:
         search_type: str,
         top_k: int,
         filters: Optional[Dict[str, Any]] = None,
+        include_neighbors: bool = True,  # 是否包含前后块
     ) -> List[Dict[str, Any]]:
-        """检索文献"""
+        """检索文献，可选获取前后相邻块以提供完整上下文"""
         if not self._literature_table:
             return []
 
@@ -573,15 +574,18 @@ class UnifiedLanceRAG:
         # 向量搜索
         if search_type in ["vector", "hybrid"]:
             try:
+                # 获取更多结果，为后续neighbor查询预留
+                search_limit = top_k * 3 if include_neighbors else top_k * 2
                 results = self._literature_table.search(query_embedding)\
-                    .limit(top_k * 2)\
+                    .limit(search_limit)\
                     .to_list()
 
                 # 应用过滤
                 if filters:
                     results = self._apply_filters(results, filters)
 
-                return [
+                # 转换为统一格式
+                formatted_results = [
                     {
                         "id": r.get("id"),
                         "score": r.get("_distance", 0),
@@ -589,10 +593,191 @@ class UnifiedLanceRAG:
                     }
                     for r in results
                 ]
+
+                # 获取前后相邻块
+                if include_neighbors:
+                    formatted_results = self._include_neighbor_chunks(
+                        formatted_results, top_k=top_k
+                    )
+
+                return formatted_results[:top_k]
             except Exception as e:
                 logger.error(f"向量搜索失败: {e}")
 
         return []
+
+    def _include_neighbor_chunks(
+        self,
+        results: List[Dict[str, Any]],
+        top_k: int,
+        neighbor_range: int = 2,  # 获取前后neighbor_range个块
+    ) -> List[Dict[str, Any]]:
+        """
+        为每个检索结果获取前后相邻的文本块，合并成完整上下文
+
+        文献块ID格式: literature_{num}_full_chunk_{chunk_num}
+
+        Args:
+            results: 检索结果列表
+            top_k: 处理前top_k个结果
+            neighbor_range: 前后获取的块数量，默认2（获取-2,-1,0,1,2）
+
+        Returns:
+            增强后的结果列表
+        """
+        import re
+
+        enhanced_results = []
+        processed_chunk_ids = set()  # 已处理的块ID
+        processed_ranges = {}  # 记录每个文献已处理的块范围 {prefix: [(start, end), ...]}
+
+        # 方法检测关键词
+        method_indicators = [
+            'purification', 'expression', 'protocol', 'buffer', 'detergent',
+            'chromatography', 'column', 'resin', 'elution', 'solubilization',
+            'incubation', 'centrifugation', 'extraction', 'preparation',
+            '纯化', '表达', '缓冲液', '去垢剂', '层析', '色谱',
+            '步骤', '方法', 'protocol', 'procedure', 'step'
+        ]
+
+        for result in results[:top_k]:  # 只处理top_k个结果
+            doc_id = result.get("id", "")
+            if not doc_id:
+                continue
+
+            # 解析文献ID和块编号
+            match = re.match(r"(literature_(\d+)_full_chunk_)(\d+)", doc_id)
+            if not match:
+                # 非标准块ID格式，直接保留（但要去重ID）
+                if doc_id not in processed_chunk_ids:
+                    enhanced_results.append(result)
+                    processed_chunk_ids.add(doc_id)
+                continue
+
+            prefix = match.group(1)
+            lit_num = match.group(2)
+            chunk_num = int(match.group(3))
+
+            # 检查是否与前一个结果的范围重叠
+            range_key = prefix
+            if range_key in processed_ranges:
+                # 检查是否与已处理范围重叠
+                overlaps = False
+                for (start, end) in processed_ranges[range_key]:
+                    if start <= chunk_num <= end:
+                        overlaps = True
+                        break
+                if overlaps:
+                    # 这个块已经被处理过了，跳过
+                    continue
+
+            # 检查是否是方法段落（通过内容判断）
+            doc_content = result.get("document", {}).get("full_text", "") or \
+                         result.get("document", {}).get("content", "") or \
+                         result.get("_raw_doc", {}).get("full_text", "") or ""
+
+            # 检测是否是方法相关内容
+            is_method_content = any(indicator.lower() in doc_content.lower()
+                                    for indicator in method_indicators)
+
+            # 方法内容获取更多上下文
+            actual_neighbor_range = 3 if is_method_content else neighbor_range
+
+            # 计算当前要处理的范围
+            current_start = max(0, chunk_num - actual_neighbor_range)
+            current_end = chunk_num + actual_neighbor_range
+
+            # 记录已处理范围
+            if range_key not in processed_ranges:
+                processed_ranges[range_key] = []
+            processed_ranges[range_key].append((current_start, current_end))
+
+            # 收集当前块及前后块
+            chunks_to_fetch = []
+            for offset in range(-actual_neighbor_range, actual_neighbor_range + 1):
+                neighbor_chunk_num = chunk_num + offset
+                if neighbor_chunk_num >= 0:  # 块编号不能为负
+                    neighbor_id = f"{prefix}{neighbor_chunk_num}"
+                    if neighbor_id not in processed_chunk_ids:
+                        chunks_to_fetch.append((neighbor_id, offset))
+                        processed_chunk_ids.add(neighbor_id)
+
+            # 查询数据库获取相邻块
+            merged_content_parts = []
+            merged_full_text_parts = []
+            chunk_scores = []
+            section_info = []
+
+            # 首先添加当前块的内容
+            main_doc = None
+            for neighbor_id, offset in chunks_to_fetch:
+                try:
+                    neighbor_data = self._literature_table.search()\
+                        .where(f"id = '{neighbor_id}'")\
+                        .limit(1)\
+                        .to_list()
+
+                    if neighbor_data:
+                        neighbor_doc = neighbor_data[0]
+
+                        content = neighbor_doc.get("content", "") or neighbor_doc.get("text", "")
+                        full_text = neighbor_doc.get("full_text", "") or content
+                        section = neighbor_doc.get("section", "")
+
+                        if neighbor_id == doc_id:
+                            # 当前块，保留原始分数
+                            chunk_scores.append(result.get("score", 0))
+                            main_doc = neighbor_doc
+                        else:
+                            # 相邻块，根据距离给予稍低的分数
+                            distance_factor = 1.0 - (abs(offset) * 0.15)
+                            chunk_scores.append(result.get("score", 0) * max(0.5, distance_factor))
+
+                        # 按顺序收集内容
+                        merged_content_parts.append((offset, content))
+                        merged_full_text_parts.append((offset, full_text))
+                        if section:
+                            section_info.append(section)
+
+                except Exception as e:
+                    logger.debug(f"获取相邻块失败 {neighbor_id}: {e}")
+
+            if merged_content_parts and main_doc is not None:
+                # 按offset排序，确保内容顺序正确
+                merged_content_parts.sort(key=lambda x: x[0])
+                merged_full_text_parts.sort(key=lambda x: x[0])
+
+                # 提取排序后的内容
+                sorted_content = [content for _, content in merged_content_parts if content]
+                sorted_full_text = [text for _, text in merged_full_text_parts if text]
+
+                # 创建合并后的结果
+                enhanced_doc = dict(main_doc)
+                enhanced_doc["content"] = "\n\n[...相邻内容...]\n\n".join(sorted_content)
+                enhanced_doc["full_text"] = "\n\n[...相邻内容...]\n\n".join(sorted_full_text)
+                enhanced_doc["chunk_count"] = len(sorted_content)
+                enhanced_doc["merged_chunk_ids"] = [nid for nid, _ in chunks_to_fetch]
+                enhanced_doc["is_method_content"] = is_method_content
+
+                # 如果有多个section，记录主要section
+                if section_info:
+                    enhanced_doc["sections_covered"] = list(set(section_info))
+
+                enhanced_results.append({
+                    "id": doc_id,
+                    "doc_id": lit_num,  # 添加 doc_id 字段
+                    "score": max(chunk_scores) if chunk_scores else result.get("score", 0),
+                    "document": enhanced_doc,
+                    "has_neighbors": len(sorted_content) > 1,
+                    "is_method_content": is_method_content,
+                    "section": enhanced_doc.get("section", "unknown"),
+                })
+            else:
+                # 合并失败，保留原始结果
+                enhanced_results.append(result)
+                processed_chunk_ids.add(doc_id)
+
+        return enhanced_results
 
     def _search_structure(
         self,
@@ -698,6 +883,7 @@ class UnifiedLanceRAG:
         doc_id: Optional[str] = None,
         sections: Optional[List[str]] = None,
         use_rerank: bool = True,
+        include_neighbors: bool = True,  # 新增：是否包含邻居块
     ) -> List[Dict[str, Any]]:
         """
         检索相关内容块
@@ -710,6 +896,7 @@ class UnifiedLanceRAG:
             doc_id: 可选，限定来源文档 ID
             sections: 可选，限定章节列表 (如 ["methods", "results"])
             use_rerank: 是否使用重排序
+            include_neighbors: 是否包含前后相邻块
 
         Returns:
             包含 chunk 内容、来源文献信息、相关性分数的结果列表
@@ -724,20 +911,22 @@ class UnifiedLanceRAG:
         try:
             search_builder = self._literature_table.search(query_embedding)
 
-            # 添加过滤条件
+            # 添加 doc_id 过滤（仍然使用 where，因为它是等值过滤）
             if doc_id:
-                # LanceDB 的 where 子句
                 search_builder = search_builder.where(f"doc_id = '{doc_id}'")
 
+            # 获取更多结果用于邻居查询和章节过滤
+            # 增加初始检索数量以确保能获取到目标章节的内容
+            # (因为某些章节如 methods 的向量相似度可能低于 full_text)
+            search_limit = top_k * 10 if include_neighbors else top_k * 5
             if sections:
-                # 构建 OR 条件
-                section_conditions = " OR ".join([f"section = '{s}'" for s in sections])
-                if doc_id:
-                    search_builder = search_builder.where(f"doc_id = '{doc_id}' AND ({section_conditions})")
-                else:
-                    search_builder = search_builder.where(section_conditions)
+                # 如果有过滤章节，获取更多结果以确保有足够的目标章节内容
+                search_limit = max(search_limit, 100)
+            results = search_builder.limit(search_limit).to_list()
 
-            results = search_builder.limit(top_k * 3).to_list()
+            # 应用 section 过滤（后处理，避免 LanceDB where 子句问题）
+            if sections:
+                results = [r for r in results if r.get("section") in sections]
 
         except Exception as e:
             logger.error(f"Chunk 检索失败: {e}")
@@ -760,7 +949,24 @@ class UnifiedLanceRAG:
                 "score": r.get("_distance", 0),
                 "year": r.get("year"),
                 "journal": r.get("journal", ""),
+                "_raw_doc": r,  # 保留原始文档用于邻居查询
             })
+
+        # 获取前后相邻块
+        if include_neighbors and formatted_results:
+            formatted_results = self._include_neighbor_chunks(
+                formatted_results, top_k=len(formatted_results)
+            )
+            # 更新 content 字段为合并后的 full_text
+            for r in formatted_results:
+                doc = r.get("document", {})
+                if doc:
+                    merged_content = doc.get("full_text", "") or doc.get("content", "")
+                    if merged_content:
+                        r["content"] = merged_content
+                    r["has_neighbors"] = doc.get("has_neighbors", False)
+                    r["chunk_count"] = doc.get("chunk_count", 1)
+                    r["is_method_content"] = doc.get("is_method_content", False)
 
         # 重排序
         if use_rerank and self.reranker and formatted_results:
@@ -791,6 +997,208 @@ class UnifiedLanceRAG:
                 formatted_results = formatted_results[:top_k]
 
         return formatted_results[:top_k]
+
+    def _detect_query_sections(self, query: str) -> Optional[List[str]]:
+        """
+        根据查询内容自动检测应检索的章节
+
+        分析查询语义，返回建议检索的章节列表
+
+        Args:
+            query: 用户查询
+
+        Returns:
+            建议检索的章节列表，或None表示不限制
+        """
+        query_lower = query.lower()
+
+        # 方法类查询关键词
+        method_indicators = [
+            'purification', 'expression', 'protocol', 'buffer', 'detergent',
+            'chromatography', 'column', 'resin', 'elution', 'solubilization',
+            'incubation', 'centrifugation', 'extraction', 'preparation',
+            '纯化', '表达', '缓冲液', '去垢剂', '层析', '色谱',
+            '方法', 'protocol', 'procedure', 'step', 'protocols',
+            'methodology', 'experimental', '样品制备'
+        ]
+
+        # 结果类查询关键词
+        results_indicators = [
+            'result', 'finding', 'show', 'demonstrate', 'observed',
+            'significant', 'increased', 'decreased', 'fig', 'figure',
+            '结果', '发现', '显示', '显著', '增加', '减少',
+            'observation', 'outcome', 'conclusion'
+        ]
+
+        # 讨论类查询关键词
+        discussion_indicators = [
+            'discuss', 'implication', 'significance', 'meaning',
+            '为什么', '讨论', '意义', '影响', '机制', 'mechanism'
+        ]
+
+        # 背景类查询关键词
+        background_indicators = [
+            'background', 'introduction', 'history', 'previous',
+            '背景', '引言', '介绍', '历史', '先前'
+        ]
+
+        # 计算匹配分数
+        method_score = sum(1 for ind in method_indicators if ind in query_lower)
+        results_score = sum(1 for ind in results_indicators if ind in query_lower)
+        discussion_score = sum(1 for ind in discussion_indicators if ind in query_lower)
+        background_score = sum(1 for ind in background_indicators if ind in query_lower)
+
+        # 根据最高分数返回建议章节
+        scores = [
+            ('methods', method_score),
+            ('results', results_score),
+            ('discussion', discussion_score),
+            ('introduction', background_score)
+        ]
+
+        best_section, best_score = max(scores, key=lambda x: x[1])
+
+        # 只有当分数足够高时才建议特定章节
+        if best_score >= 1:
+            # 对于方法查询，优先返回methods，但也考虑results（可能包含方法细节）
+            if best_section == 'methods':
+                return ['methods', 'results']
+            elif best_section == 'results':
+                return ['results', 'methods']
+            else:
+                return [best_section]
+
+        return None  # 不限制章节
+
+    def retrieve_chunks_enhanced(
+        self,
+        query: str,
+        top_k: int = 10,
+        doc_id: Optional[str] = None,
+        sections: Optional[List[str]] = None,
+        use_rerank: bool = True,
+        include_neighbors: bool = True,
+        auto_detect_sections: bool = True,
+        section_boost: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        增强版内容块检索，支持智能章节检测和章节内排序提升
+
+        Args:
+            query: 查询文本
+            top_k: 返回结果数量
+            doc_id: 可选，限定来源文档 ID
+            sections: 可选，手动指定章节列表
+            use_rerank: 是否使用重排序
+            include_neighbors: 是否包含前后相邻块
+            auto_detect_sections: 是否自动检测查询相关的章节
+            section_boost: 是否对相关章节的块进行分数提升
+
+        Returns:
+            检索结果列表
+        """
+        # 自动检测查询相关的章节
+        detected_sections = None
+        if auto_detect_sections and not sections:
+            detected_sections = self._detect_query_sections(query)
+            if detected_sections:
+                logger.info(f"查询自动检测到的章节: {detected_sections}")
+
+        # 合并手动指定和自动检测的章节
+        search_sections = sections or detected_sections
+
+        # 执行基础检索（获取更多结果用于后续处理）
+        initial_top_k = top_k * 2 if section_boost else top_k
+
+        # 如果有章节限制，先尝试严格检索
+        if search_sections:
+            results = self.retrieve_chunks(
+                query=query,
+                top_k=initial_top_k,
+                doc_id=doc_id,
+                sections=search_sections,
+                use_rerank=False,  # 我们自己处理重排序
+                include_neighbors=include_neighbors
+            )
+        else:
+            # 无章节限制，检索所有
+            results = self.retrieve_chunks(
+                query=query,
+                top_k=initial_top_k,
+                doc_id=doc_id,
+                sections=None,
+                use_rerank=False,
+                include_neighbors=include_neighbors
+            )
+
+        # 章节分数提升
+        if section_boost and detected_sections and results:
+            results = self._apply_section_boost(results, detected_sections)
+
+        # 重排序
+        if use_rerank and self.reranker and results:
+            try:
+                docs_for_rerank = [{"content": r["content"], "id": r["id"]} for r in results]
+                reranked = self.reranker.rerank(
+                    query=query,
+                    documents=docs_for_rerank,
+                    top_k=top_k,
+                )
+
+                # 重新排序结果
+                reranked_results = []
+                for rr in reranked:
+                    orig_id = rr.get("document", {}).get("id") or rr.get("id")
+                    for orig in results:
+                        if orig["id"] == orig_id:
+                            orig["rerank_score"] = rr.get("rerank_score", 0)
+                            orig["score"] = rr.get("rerank_score", orig["score"])
+                            reranked_results.append(orig)
+                            break
+
+                results = reranked_results[:top_k]
+            except Exception as e:
+                logger.warning(f"重排序失败: {e}")
+                results = results[:top_k]
+
+        return results[:top_k]
+
+    def _apply_section_boost(
+        self,
+        results: List[Dict[str, Any]],
+        priority_sections: List[str],
+        boost_factor: float = 1.2
+    ) -> List[Dict[str, Any]]:
+        """
+        对来自优先章节的块应用分数提升
+
+        Args:
+            results: 检索结果列表
+            priority_sections: 优先章节列表
+            boost_factor: 提升因子
+
+        Returns:
+            提升后的结果列表
+        """
+        boosted_results = []
+
+        for result in results:
+            section = result.get("section", "").lower()
+
+            # 检查是否来自优先章节
+            if section in priority_sections:
+                # 应用分数提升
+                original_score = result.get("score", 0)
+                result["score"] = original_score * boost_factor
+                result["section_boosted"] = True
+                result["boosted_section"] = section
+
+            boosted_results.append(result)
+
+        # 重新排序
+        boosted_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        return boosted_results
 
     def _adaptive_search(
         self,

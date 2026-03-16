@@ -31,6 +31,165 @@ def get_current_user_id():
     return None
 
 
+def _merge_continuous_chunks(sources: list) -> list:
+    """
+    合并来自同一文献的连续 chunks 为一个来源
+
+    例如：
+    - literature_5_full_chunk_104, literature_5_full_chunk_105, literature_5_full_chunk_106
+    合并为单个来源，显示为 "文献 5"，内容是合并后的完整文本
+
+    Args:
+        sources: 原始来源列表
+
+    Returns:
+        合并后的来源列表
+    """
+    import re
+    from collections import defaultdict
+
+    if not sources:
+        return sources
+
+    # 按文献ID分组
+    lit_groups = defaultdict(list)
+    other_sources = []
+
+    for source in sources:
+        if source.get('type') != 'literature':
+            other_sources.append(source)
+            continue
+
+        id_str = str(source.get('id', ''))
+        # 解析 chunk ID 格式: literature_5_full_chunk_104
+        match = re.match(r'literature_(\d+)_(\w+)_chunk_(\d+)', id_str)
+        if match:
+            lit_num = match.group(1)
+            chunk_type = match.group(2)  # full, methods, abstract, findings 等
+            chunk_num = int(match.group(3))
+            # 使用 (文献 ID, chunk 类型) 作为分组键
+            group_key = f"literature_{lit_num}_{chunk_type}_chunk_"
+            lit_groups[group_key].append({
+                'source': source,
+                'lit_num': lit_num,
+                'chunk_type': chunk_type,
+                'chunk_num': chunk_num,
+                'prefix': group_key,
+            })
+        else:
+            # 非 chunk 格式的 literature ID，保留原样
+            other_sources.append(source)
+
+    # 合并每个文献的连续 chunks
+    merged_sources = []
+
+    for prefix, chunks in lit_groups.items():
+        # 按 chunk 编号排序
+        chunks.sort(key=lambda x: x['chunk_num'])
+
+        # 找出连续的 chunk 组
+        current_group = [chunks[0]] if chunks else []
+
+        for i in range(1, len(chunks)):
+            prev_chunk = current_group[-1]['chunk_num'] if current_group else None
+            curr_chunk = chunks[i]['chunk_num']
+
+            # 如果当前 chunk 与前一个连续（相差1），则加入当前组
+            if prev_chunk is not None and curr_chunk == prev_chunk + 1:
+                current_group.append(chunks[i])
+            else:
+                # 不连续，合并当前组并开始新组
+                if current_group:
+                    merged = _create_merged_source(current_group)
+                    merged_sources.append(merged)
+                current_group = [chunks[i]]
+
+        # 处理最后一组
+        if current_group:
+            merged = _create_merged_source(current_group)
+            merged_sources.append(merged)
+
+    # 合并所有来源
+    result = other_sources + merged_sources
+
+    # 按原始顺序排序（使用第一个 chunk 的原始位置）
+    # 创建一个位置映射
+    position_map = {}
+    for idx, source in enumerate(sources):
+        sid = str(source.get('id', ''))
+        if sid not in position_map:
+            position_map[sid] = idx
+
+    # 为合并后的来源分配位置（取组内第一个 chunk 的位置）
+    def get_sort_key(source):
+        sid = str(source.get('id', ''))
+        # 如果是合并后的来源，提取原始 IDs 来查找位置
+        merged_ids = source.get('merged_chunk_ids', [])
+        if merged_ids:
+            # 使用第一个 chunk 的原始位置
+            first_id = str(merged_ids[0])
+            return position_map.get(first_id, 999)
+        return position_map.get(sid, 999)
+
+    result.sort(key=get_sort_key)
+
+    return result
+
+
+def _create_merged_source(chunk_group: list) -> dict:
+    """
+    从一组连续的 chunks 创建合并后的来源
+
+    Args:
+        chunk_group: 连续 chunk 的列表，每个元素包含 source, lit_num, chunk_num, prefix
+
+    Returns:
+        合并后的来源字典
+    """
+    if not chunk_group:
+        return {}
+
+    if len(chunk_group) == 1:
+        # 只有一个 chunk，直接返回
+        return chunk_group[0]['source']
+
+    # 获取第一个 chunk 的信息作为基础
+    first_chunk = chunk_group[0]
+    base_source = first_chunk['source']
+    lit_num = first_chunk['lit_num']
+    chunk_type = first_chunk.get('chunk_type', 'full')  # 获取 chunk 类型
+
+    # 收集所有内容
+    contents = []
+    for chunk in chunk_group:
+        content = chunk['source'].get('content', '')
+        if content:
+            contents.append(content)
+
+    # 合并内容
+    merged_content = '\n\n'.join(contents)
+
+    # 收集所有 chunk IDs
+    chunk_ids = [c['source'].get('id') for c in chunk_group]
+
+    # 创建合并后的来源
+    merged_source = {
+        'type': 'literature',
+        'id': first_chunk['source'].get('id'),  # 使用第一个 chunk 的 ID
+        'title': base_source.get('title', ''),
+        'content': merged_content,
+        'authors': base_source.get('authors', ''),
+        'year': base_source.get('year', ''),
+        'journal': base_source.get('journal', ''),
+        'doi': base_source.get('doi', ''),
+        'merged_chunk_ids': chunk_ids,  # 记录合并的所有 chunk IDs
+        'chunk_count': len(chunk_group),  # 合并的 chunk 数量
+        'chunk_range': f"{first_chunk['chunk_num']}-{chunk_group[-1]['chunk_num']}",  # chunk 范围
+    }
+
+    return merged_source
+
+
 def _handle_agent_mode(question: str, session_id: str, original_data: dict, max_tokens: int = None):
     """
     处理 Agent 模式 - 调用 Agent 端点
@@ -164,7 +323,11 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict, max_
                         'type': 'literature',
                         'id': str(lit.get('id', '')),
                         'title': lit.get('title', '')[:100],
-                        'content': lit.get('content', '')  # 添加 content 字段用于前端过滤
+                        'content': lit.get('content', ''),  # 添加 content 字段用于前端过滤
+                        'authors': lit.get('authors', ''),  # 添加作者
+                        'year': lit.get('year', ''),        # 添加年份
+                        'journal': lit.get('journal', ''),  # 添加期刊
+                        'doi': lit.get('doi', '')            # 添加 DOI
                     })
             # 结构来源
             if tr.get('tool_name') == 'search_structures' and tr.get('success'):
@@ -175,6 +338,11 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict, max_
                         'id': struct.get('pdb_id', ''),
                         'title': struct.get('title', '')[:100]
                     })
+
+        # 合并连续的 chunks 为一个来源
+        logger.info(f"[QA v2] 合并前来源数量: {len(sources)}")
+        sources = _merge_continuous_chunks(sources)
+        logger.info(f"[QA v2] 合并后来源数量: {len(sources)}")
 
         print(f"[QA v2] Agent 模式完成, image_url: {image_url}, sources: {len(sources)}")
         print(f"[QA v2] 准备保存历史记录...")
@@ -187,14 +355,22 @@ def _handle_agent_mode(question: str, session_id: str, original_data: dict, max_
             print(f"[QA v2] user_id = {user_id}, session_id = {session_id}")
             print(f"[QA v2] 开始保存历史，result 类型: {type(result)}")
             # 截断过大的结果JSON，防止数据库存储失败
-            result_json_str = json.dumps(result)
+            # 构建要保存的结果，包含完整的来源信息
+            result_to_save = {
+                'content': result.get('content', ''),
+                'iteration': result.get('iteration', 0),
+                'tool_results': result.get('tool_results', []),
+                'sources': sources  # 确保保存来源信息
+            }
+            result_json_str = json.dumps(result_to_save)
             max_history_size = 500000  # 500KB 限制
             if len(result_json_str) > max_history_size:
                 # 创建一个精简版本，保留完整的数据来源信息
                 truncated_result = {
                     'content': result.get('content', ''),
                     'iteration': result.get('iteration', 0),
-                    'tool_results': []
+                    'tool_results': [],
+                    'sources': sources  # 保留来源信息
                 }
                 # 保留工具名称、成功状态和结果数据（用于显示来源）
                 for tr in result.get('tool_results', []):

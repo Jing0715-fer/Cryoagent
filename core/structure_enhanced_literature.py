@@ -314,9 +314,7 @@ class StructureEnhancedLiteratureIndexer:
             # 确保有基础索引
             if self.base_indexer:
                 # 检查基础索引状态
-                if not hasattr(self.base_indexer, 'faiss_indexer') or not self.base_indexer.faiss_indexer.faiss_index:
-                    logger.info("构建基础文献索引...")
-                    self.base_indexer.index_literature([])
+                logger.info("使用统一 RAG 索引系统")
             
             # 构建结构关键词索引
             self._build_structure_keyword_index()

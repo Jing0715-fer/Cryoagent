@@ -308,9 +308,11 @@ function onModelChange() {
 initModelInfo();
 </script>
 <!-- Markdown rendering -->
-<script src="https://unpkg.com/marked/marked.min.js"></script>
-<script src="{{ url_for('static', filename='js/qa.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='js/qa.js') }}?v={{ range(10000, 99999) | random }}"></script>
 <script>
+// Log marked.js loading status
+console.log('[QA] marked.js loaded:', typeof marked !== 'undefined' ? 'yes' : 'no');
 // Ensure DOM is ready before initializing
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initPage);

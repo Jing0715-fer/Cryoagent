@@ -15,67 +15,13 @@ from core.simple_singleton import SimpleSingleton
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)  # 定义 logger
 
-# 3. 然后导入第三方库（条件导入faiss）
+# 3. 然后导入第三方库（条件导入
 import numpy as np
 from sqlalchemy import or_, and_, text
 from sklearn.cluster import DBSCAN
 from sklearn.feature_extraction.text import TfidfVectorizer
 import networkx as nx
 
-# 条件导入 faiss（可选依赖）
-try:
-    import faiss
-    HAS_FAISS = True
-except ImportError:
-    HAS_FAISS = False
-    logger.warning("faiss not installed, vector search features will be limited")
-
-# 创建 faiss 存根模块（当 faiss 不可用时提供基本功能）
-if not HAS_FAISS:
-    class FaissStub:
-        """faiss 存根类，提供基本接口"""
-        def __init__(self, *args, **kwargs):
-            pass
-
-        class IndexFlatIP:
-            def __init__(self, *args, **kwargs):
-                self.dimension = args[0] if args else 0
-                self._data = None
-                self.ntotal = 0
-
-            def add(self, x):
-                self._data = x
-                self.ntotal = x.shape[0] if hasattr(x, 'shape') else len(x)
-
-            def search(self, x, k=5):
-                # 返回假的相似度结果
-                n = x.shape[0] if hasattr(x, 'shape') else len(x)
-                distances = np.zeros((n, min(k, self.ntotal)))
-                indices = np.zeros((n, min(k, self.ntotal)), dtype=np.int64)
-                return distances, indices
-
-        class IndexIDMap:
-            def __init__(self, index):
-                self.index = index
-                self.ntotal = index.ntotal if hasattr(index, 'ntotal') else 0
-
-            def add_with_ids(self, x, ids):
-                self.index.add(x)
-                self.ntotal = x.shape[0] if hasattr(x, 'shape') else len(x)
-
-            def search(self, x, k=5):
-                return self.index.search(x, k)
-
-        @staticmethod
-        def read_index(*args, **kwargs):
-            return None
-
-        @staticmethod
-        def write_index(*args, **kwargs):
-            pass
-
-    faiss = FaissStub()
-    logger.info("Using faiss stub - vector search disabled")
 
 # 4. 导入现有模块（使用 logger）
 try:
@@ -240,11 +186,11 @@ class UnifiedVectorIndexer:
             # 回退：生成随机向量
             self.embed_func = lambda text: np.random.randn(self.dimension).astype(np.float32)
         
-        # FAISS索引
+        # 向量索引索引
         self.index = None
         self.id_to_doc = {}  # 文档ID到文档的映射
-        self.id_to_idx = {}  # 文档ID到FAISS索引的映射
-        self.idx_to_id = {}  # FAISS索引到文档ID的映射
+        self.id_to_idx = {}  # 文档ID到向量索引索引的映射
+        self.idx_to_id = {}  # 向量索引索引到文档ID的映射
         
         # 结构增强索引
         self.structure_literature_map = {}  # 结构ID -> 文献ID列表
@@ -305,12 +251,8 @@ class UnifiedVectorIndexer:
                         self.literature_structure_map = data.get('literature_structure_map', {})
                         logger.info(f"✅ 加载结构映射: {len(self.structure_literature_map)} 个结构")
                 
-                # 加载FAISS索引
-                faiss_file = index_dir / "faiss_index.bin"
-                if faiss_file.exists():
-                    logger.info(f"找到FAISS索引文件: {faiss_file}")
-                    self.index = faiss.read_index(str(faiss_file))
-                    logger.info(f"✅ 加载FAISS索引: {self.index.ntotal} 个向量")
+                # 加载向量索引索引
+                    logger.info(f"✅ 加载向量索引索引: {self.index.ntotal} 个向量")
                 
                 # 加载ID映射
                 mapping_file = index_dir / "id_mappings.json"
@@ -370,10 +312,6 @@ class UnifiedVectorIndexer:
                     'updated_at': datetime.now().isoformat()
                 }, f, ensure_ascii=False, indent=2)
             
-            # 保存FAISS索引
-            if self.index:
-                faiss.write_index(self.index, str(index_dir / "faiss_index.bin"))
-            
             # 保存ID映射
             with open(index_dir / "id_mappings.json", 'w', encoding='utf-8') as f:
                 json.dump({
@@ -410,21 +348,7 @@ class UnifiedVectorIndexer:
         
         # 添加到内存索引
         self.id_to_doc[doc.doc_id] = doc
-        
-        # 添加到FAISS索引
-        if doc.embeddings is not None:
-            vector = doc.embeddings.reshape(1, -1).astype(np.float32)
-            
-            if self.index is None:
-                self.index = faiss.IndexFlatIP(self.dimension)
-            
-            # 添加向量
-            idx = self.index.ntotal
-            self.index.add(vector)
-            
-            # 更新映射
-            self.id_to_idx[doc.doc_id] = idx
-            self.idx_to_id[idx] = doc.doc_id
+
         
         # 更新关键词索引
         self._update_keyword_index(doc)
@@ -478,23 +402,21 @@ class UnifiedVectorIndexer:
                 if doc_id in self.id_to_idx:
                     del self.id_to_idx[doc_id]
             
-            # 重新构建FAISS索引（只包含非结构文档）
+            # 重新构建向量索引索引（只包含非结构文档）
             non_structure_docs = []
             for doc in self.id_to_doc.values():
                 if doc.entity_type != EntityType.STRUCTURE:
                     non_structure_docs.append(doc)
             
-            # 重新创建FAISS索引
+            # 重新创建向量索引索引
             if non_structure_docs:
                 logger.info(f"保留 {len(non_structure_docs)} 个非结构文档，重新构建索引...")
-                self.index = faiss.IndexFlatIP(self.dimension)
                 self.id_to_idx = {}
                 self.idx_to_id = {}
                 
                 for i, doc in enumerate(non_structure_docs):
                     if doc.embeddings is not None:
                         vector = doc.embeddings.reshape(1, -1).astype(np.float32)
-                        self.index.add(vector)
                         self.id_to_idx[doc.doc_id] = i
                         self.idx_to_id[i] = doc.doc_id
             else:
@@ -684,7 +606,7 @@ class UnifiedVectorIndexer:
             if filters and not self._apply_filters(doc, filters):
                 continue
             
-            # 计算相似度分数（FAISS返回的是点积，需要转换为相似度）
+            # 计算相似度分数（向量索引返回的是点积，需要转换为相似度）
             similarity = float(distance) / 2.0 + 0.5  # 转换为0-1范围
             
             # 截断内容，控制token长度
@@ -948,7 +870,7 @@ class UnifiedVectorIndexer:
         stats = {
             'total_documents': len(self.id_to_doc),
             'by_entity_type': defaultdict(int),
-            'faiss_index_size': self.index.ntotal if self.index else 0,
+            'index_size': self.index.ntotal if self.index else 0,
             'structure_mappings': {
                 'total_structures': len(self.structure_literature_map),
                 'total_literature': len(self.literature_structure_map),
@@ -1171,116 +1093,7 @@ class UnifiedDocumentGenerator:
             metadata=metadata
         )
 
-    def chunk_literature_content(self, literature_entry: Dict[str, Any]) -> List[UnifiedDocument]:
-        """
-        将文献内容 chunk 后生成多个文档
-        用于 RAG 检索时提供更细粒度的上下文
-        """
-        lit_id = literature_entry.get('id', '')
-        title = literature_entry.get('title', '')
-        year = literature_entry.get('year', '')
-        journal = literature_entry.get('journal', '')
-
-        chunks = []
-        chunk_id_counter = 0
-
-        # 1. 处理解析后的章节内容
-        parsed_data = literature_entry.get('parsed_data', {})
-        if isinstance(parsed_data, dict):
-            section_data = parsed_data.get('section_data', {})
-
-            for section_name, content in section_data.items():
-                if not content or not isinstance(content, str):
-                    continue
-
-                # 清理内容
-                content = content.strip()
-                if len(content) < 50:  # 跳过太短的内容
-                    continue
-
-                # Chunk 分割
-                text_chunks = self._split_text(content, chunk_size=self.config.chunk_size, overlap=self.config.chunk_overlap)
-
-                for chunk_idx, chunk_content in enumerate(text_chunks):
-                    # 构建 chunk 内容（带章节标题）
-                    chunk_title = f"{title} - {section_name}"
-                    chunk_text = f"## {section_name}\n{chunk_content}"
-
-                    chunk_doc = UnifiedDocument(
-                        doc_id=f"literature_{lit_id}_chunk_{chunk_id_counter}",
-                        entity_type=EntityType.LITERATURE,
-                        source_id=str(lit_id),
-                        title=chunk_title[:200],
-                        content=chunk_text,
-                        metadata={
-                            'year': year,
-                            'journal': journal,
-                            'chunk_index': chunk_id_counter,
-                            'total_chunks': len(text_chunks),
-                            'section': section_name,
-                            'doc_type': 'content_chunk',
-                            'chunk_length': len(chunk_content)
-                        }
-                    )
-                    chunks.append(chunk_doc)
-                    chunk_id_counter += 1
-
-        # 2. 处理摘要（如果摘要很长，也进行 chunk）
-        abstract = literature_entry.get('abstract', '')
-        if abstract and len(abstract) > 500:
-            text_chunks = self._split_text(abstract, chunk_size=self.config.chunk_size, overlap=self.config.chunk_overlap)
-
-            for chunk_idx, chunk_content in enumerate(text_chunks):
-                chunk_doc = UnifiedDocument(
-                    doc_id=f"literature_{lit_id}_abstract_chunk_{chunk_id_counter}",
-                    entity_type=EntityType.LITERATURE,
-                    source_id=str(lit_id),
-                    title=f"{title} - 摘要",
-                    content=f"## 摘要\n{chunk_content}",
-                    metadata={
-                        'year': year,
-                        'journal': journal,
-                        'chunk_index': chunk_id_counter,
-                        'total_chunks': len(text_chunks),
-                        'section': 'abstract',
-                        'doc_type': 'content_chunk',
-                        'chunk_length': len(chunk_content)
-                    }
-                )
-                chunks.append(chunk_doc)
-                chunk_id_counter += 1
-
-        # 3. 处理关键发现
-        key_findings = literature_entry.get('key_findings', [])
-        if key_findings and isinstance(key_findings, list):
-            findings_text = "\n".join([
-                f"{i+1}. {f.get('finding', '') if isinstance(f, dict) else f}"
-                for i, f in enumerate(key_findings[:10])
-            ])
-            if findings_text and len(findings_text) > 50:
-                text_chunks = self._split_text(findings_text, chunk_size=self.config.chunk_size, overlap=self.config.chunk_overlap)
-
-                for chunk_idx, chunk_content in enumerate(text_chunks):
-                    chunk_doc = UnifiedDocument(
-                        doc_id=f"literature_{lit_id}_findings_chunk_{chunk_id_counter}",
-                        entity_type=EntityType.LITERATURE,
-                        source_id=str(lit_id),
-                        title=f"{title} - 关键发现",
-                        content=f"## 关键发现\n{chunk_content}",
-                        metadata={
-                            'year': year,
-                            'journal': journal,
-                            'chunk_index': chunk_id_counter,
-                            'total_chunks': len(text_chunks),
-                            'section': 'key_findings',
-                            'doc_type': 'content_chunk',
-                            'chunk_length': len(chunk_content)
-                        }
-                    )
-                    chunks.append(chunk_doc)
-                    chunk_id_counter += 1
-
-        # 4. 处理完整原文（最重要的内容来源）
+        # 2. 如果没有任何章节数据，回退到使用 full_text
         full_text = literature_entry.get('full_text', '')
         if full_text and len(full_text) > 200:
             logger.info(f"[chunk_literature] 文献 {lit_id} 使用完整原文生成 chunks，原文长度: {len(full_text)}")
@@ -1309,6 +1122,240 @@ class UnifiedDocumentGenerator:
 
         logger.debug(f"[chunk_literature] 文献 {lit_id} 生成了 {len(chunks)} 个 chunks")
         return chunks
+
+    def chunk_literature_content(self, literature_entry: Dict[str, Any]) -> List[UnifiedDocument]:
+        """
+        将文献内容 chunk 后生成多个文档 - 章节感知版本
+
+        改进点：
+        1. 优先使用混合章节识别的结果
+        2. 确保不跨章节边界分块
+        3. 保存章节元数据用于后续过滤
+        4. 支持邻居块追踪
+
+        用于 RAG 检索时提供更细粒度的上下文
+        """
+        lit_id = literature_entry.get('id', '')
+        title = literature_entry.get('title', '')
+        year = literature_entry.get('year', '')
+        journal = literature_entry.get('journal', '')
+
+        chunks = []
+        chunk_id_counter = 0
+
+        # 获取章节数据（优先使用新的混合识别结果）
+        parsed_data = literature_entry.get('parsed_data', {})
+        if isinstance(parsed_data, str):
+            try:
+                parsed_data = json.loads(parsed_data)
+            except:
+                parsed_data = {}
+
+        # 检查是否有混合章节识别结果
+        hybrid_sections = parsed_data.get('hybrid_sections', {}) if isinstance(parsed_data, dict) else {}
+        section_data = parsed_data.get('section_data', {}) if isinstance(parsed_data, dict) else {}
+
+        # 优先使用混合识别的章节
+        if hybrid_sections and len(hybrid_sections) > 0:
+            logger.info(f"[chunk_literature] 文献 {lit_id} 使用混合章节识别结果: {len(hybrid_sections)} 个章节")
+            sections_to_process = hybrid_sections
+        elif section_data and len(section_data) > 0:
+            logger.info(f"[chunk_literature] 文献 {lit_id} 使用传统章节数据: {len(section_data)} 个章节")
+            sections_to_process = section_data
+        else:
+            sections_to_process = {}
+
+        # 1. 处理章节内容（章节感知分块）
+        if sections_to_process:
+            for section_name, content in sections_to_process.items():
+                if not content or not isinstance(content, str):
+                    continue
+
+                # 清理内容
+                content = content.strip()
+                if len(content) < 50:  # 跳过太短的内容
+                    continue
+
+                # 章节感知分块 - 确保不跨边界
+                section_chunks = self._chunk_section_content(
+                    content=content,
+                    section_name=section_name,
+                    lit_id=lit_id,
+                    title=title,
+                    year=year,
+                    journal=journal,
+                    start_chunk_id=chunk_id_counter
+                )
+
+                chunks.extend(section_chunks)
+                chunk_id_counter += len(section_chunks)
+
+        # 2. 如果没有任何章节数据，回退到使用 full_text
+        if not chunks:
+            full_text = literature_entry.get('full_text', '')
+            if full_text and len(full_text) > 200:
+                logger.info(f"[chunk_literature] 文献 {lit_id} 无章节数据，使用完整原文分块")
+                section_chunks = self._chunk_section_content(
+                    content=full_text,
+                    section_name='full_text',
+                    lit_id=lit_id,
+                    title=title,
+                    year=year,
+                    journal=journal,
+                    start_chunk_id=chunk_id_counter
+                )
+                chunks.extend(section_chunks)
+                chunk_id_counter += len(section_chunks)
+
+        # 3. 处理摘要（单独处理，标记为 abstract 章节）
+        abstract = literature_entry.get('abstract', '')
+        if abstract and len(abstract) > 100:
+            abstract_chunks = self._chunk_section_content(
+                content=abstract,
+                section_name='abstract',
+                lit_id=lit_id,
+                title=title,
+                year=year,
+                journal=journal,
+                start_chunk_id=chunk_id_counter,
+                prefix='abstract'
+            )
+            chunks.extend(abstract_chunks)
+            chunk_id_counter += len(abstract_chunks)
+
+        # 4. 更新邻居块信息（用于上下文扩展）
+        chunks = self._update_neighbor_info(chunks)
+
+        logger.info(f"[chunk_literature] 文献 {lit_id} 共生成 {len(chunks)} 个章节感知 chunks")
+        return chunks
+
+    def _chunk_section_content(
+        self,
+        content: str,
+        section_name: str,
+        lit_id: str,
+        title: str,
+        year: Any,
+        journal: str,
+        start_chunk_id: int,
+        prefix: str = 'full'
+    ) -> List[UnifiedDocument]:
+        """
+        章节感知分块 - 确保分块不跨章节边界
+
+        Args:
+            content: 章节内容
+            section_name: 章节名称
+            lit_id: 文献ID
+            title: 文献标题
+            year: 发表年份
+            journal: 期刊
+            start_chunk_id: 起始chunk ID
+            prefix: ID前缀
+
+        Returns:
+            分块后的文档列表
+        """
+        chunks = []
+
+        # 如果章节很短，作为一个整体块
+        if len(content) <= self.config.chunk_size:
+            chunk_doc = UnifiedDocument(
+                doc_id=f"literature_{lit_id}_{prefix}_chunk_{start_chunk_id}",
+                entity_type=EntityType.LITERATURE,
+                source_id=str(lit_id),
+                title=f"{title} - {section_name}"[:200],
+                content=f"## {section_name}\n{content}" if section_name != 'full_text' else content,
+                metadata={
+                    'year': year,
+                    'journal': journal,
+                    'chunk_index': start_chunk_id,
+                    'section_chunk_index': 0,
+                    'total_chunks': 1,
+                    'section': section_name,
+                    'doc_type': 'content_chunk',
+                    'chunk_length': len(content),
+                    'section_total_chunks': 1
+                }
+            )
+            chunks.append(chunk_doc)
+            return chunks
+
+        # 长章节按大小分块，但保持在章节边界内
+        text_chunks = self._split_text(
+            content,
+            chunk_size=self.config.chunk_size,
+            overlap=self.config.chunk_overlap
+        )
+
+        for chunk_idx, chunk_content in enumerate(text_chunks):
+            # 构建 chunk 内容（带章节标题）
+            if section_name != 'full_text':
+                chunk_text = f"## {section_name}\n{chunk_content}"
+                chunk_title = f"{title} - {section_name} (part {chunk_idx+1})"
+            else:
+                chunk_text = chunk_content
+                chunk_title = f"{title} - 全文第{chunk_idx+1}部分"
+
+            chunk_doc = UnifiedDocument(
+                doc_id=f"literature_{lit_id}_{prefix}_chunk_{start_chunk_id + chunk_idx}",
+                entity_type=EntityType.LITERATURE,
+                source_id=str(lit_id),
+                title=chunk_title[:200],
+                content=chunk_text,
+                metadata={
+                    'year': year,
+                    'journal': journal,
+                    'chunk_index': start_chunk_id + chunk_idx,
+                    'section_chunk_index': chunk_idx,
+                    'total_chunks': len(text_chunks),
+                    'section': section_name,
+                    'doc_type': 'content_chunk',
+                    'chunk_length': len(chunk_content),
+                    'section_total_chunks': len(text_chunks)
+                }
+            )
+            chunks.append(chunk_doc)
+
+        return chunks
+
+    def _update_neighbor_info(self, chunks: List[UnifiedDocument]) -> List[UnifiedDocument]:
+        """
+        更新邻居块信息，用于上下文扩展
+
+        为每个块添加其前后邻居的ID信息，方便后续检索时获取相邻块
+        """
+        if not chunks:
+            return chunks
+
+        # 按 chunk_index 排序
+        sorted_chunks = sorted(chunks, key=lambda x: x.metadata.get('chunk_index', 0))
+
+        for i, chunk in enumerate(sorted_chunks):
+            chunk_index = chunk.metadata.get('chunk_index', i)
+
+            # 找到前一个块（相同文献且相同章节）
+            prev_chunk_id = None
+            if i > 0:
+                prev_chunk = sorted_chunks[i - 1]
+                if (prev_chunk.source_id == chunk.source_id and
+                    prev_chunk.metadata.get('section') == chunk.metadata.get('section')):
+                    prev_chunk_id = prev_chunk.doc_id
+
+            # 找到后一个块（相同文献且相同章节）
+            next_chunk_id = None
+            if i < len(sorted_chunks) - 1:
+                next_chunk = sorted_chunks[i + 1]
+                if (next_chunk.source_id == chunk.source_id and
+                    next_chunk.metadata.get('section') == chunk.metadata.get('section')):
+                    next_chunk_id = next_chunk.doc_id
+
+            # 更新元数据
+            chunk.metadata['prev_chunk_id'] = prev_chunk_id
+            chunk.metadata['next_chunk_id'] = next_chunk_id
+            chunk.metadata['has_neighbors'] = prev_chunk_id is not None or next_chunk_id is not None
+
+        return sorted_chunks
 
     def _split_text(self, text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
         """将文本分割成 chunks（智能分割句子 - 支持中英文）"""
@@ -2466,7 +2513,7 @@ class UnifiedRAGSystem:
                 self.vector_indexer.structure_index = {}
                 self.vector_indexer.keyword_index = defaultdict(set)
                 
-                # 重新创建FAISS索引
+                # 重新创建向量索引索引
                 self.vector_indexer.index = None
             
             logger.info("✅ 索引已清空，准备重建")
@@ -3207,7 +3254,7 @@ class LiteratureIndexConfig:
     """文献索引配置"""
     model_name: str = "all-MiniLM-L6-v2"
     embedding_dimension: int = 384
-    faiss_index_type: str = "FlatIP"  # "FlatIP", "IVF", "HNSW"
+    index_type: str = "flat"  # "flat", "ivf", "hnsw"
     chunk_size: int = 500
     chunk_overlap: int = 50
     max_literature_per_index: int = 10000
@@ -3343,7 +3390,7 @@ class IntegratedLiteratureIndexer:
         return {
             'total_documents': stats['index_statistics']['total_documents'],
             'by_entity_type': stats['index_statistics']['by_entity_type'],
-            'faiss_index_size': stats['index_statistics']['faiss_index_size'],
+            'index_size': stats['index_statistics']['index_size'],
             'structure_enhancement': {
                 'enabled': self.config.enable_structure_enhancement,
                 'structures': stats['index_statistics']['structure_mappings']['total_structures']

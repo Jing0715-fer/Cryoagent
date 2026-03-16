@@ -2,6 +2,7 @@
 File Upload API Routes
 """
 import os
+import shutil
 import uuid
 import time
 from flask import jsonify, request, Blueprint
@@ -99,17 +100,23 @@ def upload_files():
                 add_log(upload_id, f"保存文件: {filename}", 'info')
 
                 # Add unique ID to prevent conflicts
-                unique_name = f"{uuid.uuid4().hex}_{filename}"
-                upload_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads')
-                os.makedirs(upload_folder, exist_ok=True)
-                filepath = os.path.join(upload_folder, unique_name)
-                file.save(filepath)
+                filename = secure_filename(file.filename)
 
-                add_log(upload_id, f"文件已保存，正在解析...", 'info')
+                # Parse the file first to get the literature_id
+                add_log(upload_id, f"保存文件并解析...", 'info')
+
+                # Temporary save to parse
+                temp_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads')
+                os.makedirs(temp_folder, exist_ok=True)
+                temp_unique_name = f"{uuid.uuid4().hex}_{filename}"
+                temp_filepath = os.path.join(temp_folder, temp_unique_name)
+                file.save(temp_filepath)
+
+                add_log(upload_id, f"文件已保存到临时位置，正在解析...", 'info')
 
                 # Parse the file
                 parser = LiteratureParserManager()
-                parse_result = parser.parse_literature_file(filepath)
+                parse_result = parser.parse_literature_file(temp_filepath)
 
                 add_log(upload_id, f"解析完成，正在提取结构信息...", 'info')
 
@@ -138,8 +145,8 @@ def upload_files():
                         'disciplines': combined_metadata.get('disciplines', []),
                         'status': 'parsed',
                         'literature_type': combined_metadata.get('literature_type', 'article'),
-                        'main_pdf_filename': os.path.basename(filepath),
-                        'main_pdf_path': filepath,  # 修复：保存完整路径
+                        'main_pdf_filename': filename,
+                        'main_pdf_path': temp_filepath,  # 临时路径，稍后会更新
                         'sections_json': parsed_data.get('sections_json', {}),
                         'cryoem_targets': parsed_data.get('structure_ids', {}),
                         'key_findings': parsed_data.get('key_findings', []),
@@ -161,6 +168,26 @@ def upload_files():
                             if existing:
                                 literature_id = existing.id
                                 add_log(upload_id, f"⚠️ 文献已存在: ID={literature_id}, DOI={doi}", 'warning')
+
+                                # Move file to final location for existing entry
+                                try:
+                                    from pathlib import Path
+                                    base_dir = Path(__file__).parent.parent
+                                    final_dir = base_dir / 'literature' / 'pdfs' / str(literature_id)
+                                    final_dir.mkdir(parents=True, exist_ok=True)
+                                    final_path = final_dir / 'main.pdf'
+
+                                    # Move from temp to final location
+                                    shutil.move(str(temp_filepath), str(final_path))
+                                    add_log(upload_id, f"📁 PDF moved to: {final_path}", 'info')
+
+                                    # Update database with final path
+                                    existing.main_pdf_path = str(final_path)
+                                    existing.main_pdf_filename = 'main.pdf'
+                                    session.commit()
+                                    add_log(upload_id, f"📝 Database updated with new path", 'info')
+                                except Exception as move_err:
+                                    add_log(upload_id, f"⚠️ Could not move PDF to final location: {move_err}", 'warning')
                             session.close()
                         except Exception as e:
                             add_log(upload_id, f"检查文献是否存在时出错: {e}", 'error')
@@ -172,6 +199,31 @@ def upload_files():
                         if success:
                             literature_id = entry.id if hasattr(entry, 'id') else None
                             add_log(upload_id, f"✅ 文献已保存到数据库: ID={literature_id}", 'success')
+
+                            # Move file to final location: literature/pdfs/{literature_id}/main.pdf
+                            try:
+                                from pathlib import Path
+                                base_dir = Path(__file__).parent.parent
+                                final_dir = base_dir / 'literature' / 'pdfs' / str(literature_id)
+                                final_dir.mkdir(parents=True, exist_ok=True)
+                                final_path = final_dir / 'main.pdf'
+
+                                # Move from temp to final location
+                                shutil.move(str(temp_filepath), str(final_path))
+                                add_log(upload_id, f"📁 PDF moved to: {final_path}", 'info')
+
+                                # Update database with final path
+                                from core.literature_db import create_literature_session, LiteratureEntry
+                                session = create_literature_session()
+                                lit_entry = session.query(LiteratureEntry).get(literature_id)
+                                if lit_entry:
+                                    lit_entry.main_pdf_path = str(final_path)
+                                    lit_entry.main_pdf_filename = 'main.pdf'
+                                    session.commit()
+                                    add_log(upload_id, f"📝 Database updated with new path", 'info')
+                                session.close()
+                            except Exception as move_err:
+                                add_log(upload_id, f"⚠️ Could not move PDF to final location: {move_err}", 'warning')
 
                             # 创建结构映射关系
                             try:
@@ -234,6 +286,13 @@ def upload_files():
 
                 else:
                     add_log(upload_id, f"❌ 解析失败: {parse_result.get('error', '未知错误') if parse_result else '解析返回为空'}", 'error')
+                    # Clean up temp file on failure
+                    try:
+                        if os.path.exists(temp_filepath):
+                            os.remove(temp_filepath)
+                            add_log(upload_id, f"🗑️ 临时文件已清理", 'info')
+                    except Exception as cleanup_err:
+                        add_log(upload_id, f"⚠️ 临时文件清理失败: {cleanup_err}", 'warning')
 
                 results.append({
                     'filename': filename,

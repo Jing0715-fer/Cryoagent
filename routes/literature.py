@@ -494,14 +494,15 @@ def upload_appendix(lit_id):
         appendix_type = request.form.get('appendix_type', 'other')
         description = request.form.get('description', '')
 
-        # 创建目录 - 修改为 flask_app/uploads/appendices/
+        # 创建目录 - 新结构: literature/pdfs/{literature_id}/
         base_dir = Path(__file__).parent.parent
-        appendix_dir = base_dir / 'uploads' / 'appendices' / str(lit_id)
+        appendix_dir = base_dir / 'literature' / 'pdfs' / str(lit_id)
         appendix_dir.mkdir(parents=True, exist_ok=True)
 
-        # 保存文件
+        # 保存文件 - 使用 appendix_ 前缀
         filename = secure_filename(file.filename)
-        file_path = appendix_dir / filename
+        appendix_filename = f"appendix_{filename}"
+        file_path = appendix_dir / appendix_filename
         file.save(str(file_path))
 
         # 获取文件大小
@@ -520,7 +521,7 @@ def upload_appendix(lit_id):
 
         appendix = LiteratureAppendix(
             literature_id=lit_id,
-            filename=filename,
+            filename=appendix_filename,  # 使用带前缀的文件名
             file_path=str(file_path),
             file_size=file_size,
             file_type=ext,

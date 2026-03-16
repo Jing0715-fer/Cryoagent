@@ -951,23 +951,39 @@ class QAAgent:
                 if tool_name == "search_literature":
                     items = data.get("results", [])
                     if items:
-                        context_parts.append("## 相关文献：\n")
-                        # 限制文献数量为 5 个
+                        context_parts.append("## 相关文献（按相关度排序）：\n")
+                        # 限制文献数量为 5 个，但提供完整内容
                         for i, item in enumerate(items[:5], 1):
                             title = item.get("title", "Unknown")
                             authors = item.get("authors", [])
                             journal = item.get("journal", "")
                             year = item.get("year", "")
-                            # 包含摘要/内容字段
-                            abstract = item.get("abstract", "") or item.get("content", "")
+                            doi = item.get("doi", "")
+                            # 获取完整内容（不再是摘要）
+                            content = item.get("content", "") or item.get("abstract", "")
+                            relevance_score = item.get("relevance_score", 0)
+                            chunk_count = item.get("chunk_count", 1)
+
                             context_parts.append(
-                                f"{i}. {title}\n"
-                                f"   作者: {', '.join(authors[:3])}{' et al.' if len(authors) > 3 else ''}\n"
-                                f"   期刊: {journal} ({year})\n"
+                                f"\n{'='*60}\n"
+                                f"文献 {i}: {title}\n"
+                                f"{'='*60}\n"
+                                f"作者: {', '.join(authors[:5])}{' et al.' if len(authors) > 5 else ''}\n"
+                                f"期刊: {journal} ({year})\n"
+                                f"DOI: {doi}\n"
                             )
-                            # 如果有摘要/内容，添加到 prompt
-                            if abstract:
-                                context_parts.append(f"   内容摘要: {abstract}\n")
+                            if relevance_score:
+                                context_parts.append(f"相关度评分: {relevance_score:.1f}/100\n")
+                            if chunk_count > 1:
+                                context_parts.append(f"注：此内容包含原文 {chunk_count} 个相邻段落\n")
+
+                            # 添加完整内容
+                            if content:
+                                # 限制长度避免超出token限制
+                                max_content_length = 8000  # 每篇文献最多8000字符
+                                if len(content) > max_content_length:
+                                    content = content[:max_content_length] + "\n... [内容已截断]"
+                                context_parts.append(f"\n【原文内容】:\n{content}\n")
 
                 elif tool_name == "search_structures":
                     items = data.get("results", [])
@@ -1087,24 +1103,24 @@ class QAAgent:
             ])
 
             # 构建提示词
-            base_prompt = f"""基于以下信息回答用户问题：
+            base_prompt = f"""基于以下检索到的文献原文回答用户问题。
 
 用户问题：{question}
 
 {''.join(context_parts)}
 
-**重要提示**：
-1. 如果用户询问序列，必须使用标准 FASTA 格式输出：
-   ```
-   >PDB_ID|Chain|Protein_Name|Gene
-   AMINOACIDSEQUENCE
-   ```
-2. 每个 chain 的序列单独一条，不要合并
-3. 序列必须完整输出，不要省略或截断
-4. 使用代码块格式显示序列，便于阅读和复制
-5. 如果有多个 PDB 结构，按结构分组显示
-6. 请用中文生成一个简洁、准确的回答"""
+**回答要求**：
+1. **详细步骤**：如果文献中包含实验方法、操作步骤或流程，必须从原文提取并列出完整的详细步骤，不要简单概括
+2. **引用来源**：回答时必须标注信息来源，格式为 [文献X: 标题]
+3. **多文献对比**：如果多篇文献涉及同一主题，请分别说明并比较差异
+4. **原文引用**：关键信息请直接引用原文片段
+5. **结构化输出**：使用编号列表、表格等方式组织信息，便于阅读
+6. **语言**：请用中文回答
 
+**特别提醒**：
+- 用户询问的是具体实验方法/步骤，请从原文整理出完整的操作流程
+- 不要只给简短总结，要提供足够详细的信息让用户能够复现
+- 如果文献中没有足够详细的信息，请明确说明"文献未提供详细步骤" """
             # 如果是序列问题，添加额外强调
             if is_sequence_question:
                 base_prompt += """

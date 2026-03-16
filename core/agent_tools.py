@@ -108,31 +108,469 @@ def get_tool_registry() -> ToolRegistry:
 
 
 # ============================================
+# 方法查询优化
+# ============================================
+
+# 方法查询检测关键词
+METHOD_QUERY_INDICATORS = [
+    # 中文
+    '方法', '纯化', '表达', 'protocol', 'procedure', '步骤', '流程', '工艺',
+    '条件', 'buffer', '缓冲液', '去垢剂', 'detergent', '层析', '色谱',
+    'chromatography', '结晶', 'crystal', '制备', 'preparation',
+    '提取', 'extraction', '分离', 'isolation', '培养', 'culture',
+    # 英文
+    'purification', 'purify', 'purified', 'expression', 'express', 'expressed',
+    'solubilization', 'solubilize', 'reconstitution', 'reconstitute',
+    'incubation', 'incubate', 'centrifugation', 'centrifuge', 'elution', 'elute',
+]
+
+# 方法查询扩展词表
+METHOD_QUERY_EXPANSION = {
+    # 基础词 -> 扩展词列表
+    'purification': ['purify', 'purified', 'affinity chromatography', 'size exclusion',
+                     'ion exchange', 'gel filtration', 'nickel column', 'his-tag'],
+    'expression': ['express', 'expressed', 'baculovirus', 'insect cells', 'sf9', 'hek293',
+                   'e. coli', 'bacterial expression', 'mammalian expression'],
+    'protocol': ['procedure', 'method', 'workflow', 'steps', 'pipeline'],
+    'buffer': ['buffer composition', 'tris', 'hepes', 'pbs', 'salt concentration'],
+    'detergent': ['detergents', 'surfactant', 'ddm', 'dodecyl maltoside', 'lmng',
+                  'digitonin', 'chaps', 'og', 'ng', 'dm'],
+    '纯化': ['亲和层析', '凝胶过滤', '离子交换', '镍柱', 'his标签'],
+    '表达': ['表达系统', '杆状病毒', '昆虫细胞', '大肠杆菌', '哺乳动物细胞'],
+    '方法': ['protocol', 'procedure', 'workflow', 'steps'],
+}
+
+# 方法内容特征词
+METHOD_CONTENT_INDICATORS = {
+    # 步骤指示词
+    'step_markers': [
+        'step', 'steps', 'first', 'second', 'third', 'fourth', 'fifth',
+        'then', 'next', 'finally', 'subsequently', 'thereafter',
+        '步骤', '第一步', '第二步', '第三步', '首先', '然后', '接着', '最后',
+    ],
+    # 数字单位 (表示具体实验参数)
+    'numeric_units': [
+        'mm', 'μm', 'nm', 'ml', 'μl', 'l', 'mg', 'μg', 'g', 'kg',
+        'mmol', 'μm', 'nmol', 'molar', 'mol', 'm',
+        'min', 'hr', 'hrs', 'hour', 'hours', 'sec', 'second', 'seconds',
+        'rpm', 'g', '°c', 'c', 'k', 'ph',
+        '毫升', '微升', '升', '毫克', '微克', '克', '摩尔', '分钟', '小时', '秒', '度',
+    ],
+    # 试剂耗材
+    'reagents': [
+        'buffer', 'detergent', 'column', 'resin', 'beads',
+        'tris', 'hepes', 'pbs', 'nacl', 'kcl', 'mgcl2', 'cacl2', 'edta', 'dtt',
+        'glycerol', 'glycerol', 'sucrose', 'imidazole',
+        'ddm', 'dodecyl', 'maltoside', 'lmng', 'digitonin', 'chaps',
+        '缓冲液', '去垢剂', '柱子', '树脂', '微珠', '离心管',
+    ],
+}
+
+
+def _is_method_query(query: str) -> bool:
+    """检测是否是方法类查询"""
+    query_lower = query.lower()
+    return any(indicator.lower() in query_lower for indicator in METHOD_QUERY_INDICATORS)
+
+
+def _expand_method_query(query: str) -> List[str]:
+    """
+    扩展方法查询
+
+    将方法查询扩展为多个子查询，覆盖不同方面的关键词
+    """
+    expanded_queries = [query]  # 保留原始查询
+
+    # 检测查询中的方法关键词
+    detected_methods = []
+    query_lower = query.lower()
+
+    for keyword, expansions in METHOD_QUERY_EXPANSION.items():
+        if keyword.lower() in query_lower:
+            detected_methods.extend(expansions)
+
+    # 为每个检测到的方向生成扩展查询
+    if detected_methods:
+        # 基础扩展：添加检测到的相关词
+        expansion_terms = ' '.join(detected_methods[:8])  # 限制数量避免过长
+        expanded_queries.append(f"{query} {expansion_terms}")
+
+        # 技术细节扩展
+        if 'purif' in query_lower or '纯化' in query:
+            expanded_queries.append(f"{query} purification buffer detergent chromatography column")
+        if 'express' in query_lower or '表达' in query:
+            expanded_queries.append(f"{query} expression system cell line vector")
+        if 'protocol' in query_lower or 'protocol' in query:
+            expanded_queries.append(f"{query} protocol procedure steps workflow")
+
+    return list(set(expanded_queries))  # 去重
+
+
+def _score_method_content(content: str) -> float:
+    """
+    评分内容的方法详细程度
+
+    返回 0-100 的分数，分数越高表示包含越详细的方法信息
+    """
+    content_lower = content.lower()
+    score = 0.0
+
+    # 步骤指示词加分
+    step_matches = sum(1 for marker in METHOD_CONTENT_INDICATORS['step_markers']
+                       if marker.lower() in content_lower)
+    score += min(step_matches * 5, 25)  # 最多25分
+
+    # 数字单位加分（表示具体参数）
+    unit_matches = sum(1 for unit in METHOD_CONTENT_INDICATORS['numeric_units']
+                       if unit.lower() in content_lower)
+    score += min(unit_matches * 3, 30)  # 最多30分
+
+    # 试剂耗材加分
+    reagent_matches = sum(1 for reagent in METHOD_CONTENT_INDICATORS['reagents']
+                          if reagent.lower() in content_lower)
+    score += min(reagent_matches * 4, 40)  # 最多40分
+
+    # 检测数值参数模式 (如 "20 mM", "4°C", "12 hours")
+    import re
+    numeric_patterns = [
+        r'\d+\s*(mm|μm|nm|ml|μl|m|mg|μg|g)\b',  # 浓度/体积单位
+        r'\d+\s*(min|hr|hour|sec|second)\b',  # 时间单位
+        r'\d+\s*(rpm|g|°c|c)\b',  # 转速/温度单位
+        r'\d+\.\d+\s*\%',  # 百分比
+        r'ph\s*[=:]?\s*\d+\.?\d*',  # pH值
+    ]
+    for pattern in numeric_patterns:
+        matches = len(re.findall(pattern, content_lower))
+        score += min(matches * 5, 20)  # 每个模式最多20分
+
+    return min(score, 100)  # 封顶100分
+
+
+def _multi_stage_method_search(query: str, limit: int = 10) -> List[Dict]:
+    """
+    多阶段方法检索
+
+    专门针对方法类查询的多轮检索策略：
+    1. 第一阶段：检索目标实体相关文献
+    2. 第二阶段：在这些文献中搜索方法关键词
+    3. 第三阶段：获取方法段落的完整上下文
+    """
+    from flask import current_app
+    from core.search_factory import search_vector
+    from core.literature_index import EntityType
+    from core.lancedb_rag.rag import get_unified_rag
+
+    try:
+        # 阶段1：获取实体相关文献（扩大搜索范围）
+        # 提取实体名称（假设查询是 "XXX的方法" 格式）
+        entity_query = query
+        for indicator in METHOD_QUERY_INDICATORS:
+            entity_query = entity_query.replace(indicator, '').strip()
+
+        # 如果提取后实体名为空，使用原始查询
+        if not entity_query:
+            entity_query = query
+
+        logger.info(f"[MultiStage] Stage 1: Searching entity '{entity_query}'")
+
+        # 获取实体相关文档（获取更多用于后续过滤）
+        stage1_results = search_vector(
+            query=entity_query,
+            top_k=limit * 5,  # 获取更多候选
+            entity_filter=EntityType.LITERATURE,
+            search_type='vector'
+        )
+
+        if not stage1_results:
+            return []
+
+        # 收集相关文献ID
+        doc_ids = set()
+        for r in stage1_results:
+            doc = r.get('document', {})
+            doc_id = doc.get('doc_id') or r.get('id', '').split('_chunk_')[0]
+            if doc_id:
+                doc_ids.add(doc_id)
+
+        logger.info(f"[MultiStage] Stage 1: Found {len(doc_ids)} unique documents")
+
+        # 阶段2：在这些文档中搜索方法相关内容
+        # 构建方法扩展查询
+        method_queries = _expand_method_query(query)
+        logger.info(f"[MultiStage] Stage 2: Expanded queries: {method_queries}")
+
+        # 使用 RAG 系统进行更精细的检索
+        rag = get_unified_rag()
+        all_method_results = []
+
+        # 方法查询优先搜索 full_text 章节（因为当前分块只有 abstract/full_text/key_findings）
+        # TODO: 实现章节感知分块后，可以改为 ['methods', 'results']
+        method_sections = ['full_text']
+        logger.info(f"[MultiStage] Searching in sections: {method_sections}")
+
+        for mq in method_queries:
+            try:
+                logger.info(f"[MultiStage] Searching with query: {mq}")
+                method_results = rag.retrieve_chunks(
+                    query=mq,
+                    top_k=limit * 4,  # 获取更多结果用于后续过滤
+                    sections=method_sections,  # 限制在方法相关章节
+                    use_rerank=True,
+                )
+                logger.info(f"[MultiStage] Found {len(method_results)} results from vector search (sections filter)")
+
+                # 回退策略：如果章节过滤返回太少结果，直接使用LanceDB查询
+                if len(method_results) < limit:
+                    logger.info(f"[MultiStage] Section filter returned too few results, using direct DB query")
+
+                    try:
+                        # 直接使用 LanceDB 查询目标文档的 methods 章节
+                        import lancedb
+                        from flask import current_app
+
+                        # 使用正确的 LanceDB 路径
+                        db_path = current_app.config.get('LANCEDB_PATH', 'data/lancedb')
+                        db = lancedb.connect(db_path)
+                        table = db.open_table('literature')
+
+                        # 为目标文档构建 where 子句（使用 full_text 章节，因为当前分块只有 abstract/full_text/key_findings）
+                        doc_id_list = ", ".join([f"'{d}'" for d in doc_ids])
+                        where_clause = f"section IN ('full_text') AND doc_id IN ({doc_id_list})"
+
+                        logger.info(f"[MultiStage] Direct DB query: {where_clause}")
+
+                        # 查询数据库
+                        db_results = table.search().where(where_clause).limit(50).to_list()
+                        logger.info(f"[MultiStage] Direct DB query returned {len(db_results)} results")
+
+                        # 转换为标准格式
+                        from core.lancedb_rag.rag import get_unified_rag
+                        rag = get_unified_rag()
+
+                        for r in db_results:
+                            formatted = {
+                                'id': r.get('id'),
+                                'doc_id': r.get('doc_id'),
+                                'section': r.get('section'),
+                                'content': r.get('full_text', ''),
+                                'score': 0.5,  # 默认分数
+                                'title': r.get('title', ''),
+                                'year': r.get('year'),
+                                'journal': r.get('journal', ''),
+                            }
+
+                            # 计算方法得分
+                            method_score = _score_method_content(formatted['content'])
+                            keyword_matches = sum(1 for kw in [
+                                'purification', 'expression', 'protocol', 'buffer', 'detergent',
+                                'chromatography', 'column', 'resin', 'elution',
+                                '纯化', '表达', '缓冲液', '层析'
+                            ] if kw in formatted['content'].lower())
+
+                            if keyword_matches >= 2:
+                                method_score += min(keyword_matches * 5, 30)
+
+                            formatted['method_score'] = method_score
+                            formatted['method_keywords_found'] = keyword_matches
+
+                            method_results.append(formatted)
+
+                    except Exception as e:
+                        logger.error(f"[MultiStage] Direct DB query failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+
+                    logger.info(f"[MultiStage] After direct DB query: {len(method_results)} results")
+
+                logger.info(f"[MultiStage] Processing {len(method_results)} results")
+
+                # 过滤：只保留来自第一阶段文档的结果，并增强方法关键词过滤
+                for r in method_results:
+                    doc_id = r.get('doc_id', '').split('_chunk_')[0]
+                    if doc_id in doc_ids or not doc_ids:
+                        content = r.get('content', '')
+
+                        # 计算方法内容得分
+                        method_score = _score_method_content(content)
+
+                        # 增强：检查是否包含方法关键词
+                        method_keywords = [
+                            'purification', 'expression', 'protocol', 'buffer', 'detergent',
+                            'chromatography', 'column', 'resin', 'elution', 'solubilization',
+                            'reconstitution', 'incubation', 'centrifugation', 'preparation',
+                            'extraction', 'isolation', 'concentration', 'dialysis',
+                            '纯化', '表达', '缓冲液', '去垢剂', '层析', '色谱',
+                            '柱子', '树脂', '洗脱', '增溶', '复溶', '提取', '分离',
+                            '步骤', 'procedure', 'protocol', 'method', 'reagent'
+                        ]
+                        content_lower = content.lower()
+                        keyword_matches = sum(1 for kw in method_keywords if kw in content_lower)
+
+                        # 如果包含方法关键词，提高方法得分
+                        if keyword_matches >= 2:
+                            method_score += min(keyword_matches * 5, 30)
+                            logger.debug(f"[MultiStage] Chunk {r.get('id')} has {keyword_matches} method keywords")
+
+                        r['method_score'] = method_score
+                        r['method_content_score'] = method_score
+                        r['method_keywords_found'] = keyword_matches
+                        all_method_results.append(r)
+            except Exception as e:
+                logger.warning(f"[MultiStage] Query '{mq}' failed: {e}")
+
+        # 过滤掉方法得分太低的结果
+        min_method_score = 15  # 最低方法得分阈值
+        filtered_method_results = [
+            r for r in all_method_results
+            if r.get('method_score', 0) >= min_method_score
+        ]
+
+        logger.info(f"[MultiStage] After method score filter: {len(filtered_method_results)} results (min_score={min_method_score})")
+
+        # 去重并排序
+        seen_ids = set()
+        unique_results = []
+        for r in sorted(filtered_method_results,
+                        key=lambda x: (x.get('method_score', 0), x.get('score', 0)),
+                        reverse=True):
+            rid = r.get('id')
+            if rid not in seen_ids:
+                seen_ids.add(rid)
+                unique_results.append(r)
+
+        logger.info(f"[MultiStage] Stage 2: Found {len(unique_results)} unique method results")
+
+        # 阶段3：获取完整上下文（邻居块扩展）
+        # 已经由 _include_neighbor_chunks 在 RAG 中处理
+        return unique_results[:limit]
+
+    except Exception as e:
+        logger.error(f"[MultiStage] Error: {e}")
+        return []
+
+
+# ============================================
 # 工具实现
 # ============================================
 
 def search_literature_executor(query: str, limit: int = 10, **kwargs) -> Dict:
-    """执行文献搜索 - 使用 LanceDB 向量搜索"""
+    """执行文献搜索 - 使用 LanceDB 向量搜索，并通过AI过滤相关结果"""
     from flask import current_app
     try:
         with current_app.app_context():
             from core.search_factory import search_vector
             from core.literature_index import EntityType
 
-            # 使用 LanceDB 向量搜索
-            results = search_vector(
-                query=query,
-                top_k=limit,
-                entity_filter=EntityType.LITERATURE,
-                search_type='hybrid'
-            )
+            # 检测是否是方法类查询
+            is_method_query = _is_method_query(query)
+
+            if is_method_query:
+                logger.info(f"[Search] Detected method query: '{query}'")
+
+                # 方法查询：使用多阶段检索策略
+                method_results = _multi_stage_method_search(query, limit=limit * 2)
+
+                if method_results:
+                    logger.info(f"[Search] Multi-stage search found {len(method_results)} results")
+
+                    # 转换为标准格式
+                    literature_list = []
+                    for r in method_results:
+                        # 从 RAG 结果中提取内容（已经包含邻居块合并）
+                        text_content = r.get('content', '') or r.get('full_text', '')
+
+                        # 获取文档元数据
+                        doc = r.get('document', {})
+                        if doc:
+                            title = doc.get('title', '')
+                            authors = doc.get('authors', [])
+                            journal = doc.get('journal', '')
+                            year = doc.get('year')
+                            doi = doc.get('doi', '')
+                            has_neighbors = doc.get('has_neighbors', False)
+                            chunk_count = doc.get('chunk_count', 1)
+                            is_method = doc.get('is_method_content', False)
+                        else:
+                            title = r.get('title', '')
+                            authors = []
+                            journal = r.get('journal', '')
+                            year = r.get('year')
+                            doi = ''
+                            has_neighbors = False
+                            chunk_count = 1
+                            is_method = False
+
+                        lit_entry = {
+                            'id': r.get('id'),
+                            'title': title,
+                            'authors': authors,
+                            'journal': journal,
+                            'year': year,
+                            'doi': doi,
+                            'abstract': text_content[:500] + '...' if len(text_content) > 500 else text_content,
+                            'content': text_content,
+                            'score': r.get('score', 0),
+                            'method_score': r.get('method_score', 0) or r.get('method_content_score', 0),
+                            'has_neighbors': has_neighbors,
+                            'chunk_index': r.get('chunk_index', 0),
+                            'chunk_count': chunk_count,
+                            'is_method_content': is_method,
+                        }
+
+                        logger.info(f"[Search] Method result: id={r.get('id')}, "
+                                   f"has_neighbors={has_neighbors}, content_len={len(text_content)}, "
+                                   f"method_score={lit_entry['method_score']}")
+
+                        literature_list.append(lit_entry)
+
+                    # 方法内容过滤和排序
+                    logger.info(f"[Search] Before method filter: {len(literature_list)} results")
+                    literature_list = _filter_method_results(query, literature_list, limit)
+                    logger.info(f"[Search] After method filter: {len(literature_list)} results")
+
+                    return {
+                        "query": query,
+                        "is_method_query": True,
+                        "count": len(literature_list),
+                        "total_results": len(literature_list),
+                        "results": literature_list
+                    }
+
+            # 非方法查询或方法查询未找到结果：使用标准搜索
+            # 查询扩展（即使是普通查询也可以受益）
+            expanded_queries = _expand_method_query(query) if is_method_query else [query]
+            all_results = []
+
+            for eq in expanded_queries:
+                results = search_vector(
+                    query=eq,
+                    top_k=limit * 2,
+                    entity_filter=EntityType.LITERATURE,
+                    search_type='hybrid'
+                )
+                all_results.extend(results)
+
+            # 去重
+            seen_ids = set()
+            unique_results = []
+            for r in all_results:
+                rid = r.get('id')
+                if rid not in seen_ids:
+                    seen_ids.add(rid)
+                    unique_results.append(r)
 
             # 转换结果为统一格式
             literature_list = []
-            for r in results:
+            for r in unique_results:
                 doc = r.get('document', {})
                 # 使用 full_text 或 content 字段
                 text_content = doc.get('full_text', '') or doc.get('content', '') or doc.get('abstract', '')
+
+                # 计算方法内容得分（用于方法查询）
+                method_score = 0
+                if is_method_query:
+                    method_score = _score_method_content(text_content)
+
                 literature_list.append({
                     'id': r.get('id'),
                     'title': doc.get('title', ''),
@@ -140,14 +578,31 @@ def search_literature_executor(query: str, limit: int = 10, **kwargs) -> Dict:
                     'journal': doc.get('journal', ''),
                     'year': doc.get('year'),
                     'doi': doc.get('doi', ''),
-                    'abstract': text_content,  # 返回完整内容
+                    'abstract': text_content,
                     'content': text_content,
                     'score': r.get('score', 0),
+                    'method_score': method_score,
+                    'has_neighbors': doc.get('has_neighbors', False),
+                    'chunk_count': doc.get('chunk_count', 1),
                 })
 
-            logger.info(f"Vector search found {len(literature_list)} results")
+            # AI过滤：只保留与查询相关的结果
+            if literature_list and kwargs.get('use_ai_filter', True):
+                try:
+                    if is_method_query:
+                        # 方法查询使用方法专用过滤
+                        literature_list = _filter_method_results(query, literature_list, limit)
+                    else:
+                        # 普通查询使用标准过滤
+                        literature_list = _filter_relevant_literature(query, literature_list, limit)
+                except Exception as e:
+                    logger.warning(f"AI过滤失败，使用原始结果: {e}")
+                    literature_list = literature_list[:limit]
+
+            logger.info(f"Vector search found {len(literature_list)} results after filtering")
             return {
                 "query": query,
+                "is_method_query": is_method_query,
                 "count": len(literature_list),
                 "total_results": len(literature_list),
                 "results": literature_list
@@ -155,6 +610,263 @@ def search_literature_executor(query: str, limit: int = 10, **kwargs) -> Dict:
     except Exception as e:
         logger.error(f"Error in search_literature: {e}")
         return {"query": query, "count": 0, "results": [], "error": str(e)}
+
+
+def _filter_relevant_literature(query: str, literature_list: List[Dict], limit: int) -> List[Dict]:
+    """
+    使用AI过滤只保留与查询相关的文献
+
+    评估每个文献与查询的相关性，保留高相关度的结果
+    """
+    try:
+        from core.agent_core import get_text_embedding, ask_literature_question
+
+        # 为每个文献计算相关性
+        filtered_results = []
+
+        for lit in literature_list:
+            content = lit.get('content', '')[:2000]  # 限制长度避免token过多
+            if not content:
+                continue
+
+            # 构建相关性评估提示
+            relevance_prompt = f"""评估以下文献内容与查询问题的相关程度。
+
+查询问题：{query}
+
+文献标题：{lit.get('title', 'Unknown')}
+
+文献内容：
+{content}
+
+请判断这篇文献是否包含回答查询问题所需的具体信息。
+只关注实质性相关内容，忽略泛泛而谈的介绍。
+
+回复格式：只回复一个数字 0-100，表示相关度分数。
+- 90-100：直接包含回答问题的具体信息
+- 70-89：包含相关背景和方法信息
+- 50-69：有一定相关性但信息不完整
+- 0-49：不相关或只有泛泛介绍"""
+
+            try:
+                # 使用简单规则快速评估（避免多次API调用）
+                # 检查关键词匹配
+                query_keywords = set(query.lower().split())
+                content_lower = content.lower()
+
+                # 基础分数
+                relevance_score = lit.get('score', 0.5) * 100  # 基础向量相似度
+
+                # 关键词匹配加分
+                keyword_matches = sum(1 for kw in query_keywords if kw in content_lower)
+                relevance_score += min(keyword_matches * 5, 20)
+
+                # 特定内容类型加分
+                if 'purif' in content_lower or 'express' in content_lower:
+                    relevance_score += 15
+                if 'method' in content_lower or 'protocol' in content_lower:
+                    relevance_score += 10
+
+                lit['relevance_score'] = min(relevance_score, 100)
+
+                # 只保留相关度>=60的结果
+                if relevance_score >= 60:
+                    filtered_results.append(lit)
+
+            except Exception as e:
+                logger.debug(f"相关性评估失败: {e}")
+                # 评估失败时保留该文献
+                lit['relevance_score'] = lit.get('score', 0.5) * 100
+                filtered_results.append(lit)
+
+        # 按相关性排序并返回top_k
+        filtered_results.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+        return filtered_results[:limit]
+
+    except Exception as e:
+        logger.error(f"AI过滤过程失败: {e}")
+        return literature_list[:limit]
+
+
+def _filter_method_results(query: str, literature_list: List[Dict], limit: int) -> List[Dict]:
+    """
+    方法查询专用过滤 - 优先保留包含详细方法信息的结果
+
+    不仅评估相关性，还评估方法内容的详细程度
+    严格过滤掉不相关实体（如查询GPR158时排除GPR179的内容）
+    """
+    try:
+        filtered_results = []
+        query_lower = query.lower()
+
+        # 提取查询中的目标实体名（如 GPR158）
+        # 支持多种格式：GPR158, GPCR, Protein Name 等
+        import re
+        entity_names = []
+
+        # 尝试匹配常见的蛋白质/GPCR命名格式
+        # 例如：GPR158, GPER1, CXCR4, etc.
+        protein_patterns = [
+            r'gpr\d+',  # GPR158, GPR179, etc.
+            r'gper\d+',  # GPER1, etc.
+            r'cxcr\d+',  # CXCR4, etc.
+            r'[a-z]{2,6}\d{1,3}',  # 一般蛋白质命名格式
+        ]
+
+        for pattern in protein_patterns:
+            matches = re.findall(pattern, query_lower)
+            entity_names.extend(matches)
+
+        # 如果没有匹配到，尝试从查询开头提取大写/数字组合
+        if not entity_names:
+            words = query_lower.split()
+            for word in words:
+                # 提取像 GPR158 这样的实体名
+                if len(word) >= 3 and any(c.isdigit() for c in word):
+                    entity_names.append(word.strip('.,;:!?'))
+
+        # 去重并记录目标实体
+        target_entities = list(set(entity_names))
+        logger.info(f"[_filter_method_results] Detected target entities: {target_entities}")
+
+        # 定义需要排除的相似实体（如果查询GPR158，排除GPR179等）
+        # 这些会降低分数
+        similar_but_different = []
+        if target_entities:
+            for target in target_entities:
+                # 找出类似命名的其他实体
+                for lit in literature_list:
+                    title = lit.get('title', '').lower()
+                    content = lit.get('content', '').lower()
+
+                    # 在标题和内容中查找类似格式的实体
+                    all_entities_in_content = re.findall(r'gpr\d+', content)
+                    all_entities_in_content.extend(re.findall(r'gpr\d+', title))
+
+                    for entity in all_entities_in_content:
+                        # 如果实体格式相似但不同（如 GPR158 vs GPR179）
+                        if entity != target and entity.startswith(target[:3]):
+                            similar_but_different.append(entity)
+
+        similar_but_different = list(set(similar_but_different))
+        if similar_but_different:
+            logger.info(f"[_filter_method_results] Similar but different entities to exclude: {similar_but_different}")
+
+        for lit in literature_list:
+            content = lit.get('content', '')
+            title = lit.get('title', '')
+            if not content:
+                continue
+
+            content_lower = content.lower()
+            title_lower = title.lower()
+            combined_text = content_lower + " " + title_lower
+
+            # 0. 【硬性过滤】检查是否包含不相关的实体
+            # 如果内容主要讨论的是其他相似实体，则跳过
+            if similar_but_different:
+                wrong_entity_count = sum(1 for e in similar_but_different if e in combined_text)
+                target_entity_count = sum(1 for e in target_entities if e in combined_text)
+
+                # 如果错误实体出现次数 >= 目标实体出现次数，跳过
+                if wrong_entity_count > 0 and wrong_entity_count >= target_entity_count:
+                    logger.debug(f"Skipping result with wrong entity: {wrong_entity_count} vs {target_entity_count}")
+                    continue
+
+            # 1. 【硬性要求】必须包含目标实体
+            entity_matched = False
+            for entity in target_entities:
+                if entity in combined_text:
+                    entity_matched = True
+                    break
+
+            # 如果没有匹配到任何目标实体，检查标题
+            if not entity_matched and target_entities:
+                # 如果标题包含实体名，也认为是匹配的（因为摘要是关于该实体的）
+                for entity in target_entities:
+                    if entity in title_lower:
+                        entity_matched = True
+                        logger.debug(f"Entity {entity} found in title, considering matched")
+                        break
+
+            # 如果没有匹配到任何目标实体，大幅降低分数或跳过
+            if not entity_matched and target_entities:
+                logger.debug(f"Result doesn't contain target entity {target_entities}, skipping")
+                continue
+
+            # 2. 基础相关性分数
+            relevance_score = lit.get('score', 0.5) * 60  # 提高基础向量相似度权重（最高60分）
+
+            # 3. 方法内容详细程度分数
+            method_score = lit.get('method_score', 0)
+            if method_score == 0:
+                method_score = _score_method_content(content)
+
+            # 4. 关键词匹配加分
+            query_keywords = [kw for kw in query_lower.split() if len(kw) > 2]
+            keyword_matches = sum(1 for kw in query_keywords if kw in content_lower)
+            keyword_score = min(keyword_matches * 5, 25)  # 提高关键词匹配权重
+
+            # 5. 实体匹配加分（确保内容是关于正确实体的）
+            entity_score = 0
+            if entity_matched:
+                entity_score = 15  # 匹配到目标实体给予基础分
+                # 如果标题和正文都包含实体，额外加分
+                title_has_entity = any(e in title_lower for e in target_entities)
+                content_has_entity = any(e in content_lower for e in target_entities)
+                if title_has_entity and content_has_entity:
+                    entity_score += 10
+
+            # 6. 方法特定关键词加分
+            method_keywords = [
+                'purification', 'expression', 'protocol', 'buffer', 'detergent',
+                'chromatography', 'column', 'resin', 'elution', 'solubilization',
+                'reconstitution', 'incubation', 'centrifugation', 'preparation',
+                '纯化', '表达', '缓冲液', '去垢剂', '层析', '色谱', '柱子', '树脂',
+                '步骤', 'procedure', 'protocol', 'method'
+            ]
+            method_kw_matches = sum(1 for kw in method_keywords if kw in content_lower)
+            method_kw_score = min(method_kw_matches * 4, 30)  # 提高方法关键词权重
+
+            # 7. 来源章节加分（如果是 methods section）
+            section_score = 0
+            if lit.get('source_section') == 'methods':
+                section_score = 20  # methods section 给予额外加分
+
+            # 计算总分
+            total_score = relevance_score + method_score + keyword_score + entity_score + method_kw_score + section_score
+            lit['total_score'] = min(total_score, 100)
+            lit['method_detail_score'] = method_score
+            lit['entity_matched'] = entity_matched
+
+            # 记录详细评分日志
+            logger.debug(f"[_filter_method_results] Score breakdown for {lit.get('id', 'unknown')}: "
+                        f"relevance={relevance_score:.1f}, method={method_score:.1f}, "
+                        f"keyword={keyword_score:.1f}, entity={entity_score:.1f}, "
+                        f"method_kw={method_kw_score:.1f}, section={section_score:.1f}, total={total_score:.1f}")
+
+            # 保留标准（进一步放宽）：
+            # 1. 必须匹配目标实体（或标题匹配）
+            # 2. 方法得分 >= 10（大幅降低）
+            # 3. 总分 >= 35（大幅降低）
+            if entity_matched and method_score >= 10 and total_score >= 35:
+                filtered_results.append(lit)
+                logger.debug(f"[_filter_method_results] KEPT result {lit.get('id', 'unknown')}, content_len={len(content)}")
+            else:
+                logger.debug(f"[_filter_method_results] SKIPPED result {lit.get('id', 'unknown')}: "
+                            f"entity_matched={entity_matched}, method_score={method_score}, total={total_score}")
+
+        # 按总分排序
+        filtered_results.sort(key=lambda x: x.get('total_score', 0), reverse=True)
+
+        logger.info(f"[_filter_method_results] Filtered {len(literature_list)} -> {len(filtered_results)} results")
+        return filtered_results[:limit]
+
+    except Exception as e:
+        logger.error(f"方法过滤失败: {e}")
+        # 失败时返回原始列表按方法分数排序的结果
+        literature_list.sort(key=lambda x: x.get('method_score', 0), reverse=True)
+        return literature_list[:limit]
 
 
 def search_structures_executor(query: str, source: str = "pdb", limit: int = 10, **kwargs) -> Dict:

@@ -1,7 +1,0 @@
-$f9ac6228-89ad-48a7-9166-7b65730a7d74²Ýid ÿÿÿÿÿÿÿÿÿ*string08doi ÿÿÿÿÿÿÿÿÿ*string08#arxiv_id ÿÿÿÿÿÿÿÿÿ*string08pmid ÿÿÿÿÿÿÿÿÿ*string08 title ÿÿÿÿÿÿÿÿÿ*string08#abstract ÿÿÿÿÿÿÿÿÿ*string08$	full_text ÿÿÿÿÿÿÿÿÿ*string08"authors ÿÿÿÿÿÿÿÿÿ*string08"journal ÿÿÿÿÿÿÿÿÿ*string08year	 ÿÿÿÿÿÿÿÿÿ*int6408#keywords
- ÿÿÿÿÿÿÿÿÿ*string08&entity_type ÿÿÿÿÿÿÿÿÿ*string08"methods ÿÿÿÿÿÿÿÿÿ*string08"results ÿÿÿÿÿÿÿÿÿ*string08'introduction ÿÿÿÿÿÿÿÿÿ*string08%
-discussion ÿÿÿÿÿÿÿÿÿ*string08&conclusions ÿÿÿÿÿÿÿÿÿ*string08#metadata ÿÿÿÿÿÿÿÿÿ*string087	embedding ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:38408%
-created_at ÿÿÿÿÿÿÿÿÿ*string08%
-updated_at ÿÿÿÿÿÿÿÿÿ*string08"!
-lance.auto_cleanup.interval20"'
-lance.auto_cleanup.older_than14days

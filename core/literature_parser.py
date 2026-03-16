@@ -1068,6 +1068,35 @@ class PDFParser:
                 r'^\s*图例\b',
             ]
         }
+
+        # 标准章节参考 - 用于embedding分类
+        self.reference_sections = {
+            'abstract': ['Abstract', 'Summary', '摘要', '概要'],
+            'introduction': ['Introduction', 'Background', '引言', '背景', '前言'],
+            'methods': ['Methods', 'Materials and Methods', 'Experimental Procedures',
+                       '方法', '材料与方法', '实验方法', '方法学', '实验部分'],
+            'results': ['Results', 'Findings', '结果', '发现', '实验结果'],
+            'discussion': ['Discussion', '讨论', '讨论与分析'],
+            'conclusions': ['Conclusion', 'Conclusions', '结论', '总结'],
+            'data_availability': ['Data Availability', '数据可用性', '数据可用性声明'],
+            'references': ['References', 'Bibliography', '参考文献', '文献引用'],
+            'acknowledgments': ['Acknowledgments', 'Acknowledgements', '致谢'],
+        }
+
+        # 章节内容验证关键词
+        self.section_content_indicators = {
+            'methods': ['protocol', 'buffer', 'incubated', 'centrifuged', 'prepared',
+                       'collected', 'samples', 'reagent', 'solution', 'incubation',
+                       ' purification', 'expression', 'detergent', 'chromatography',
+                       '纯化', '表达', '缓冲液', '去垢剂', '层析', '色谱', '离心',
+                       '孵育', '样品', '试剂', '溶液'],
+            'results': ['fig', 'figure', 'table', 'significant', 'increased',
+                       'decreased', 'observed', 'found', 'shown', 'demonstrated',
+                       '图', '表', '显著', '增加', '减少', '观察', '发现'],
+        }
+
+        # 缓存embedding模型（延迟加载）
+        self._embedding_model = None
     
     def clear_cache(self):
         """清除解析缓存"""
@@ -1114,10 +1143,25 @@ class PDFParser:
                         html_content = self.structure_extractor.convert_pdf_to_html(pdf_path)
                     except Exception as e:
                         logger.debug(f"获取HTML内容失败: {e}")
-                
-                # 使用改进的章节识别（参考extract_sections.py方法）
-                sections = self._identify_sections_advanced(full_text, html_content)
-                result["sections"] = sections
+
+                # 使用混合多信号章节识别（新方法）
+                try:
+                    hybrid_result = self.extract_sections_hybrid(pdf_path, full_text)
+                    sections = hybrid_result['sections']
+                    result["sections"] = sections
+                    result["section_extraction_method"] = "hybrid"
+                    result["section_metadata"] = {
+                        "layout_candidates": len(hybrid_result.get('layout_candidates', [])),
+                        "classified_candidates": len(hybrid_result.get('classified_candidates', [])),
+                        "method": hybrid_result.get('method', 'hybrid')
+                    }
+                    logger.info(f"混合章节识别成功: {len(sections)} 个章节")
+                except Exception as hybrid_error:
+                    logger.warning(f"混合章节识别失败，回退到传统方法: {hybrid_error}")
+                    # 回退到传统章节识别
+                    sections = self._identify_sections_advanced(full_text, html_content)
+                    result["sections"] = sections
+                    result["section_extraction_method"] = "traditional"
 
                 # 检查是否已从HTML转换中获取了data_availability_section，避免重复转换
                 data_availability_section = sections.get("data_availability", "") if sections else ""
@@ -1187,11 +1231,19 @@ class PDFParser:
                             html_content = self.structure_extractor.convert_pdf_to_html(pdf_path)
                         except Exception as e:
                             logger.debug(f"获取HTML内容失败: {e}")
-                    
-                    # 使用改进的章节识别
+
+                    # 使用混合章节识别（回退版本，无PDF路径）
                     if "text" in result:
-                        sections = self._identify_sections_advanced(result.get("text", ""), html_content)
-                        result["sections"] = sections
+                        try:
+                            hybrid_result = self.extract_sections_hybrid(pdf_path, result.get("text", ""))
+                            sections = hybrid_result['sections']
+                            result["sections"] = sections
+                            result["section_extraction_method"] = "hybrid_fallback"
+                        except Exception as hybrid_error:
+                            logger.warning(f"混合章节识别失败: {hybrid_error}")
+                            sections = self._identify_sections_advanced(result.get("text", ""), html_content)
+                            result["sections"] = sections
+                            result["section_extraction_method"] = "traditional_fallback"
 
                     # 如果回退成功且有文本，尝试提取结构ID
                     if self.config.EXTRACT_STRUCTURE_IDS:
@@ -1621,8 +1673,472 @@ class PDFParser:
             start_idx = pos
         
         return sections
-    
-    def _extract_figures(self, doc) -> List[Dict[str, Any]]:
+
+    # ==================== 混合多信号章节识别新方法 ====================
+
+    def extract_sections_hybrid(self, pdf_path: Union[str, Path], text: str = None) -> Dict[str, Any]:
+        """
+        混合多信号章节识别 - 主入口方法
+
+        结合以下三种技术：
+        1. 布局感知标题提取（字体大小/粗细/位置）
+        2. Embedding 语义相似度分类
+        3. 增强正则模式匹配
+
+        Args:
+            pdf_path: PDF文件路径
+            text: 可选，已提取的文本内容
+
+        Returns:
+            Dict包含章节内容和元数据
+        """
+        logger.info(f"开始混合章节识别: {pdf_path}")
+        start_time = time.time()
+
+        # 并行收集多信号
+        layout_candidates = []
+        regex_sections = {}
+
+        # 信号1: 布局感知提取（如果PDF可用）
+        if pdf_path and Path(pdf_path).exists():
+            try:
+                layout_candidates = self._extract_sections_layout(str(pdf_path))
+                logger.info(f"布局分析提取到 {len(layout_candidates)} 个候选标题")
+            except Exception as e:
+                logger.warning(f"布局分析失败: {e}")
+
+        # 信号2: 正则模式匹配（文本基础）
+        if text and len(text) > 100:
+            try:
+                regex_sections = self._extract_sections_by_patterns(text)
+                logger.info(f"正则匹配提取到 {len(regex_sections)} 个章节")
+            except Exception as e:
+                logger.warning(f"正则匹配失败: {e}")
+
+        # 信号3: Embedding分类（对布局候选进行分类）
+        classified_candidates = []
+        if layout_candidates:
+            try:
+                classified_candidates = self._classify_sections_embedding(layout_candidates)
+                logger.info(f"Embedding分类完成，识别到 {len([c for c in classified_candidates if c.get('section_type') != 'unknown'])} 个已知章节")
+            except Exception as e:
+                logger.warning(f"Embedding分类失败: {e}")
+                # 回退：使用简单的关键词匹配
+                classified_candidates = self._classify_sections_keyword(layout_candidates)
+
+        # 合并多信号结果
+        merged_sections = self._merge_section_candidates(
+            classified_candidates, regex_sections, text
+        )
+
+        elapsed = time.time() - start_time
+        logger.info(f"混合章节识别完成，耗时 {elapsed:.2f}s，识别到 {len(merged_sections)} 个章节")
+
+        return {
+            'sections': merged_sections,
+            'layout_candidates': layout_candidates,
+            'classified_candidates': classified_candidates,
+            'method': 'hybrid'
+        }
+
+    def _extract_sections_layout(self, pdf_path: str) -> List[Dict[str, Any]]:
+        """
+        布局感知章节提取 - 利用PDF字体信息识别标题
+
+        使用PyMuPDF提取带布局信息的文本，检测字体大小显著
+        大于正文的行（通常是标题）。
+
+        Args:
+            pdf_path: PDF文件路径
+
+        Returns:
+            候选标题列表，包含位置、字体信息
+        """
+        import fitz  # PyMuPDF
+
+        candidates = []
+        font_sizes = []
+
+        try:
+            doc = fitz.open(pdf_path)
+
+            # 第一遍：收集所有字体大小以确定正文大小
+            for page_num in range(min(len(doc), 20)):  # 限制前20页
+                page = doc.load_page(page_num)
+                blocks = page.get_text("dict")["blocks"]
+
+                for block in blocks:
+                    if "lines" not in block:
+                        continue
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            font_sizes.append(span["size"])
+
+            if not font_sizes:
+                doc.close()
+                return candidates
+
+            # 确定正文字体大小（众数或中位数）
+            from statistics import mode, median
+            try:
+                body_font_size = mode(font_sizes)
+            except:
+                body_font_size = median(font_sizes)
+
+            # 标题通常比正文大1.2倍以上
+            heading_threshold = body_font_size * 1.2
+            min_heading_size = body_font_size * 1.1
+
+            # 第二遍：提取候选标题
+            for page_num in range(min(len(doc), 50)):  # 限制前50页
+                page = doc.load_page(page_num)
+                blocks = page.get_text("dict")["blocks"]
+
+                for block in blocks:
+                    if "lines" not in block:
+                        continue
+
+                    for line in block["lines"]:
+                        line_text = ""
+                        line_font_size = 0
+                        is_bold = False
+
+                        for span in line["spans"]:
+                            text = span["text"].strip()
+                            if not text:
+                                continue
+
+                            line_text += text + " "
+                            line_font_size = max(line_font_size, span["size"])
+                            font_flags = span.get("flags", 0)
+                            # 检查粗体 (bit 4)
+                            if font_flags & 16 or "bold" in span["font"].lower():
+                                is_bold = True
+
+                        line_text = line_text.strip()
+
+                        # 判断是否为标题候选
+                        if line_text and len(line_text) < 150:  # 标题通常较短
+                            # 条件1: 字体显著大于正文
+                            is_larger_font = line_font_size >= heading_threshold
+                            # 条件2: 粗体且字体较大
+                            is_bold_heading = is_bold and line_font_size >= min_heading_size
+                            # 条件3: 全大写且字体较大（常见于章节标题）
+                            is_all_caps = (line_text.upper() == line_text and
+                                          len(line_text) > 3 and
+                                          line_font_size >= min_heading_size)
+
+                            if is_larger_font or is_bold_heading or is_all_caps:
+                                candidates.append({
+                                    'text': line_text,
+                                    'font_size': line_font_size,
+                                    'is_bold': is_bold,
+                                    'page': page_num + 1,
+                                    'y_pos': line["bbox"][1],  # y坐标用于排序
+                                    'body_font_size': body_font_size
+                                })
+
+            doc.close()
+
+            # 按页面和位置排序
+            candidates.sort(key=lambda x: (x['page'], x['y_pos']))
+
+        except Exception as e:
+            logger.error(f"布局提取失败: {e}")
+
+        return candidates
+
+    def _classify_sections_embedding(self, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        使用Embedding语义相似度分类章节
+
+        将候选标题与标准章节名进行语义匹配，支持多语言。
+
+        Args:
+            candidates: 候选标题列表
+
+        Returns:
+            分类后的候选列表，添加section_type和confidence字段
+        """
+        if not candidates:
+            return candidates
+
+        try:
+            # 尝试使用sentence-transformers
+            from sentence_transformers import SentenceTransformer
+            from sklearn.metrics.pairwise import cosine_similarity
+            import numpy as np
+
+            # 延迟加载模型
+            if self._embedding_model is None:
+                # 使用轻量级多语言模型
+                model_name = 'paraphrase-MiniLM-L3-v2'  # 轻量级，速度快
+                logger.info(f"加载embedding模型: {model_name}")
+                self._embedding_model = SentenceTransformer(model_name)
+
+            model = self._embedding_model
+
+            # 预计算参考embedding（只计算一次）
+            if not hasattr(self, '_reference_embeddings'):
+                self._reference_embeddings = {}
+                for section, variants in self.reference_sections.items():
+                    embeddings = model.encode(variants, convert_to_numpy=True)
+                    self._reference_embeddings[section] = np.mean(embeddings, axis=0)
+
+            # 批量编码候选标题
+            candidate_texts = [c['text'] for c in candidates]
+            candidate_embeddings = model.encode(candidate_texts, convert_to_numpy=True)
+
+            # 分类每个候选
+            classified = []
+            for i, candidate in enumerate(candidates):
+                candidate_emb = candidate_embeddings[i].reshape(1, -1)
+
+                # 计算与所有参考章节的相似度
+                similarities = {}
+                for section, ref_emb in self._reference_embeddings.items():
+                    ref_emb_reshaped = ref_emb.reshape(1, -1)
+                    sim = cosine_similarity(candidate_emb, ref_emb_reshaped)[0][0]
+                    similarities[section] = sim
+
+                # 找出最佳匹配
+                best_section = max(similarities, key=similarities.get)
+                best_score = similarities[best_section]
+
+                # 阈值判断
+                if best_score > 0.6:  # 相似度阈值
+                    candidate['section_type'] = best_section
+                    candidate['confidence'] = float(best_score)
+                    candidate['all_similarities'] = similarities
+                else:
+                    candidate['section_type'] = 'unknown'
+                    candidate['confidence'] = float(best_score)
+                    candidate['all_similarities'] = similarities
+
+                classified.append(candidate)
+
+            return classified
+
+        except ImportError:
+            logger.warning("sentence-transformers未安装，回退到关键词分类")
+            return self._classify_sections_keyword(candidates)
+        except Exception as e:
+            logger.error(f"Embedding分类失败: {e}")
+            return self._classify_sections_keyword(candidates)
+
+    def _classify_sections_keyword(self, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        基于关键词的章节分类（Embedding不可用时的回退方案）
+
+        Args:
+            candidates: 候选标题列表
+
+        Returns:
+            分类后的候选列表
+        """
+        classified = []
+
+        for candidate in candidates:
+            text = candidate['text'].lower()
+            best_match = 'unknown'
+            best_score = 0
+
+            for section, patterns in self.section_patterns.items():
+                for pattern in patterns:
+                    # 移除正则特殊字符进行简单匹配
+                    clean_pattern = pattern.replace('^', '').replace('\\b', '').lower()
+                    if clean_pattern in text or re.search(pattern, text, re.IGNORECASE):
+                        score = 0.8  # 关键词匹配的基础分数
+                        if score > best_score:
+                            best_score = score
+                            best_match = section
+
+            candidate['section_type'] = best_match
+            candidate['confidence'] = best_score
+            classified.append(candidate)
+
+        return classified
+
+    def _validate_section_content(self, section_type: str, content_preview: str) -> bool:
+        """
+        验证章节内容是否符合预期特征
+
+        Args:
+            section_type: 章节类型
+            content_preview: 内容预览
+
+        Returns:
+            是否验证通过
+        """
+        if section_type not in self.section_content_indicators:
+            return True
+
+        indicators = self.section_content_indicators[section_type]
+        content_lower = content_preview.lower()
+
+        # 至少包含一个指示词
+        return any(ind in content_lower for ind in indicators)
+
+    def _merge_section_candidates(
+        self,
+        layout_candidates: List[Dict[str, Any]],
+        regex_sections: Dict[str, str],
+        full_text: str = None
+    ) -> Dict[str, str]:
+        """
+        合并多源章节候选，解决冲突并生成最终章节划分
+
+        Args:
+            layout_candidates: 布局分析+embedding分类的候选
+            regex_sections: 正则匹配提取的章节
+            full_text: 完整文本内容
+
+        Returns:
+            合并后的章节字典
+        """
+        merged = {}
+
+        # 策略1: 优先使用布局+embedding的结果（通常更准确）
+        layout_sections = {}
+        current_section = None
+        current_content_start = 0
+
+        if layout_candidates and full_text:
+            # 按位置排序候选
+            sorted_candidates = sorted(layout_candidates, key=lambda x: (x.get('page', 0), x.get('y_pos', 0)))
+
+            for i, candidate in enumerate(sorted_candidates):
+                section_type = candidate.get('section_type', 'unknown')
+                confidence = candidate.get('confidence', 0)
+
+                # 只使用高置信度的分类结果
+                if section_type != 'unknown' and confidence >= 0.6:
+                    # 如果已有一个同类型章节，合并它们
+                    if section_type in layout_sections:
+                        continue  # 跳过重复的章节标题
+
+                    layout_sections[section_type] = {
+                        'title': candidate['text'],
+                        'page': candidate.get('page', 0),
+                        'confidence': confidence
+                    }
+
+        # 策略2: 对比布局结果和正则结果，选择更可靠的
+        for section_type in self.reference_sections.keys():
+            layout_has = section_type in layout_sections
+            regex_has = section_type in regex_sections and len(regex_sections[section_type].strip()) > 50
+
+            if layout_has and regex_has:
+                # 两者都有，检查内容长度，选择更长的（通常更完整）
+                regex_content = regex_sections[section_type]
+                # 简单估计布局提取的内容（从标题到下一个标题）
+                # 这里我们优先使用正则结果，因为它通常包含完整内容
+                if self._validate_section_content(section_type, regex_content[:500]):
+                    merged[section_type] = regex_content
+                else:
+                    # 正则结果验证失败，尝试使用布局信息修正
+                    merged[section_type] = regex_content
+            elif regex_has:
+                # 只有正则结果
+                merged[section_type] = regex_sections[section_type]
+            elif layout_has:
+                # 只有布局结果，标记需要后续内容提取
+                merged[section_type] = f"[Detected by layout: {layout_sections[section_type]['title']}]"
+
+        # 策略3: 如果没有识别到任何章节，使用完整文本
+        if not merged and full_text:
+            merged['full_text'] = full_text
+
+        return merged
+
+    def extract_sections_with_context(
+        self,
+        pdf_path: Union[str, Path],
+        text: str = None
+    ) -> Dict[str, Any]:
+        """
+        提取章节并获取每个章节的完整内容
+
+        这是parse_pdf的增强版本，返回带章节边界信息的结果
+
+        Args:
+            pdf_path: PDF文件路径
+            text: 可选的预处理文本
+
+        Returns:
+            包含section_data的结果字典
+        """
+        result = self.extract_sections_hybrid(pdf_path, text)
+        sections = result['sections']
+
+        # 如果提供了文本且识别到了章节，提取每个章节的准确内容
+        if text and sections and 'full_text' not in sections:
+            enhanced_sections = self._extract_section_contents(text, result.get('classified_candidates', []))
+            result['sections'] = enhanced_sections
+
+        return result
+
+    def _extract_section_contents(self, text: str, candidates: List[Dict[str, Any]]) -> Dict[str, str]:
+        """
+        根据候选标题位置提取章节准确内容
+
+        Args:
+            text: 完整文本
+            candidates: 分类后的候选标题列表
+
+        Returns:
+            章节内容字典
+        """
+        sections = {}
+
+        # 按顺序处理候选
+        sorted_candidates = sorted(candidates, key=lambda x: x.get('page', 0))
+
+        for i, candidate in enumerate(sorted_candidates):
+            section_type = candidate.get('section_type')
+            if section_type == 'unknown':
+                continue
+
+            title = candidate.get('text', '')
+            confidence = candidate.get('confidence', 0)
+
+            # 在文本中查找标题位置
+            title_pos = text.find(title)
+            if title_pos == -1:
+                # 尝试模糊匹配
+                title_pos = text.lower().find(title.lower())
+
+            if title_pos != -1:
+                # 确定章节结束位置（下一个已知章节开始）
+                end_pos = len(text)
+                for next_candidate in sorted_candidates[i+1:]:
+                    if next_candidate.get('section_type') != 'unknown':
+                        next_title = next_candidate.get('text', '')
+                        next_pos = text.find(next_title, title_pos + len(title))
+                        if next_pos == -1:
+                            next_pos = text.lower().find(next_title.lower(), title_pos + len(title))
+                        if next_pos != -1:
+                            end_pos = next_pos
+                            break
+
+                # 提取内容
+                content = text[title_pos:end_pos].strip()
+                # 移除标题本身
+                if content.startswith(title):
+                    content = content[len(title):].strip()
+
+                # 验证内容
+                if len(content) >= self.config.MIN_SECTION_LENGTH:
+                    # 如果已有同章节内容，保留更长的
+                    if section_type in sections:
+                        if len(content) > len(sections[section_type]):
+                            sections[section_type] = content
+                    else:
+                        sections[section_type] = content
+
+        return sections if sections else {'full_text': text}
+
+    # ==================== 混合多信号章节识别结束 ====================
         """提取图表信息"""
         figures = []
         

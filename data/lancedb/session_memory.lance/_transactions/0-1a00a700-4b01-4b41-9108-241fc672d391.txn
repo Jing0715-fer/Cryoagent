@@ -1,0 +1,5 @@
+$1a00a700-4b01-4b41-9108-241fc672d391²¸#
+session_id ÿÿÿÿÿÿÿÿÿ*string08 query ÿÿÿÿÿÿÿÿÿ*string08#response ÿÿÿÿÿÿÿÿÿ*string08,	timestamp ÿÿÿÿÿÿÿÿÿ*timestamp:us:-08)retrieved_docs ÿÿÿÿÿÿÿÿÿ*string08%
+query_type ÿÿÿÿÿÿÿÿÿ*string08"!
+lance.auto_cleanup.interval20"'
+lance.auto_cleanup.older_than14days

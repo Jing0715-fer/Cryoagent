@@ -34,6 +34,7 @@ class BM25Config:
     delta: float = 1.0  # 文档加分项
     min_term_length: int = 2  # 最小词长度
     stopwords: Optional[set] = None  # 停用词集合
+    boosted_terms: Optional[Dict[str, float]] = None  # 加权关键词 {term: weight}
 
 
 # 默认停用词
@@ -48,6 +49,106 @@ DEFAULT_STOPWORDS = {
     '的', '了', '和', '是', '在', '有', '我', '你', '他', '她', '它',
     '们', '这', '那', '都', '也', '就', '要', '会', '可以', '能',
 }
+
+# 方法关键词加权配置
+METHOD_KEYWORD_WEIGHTS = {
+    # 英文方法关键词
+    'purification': 2.5,
+    'purified': 2.5,
+    'expression': 2.5,
+    'expressed': 2.5,
+    'protocol': 2.0,
+    'procedure': 2.0,
+    'buffer': 2.0,
+    'detergent': 2.5,
+    'chromatography': 2.5,
+    'column': 2.0,
+    'resin': 2.0,
+    'elution': 2.0,
+    'solubilization': 2.5,
+    'solubilized': 2.5,
+    'reconstitution': 2.0,
+    'reconstituted': 2.0,
+    'concentration': 1.8,
+    'concentrated': 1.8,
+    'dilution': 1.5,
+    'diluted': 1.5,
+    'incubation': 1.8,
+    'incubated': 1.8,
+    'centrifugation': 2.0,
+    'centrifuged': 2.0,
+    'extraction': 2.0,
+    'extracted': 2.0,
+    'isolation': 2.0,
+    'isolated': 2.0,
+    'preparation': 2.0,
+    'prepared': 2.0,
+    'step': 1.5,
+    'steps': 1.5,
+    'method': 2.0,
+    'methods': 2.0,
+    'technique': 1.8,
+    'condition': 1.5,
+    'conditions': 1.5,
+    'temperature': 1.8,
+    'ph': 2.0,
+    'tris': 2.0,
+    'hepes': 2.0,
+    'pbs': 2.0,
+    'nacl': 1.8,
+    'kcl': 1.8,
+    'mgcl2': 1.8,
+    'cacl2': 1.8,
+    'edta': 1.8,
+    'dtt': 1.8,
+    'glycerol': 1.8,
+    'dm': 2.0,  # dodecyl maltoside
+    'ddm': 2.0,
+    'lmng': 2.0,
+    'chaps': 2.0,
+    'digitonin': 2.0,
+    'og': 2.0,  # octyl glucoside
+    'hr': 1.5,  # hours
+    'min': 1.5,  # minutes
+    'sec': 1.5,  # seconds
+    'nm': 1.5,  # nanometer
+    'mm': 1.5,  # millimolar
+    'μm': 1.5,  # micromolar
+    'ml': 1.5,
+    'μl': 1.5,
+    # 中文方法关键词
+    '纯化': 2.5,
+    '表达': 2.5,
+    '缓冲液': 2.0,
+    '去垢剂': 2.5,
+    '层析': 2.5,
+    '色谱': 2.5,
+    '柱子': 2.0,
+    '树脂': 2.0,
+    '洗脱': 2.0,
+    '增溶': 2.5,
+    '复溶': 2.0,
+    '浓缩': 1.8,
+    '稀释': 1.5,
+    '孵育': 1.8,
+    '离心': 2.0,
+    '提取': 2.0,
+    '分离': 2.0,
+    '制备': 2.0,
+    '步骤': 1.5,
+    '方法': 2.0,
+    '技术': 1.8,
+    '条件': 1.5,
+    '温度': 1.8,
+}
+
+
+def get_method_boosted_config() -> BM25Config:
+    """获取方法查询的BM25配置（带关键词加权）"""
+    return BM25Config(
+        stopwords=DEFAULT_STOPWORDS.copy(),
+        boosted_terms=METHOD_KEYWORD_WEIGHTS.copy()
+    )
 
 
 class BM25Index:
@@ -210,12 +311,13 @@ class BM25Index:
                 (self.doc_count - df + 0.5) / (df + 0.5) + 1
             )
 
-    def get_scores(self, query: str) -> List[float]:
+    def get_scores(self, query: str, boosted_terms: Optional[Dict[str, float]] = None) -> List[float]:
         """
         获取查询对所有文档的 BM25 分数
 
         Args:
             query: 查询文本
+            boosted_terms: 可选的加权词字典 {term: weight}
 
         Returns:
             每个文档的分数列表
@@ -228,6 +330,13 @@ class BM25Index:
             return [0.0] * self.doc_count
 
         scores = [0.0] * self.doc_count
+
+        # 合并配置中的加权词和传入的加权词
+        term_boosts = {}
+        if self.config.boosted_terms:
+            term_boosts.update(self.config.boosted_terms)
+        if boosted_terms:
+            term_boosts.update(boosted_terms)
 
         for doc_id in range(self.doc_count):
             score = 0.0
@@ -247,7 +356,11 @@ class BM25Index:
                     1 - self.config.b + self.config.b * doc_len / self.avgdl
                 )
 
-                score += idf * numerator / denominator
+                term_score = idf * numerator / denominator
+
+                # 应用加权
+                boost = term_boosts.get(term, 1.0)
+                score += term_score * boost
 
             scores[doc_id] = score
 
@@ -258,6 +371,7 @@ class BM25Index:
         query: str,
         top_k: int = 10,
         min_score: float = 0.0,
+        boosted_terms: Optional[Dict[str, float]] = None,
     ) -> List[Dict[str, Any]]:
         """
         搜索文档
@@ -266,6 +380,7 @@ class BM25Index:
             query: 查询文本
             top_k: 返回结果数量
             min_score: 最小分数阈值
+            boosted_terms: 可选的加权词字典
 
         Returns:
             搜索结果列表
@@ -273,7 +388,7 @@ class BM25Index:
         if self.doc_count == 0:
             return []
 
-        scores = self.get_scores(query)
+        scores = self.get_scores(query, boosted_terms=boosted_terms)
 
         # 排序
         results = [
@@ -294,6 +409,7 @@ class BM25Index:
         id_field: str = "id",
         top_k: int = 10,
         min_score: float = 0.0,
+        boosted_terms: Optional[Dict[str, float]] = None,
     ) -> List[Dict[str, Any]]:
         """
         搜索文档（带文档内容）
@@ -305,6 +421,7 @@ class BM25Index:
             id_field: ID 字段名
             top_k: 返回结果数量
             min_score: 最小分数阈值
+            boosted_terms: 可选的加权词字典
 
         Returns:
             带文档内容的搜索结果
@@ -316,7 +433,7 @@ class BM25Index:
         if self.doc_count != len(documents):
             self.index_documents(documents, text_field, id_field)
 
-        scores = self.get_scores(query)
+        scores = self.get_scores(query, boosted_terms=boosted_terms)
 
         # 构建结果
         results = []

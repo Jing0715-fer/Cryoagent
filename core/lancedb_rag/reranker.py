@@ -128,10 +128,16 @@ class Reranker:
         try:
             import httpx
             api_key = self.config.api_key or os.environ.get("JINA_API_KEY")
+
+            # 如果没有 API key，返回 None 表示不使用重排序
+            if not api_key:
+                logger.warning("Jina API key 未配置，将禁用重排序功能")
+                return None
+
             return httpx.Client(
                 base_url=self.config.api_base or "https://api.jina.ai/v1",
                 headers={
-                    "Authorization": f"Bearer {api_key or ''}",
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
                 },
                 timeout=60
@@ -251,6 +257,11 @@ class Reranker:
     ) -> List[float]:
         """使用远程 API 重排序"""
         all_scores = []
+
+        # 检查客户端是否可用（当 API key 为空时客户端为 None）
+        if self.client is None:
+            logger.warning("重排序客户端不可用，返回默认分数")
+            return [0.5] * len(texts)
 
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]

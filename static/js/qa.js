@@ -6,6 +6,7 @@
 let chatHistory = [];
 let isProcessing = false;
 let currentSessionId = null;  // 当前会话ID
+let currentClarification = null;  // 当前待澄清的问题
 
 // Initialize QA page
 function initPage() {
@@ -315,28 +316,38 @@ async function loadHistorySession(sessionId) {
             if (entry.result_json) {
                 try {
                     const result = JSON.parse(entry.result_json);
-                    const toolResults = result.tool_results || [];
-
-                    // 从 tool_results 提取来源
-                    for (const tr of toolResults) {
-                        if (tr.tool_name === 'search_literature' && tr.result) {
-                            const results = tr.result.results || [];
-                            for (const lit of results) {
-                                sources.push({
-                                    type: 'literature',
-                                    id: String(lit.id || ''),
-                                    title: (lit.title || '').substring(0, 100)
-                                });
+                    // 优先使用后端保存的 sources 字段（包含完整信息）
+                    if (result.sources && result.sources.length > 0) {
+                        sources = result.sources;
+                    } else {
+                        // 兼容旧数据：从 tool_results 提取来源
+                        const toolResults = result.tool_results || [];
+                        sources = [];
+                        for (const tr of toolResults) {
+                            if (tr.tool_name === 'search_literature' && tr.result) {
+                                const results = tr.result.results || [];
+                                for (const lit of results) {
+                                    sources.push({
+                                        type: 'literature',
+                                        id: String(lit.id || ''),
+                                        title: (lit.title || '').substring(0, 100),
+                                        authors: lit.authors || '',
+                                        year: lit.year || '',
+                                        journal: lit.journal || '',
+                                        doi: lit.doi || '',
+                                        content: lit.content || lit.abstract || ''
+                                    });
+                                }
                             }
-                        }
-                        if (tr.tool_name === 'search_structures' && tr.result) {
-                            const results = tr.result.results || [];
-                            for (const struct of results) {
-                                sources.push({
-                                    type: 'structure',
-                                    id: struct.pdb_id || '',
-                                    title: (struct.title || '').substring(0, 100)
-                                });
+                            if (tr.tool_name === 'search_structures' && tr.result) {
+                                const results = tr.result.results || [];
+                                for (const struct of results) {
+                                    sources.push({
+                                        type: 'structure',
+                                        id: struct.pdb_id || '',
+                                        title: (struct.title || '').substring(0, 100)
+                                    });
+                                }
                             }
                         }
                     }
@@ -357,26 +368,38 @@ async function loadHistorySession(sessionId) {
             if (lastItem.result_json) {
                 try {
                     const result = JSON.parse(lastItem.result_json);
-                    const toolResults = result.tool_results || [];
-                    for (const tr of toolResults) {
-                        if (tr.tool_name === 'search_literature' && tr.result) {
-                            const results = tr.result.results || [];
-                            for (const lit of results) {
-                                lastSources.push({
-                                    type: 'literature',
-                                    id: String(lit.id || ''),
-                                    title: (lit.title || '').substring(0, 100)
-                                });
+                    // 优先使用后端保存的 sources 字段
+                    if (result.sources && result.sources.length > 0) {
+                        lastSources = result.sources;
+                    } else {
+                        // 兼容旧数据
+                        const toolResults = result.tool_results || [];
+                        lastSources = [];
+                        for (const tr of toolResults) {
+                            if (tr.tool_name === 'search_literature' && tr.result) {
+                                const results = tr.result.results || [];
+                                for (const lit of results) {
+                                    lastSources.push({
+                                        type: 'literature',
+                                        id: String(lit.id || ''),
+                                        title: (lit.title || '').substring(0, 100),
+                                        authors: lit.authors || '',
+                                        year: lit.year || '',
+                                        journal: lit.journal || '',
+                                        doi: lit.doi || '',
+                                        content: lit.content || lit.abstract || ''
+                                    });
+                                }
                             }
-                        }
-                        if (tr.tool_name === 'search_structures' && tr.result) {
-                            const results = tr.result.results || [];
-                            for (const struct of results) {
-                                lastSources.push({
-                                    type: 'structure',
-                                    id: struct.pdb_id || '',
-                                    title: (struct.title || '').substring(0, 100)
-                                });
+                            if (tr.tool_name === 'search_structures' && tr.result) {
+                                const results = tr.result.results || [];
+                                for (const struct of results) {
+                                    lastSources.push({
+                                        type: 'structure',
+                                        id: struct.pdb_id || '',
+                                        title: (struct.title || '').substring(0, 100)
+                                    });
+                                }
                             }
                         }
                     }
@@ -602,25 +625,75 @@ function addChatMessage(role, content, sources = [], imageUrl = null) {
 
     let sourcesHtml = '';
     if (sources && sources.length > 0) {
+        // Group sources by literature for better display
+        // 去重：按文献 ID 去重，保留第一个出现的
+        const seenLiteratureIds = new Set();
+        const literatureSources = sources.filter(s => {
+            if (s.type !== 'literature') return false;
+            // 从 ID 中提取文献号 (如 literature_5_full_chunk_104 -> literature_5)
+            const idStr = String(s.id);
+            const litMatch = idStr.match(/literature_(\d+)/);
+            const litId = litMatch ? `literature_${litMatch[1]}` : idStr;
+            if (seenLiteratureIds.has(litId)) {
+                return false;  // 重复，过滤掉
+            }
+            seenLiteratureIds.add(litId);
+            return true;
+        });
+        const otherSources = sources.filter(s => s.type !== 'literature');
+
         sourcesHtml = `
             <div class="sources">
-                <h5>参考来源：</h5>
-                <ul>
-                    ${sources.map(s => {
+                <h5>📚 参考来源 (${sources.length} 个)：</h5>
+                <ul class="source-list">
+                    ${literatureSources.map((s, idx) => {
+                        let url = '#';
+                        const idStr = String(s.id);
+                        if (idStr.startsWith('literature_') && idStr.includes('_full_chunk_')) {
+                            url = '/literature/chunk/' + idStr;
+                        } else {
+                            url = '/literature/' + s.id;
+                        }
+                        // Extract literature number from chunk ID (e.g., literature_5_full_chunk_185 -> 文献 5)
+                        const litMatch = idStr.match(/literature_(\d+)_/);
+                        const litNum = litMatch ? litMatch[1] : (idx + 1);
+
+                        // Show content with expandable/collapsible section (no truncation)
+                        const contentSection = s.content ? `
+                            <div class="source-content-wrapper" style="margin-top: 10px;">
+                                <button class="toggle-content-btn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'; this.textContent=this.nextElementSibling.style.display==='none'?'📄 展开原文':'📄 收起原文'" style="background: #e3f2fd; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85em; color: #1976d2;">
+                                    📄 展开原文
+                                </button>
+                                <div class="source-content" style="display: none; margin-top: 8px; padding: 12px; background: #f8f9fa; border-radius: 4px; font-size: 0.9em; color: #333; line-height: 1.5; max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; white-space: pre-wrap; word-wrap: break-word;">
+                                    ${escapeHtml(s.content)}
+                                </div>
+                            </div>
+                        ` : '';
+
+                        return `
+                        <li class="source-item" style="margin-bottom: 15px; padding: 10px; border-left: 3px solid #4CAF50; background: #fafafa;">
+                            <div class="source-header">
+                                <strong>文献 ${litNum}：</strong>
+                                <a href="${url}" target="_blank" style="font-weight: 500;">
+                                    ${escapeHtml(truncateText(s.title || '', 80))}
+                                </a>
+                            </div>
+                            <div class="source-meta" style="font-size: 0.85em; color: #666; margin-top: 5px;">
+                                ${s.authors ? `<span>👥 ${escapeHtml(truncateText(s.authors, 50))}</span><br>` : ''}
+                                ${s.journal ? `<span>📰 ${escapeHtml(s.journal)}</span>` : ''}
+                                ${s.year ? `<span>📅 ${s.year}</span>` : ''}
+                                ${s.doi ? `<span> 🔗 DOI: ${escapeHtml(s.doi)}</span>` : ''}
+                            </div>
+                            ${contentSection}
+                        </li>
+                    `}).join('')}
+                    ${otherSources.map(s => {
                         let url = '#';
                         if (s.type === 'structure') {
                             url = '/structure/' + s.id;
-                        } else if (s.type === 'literature') {
-                            // 检测 chunk ID 格式: literature_5_full_chunk_185
-                            const idStr = String(s.id);
-                            if (idStr.startsWith('literature_') && idStr.includes('_full_chunk_')) {
-                                url = '/literature/chunk/' + idStr;
-                            } else {
-                                url = '/literature/' + s.id;
-                            }
                         }
                         return `
-                        <li>
+                        <li class="source-item" style="margin-bottom: 10px;">
                             <a href="${url}" target="_blank">
                                 ${escapeHtml(truncateText(s.title || '', 50))} (${s.type || 'unknown'}: ${s.id || 'N/A'})
                             </a>
@@ -647,7 +720,7 @@ function addChatMessage(role, content, sources = [], imageUrl = null) {
     messageDiv.innerHTML = `
         ${avatar}
         <div class="message-content">
-            <div class="message-text">${formattedContent}</div>
+            <div class="message-text markdown-body">${formattedContent}</div>
             ${imageHtml}
             ${sourcesHtml}
         </div>
@@ -695,12 +768,18 @@ function formatMessage(text) {
             // 配置marked选项
             marked.setOptions({
                 breaks: true,
-                gfm: true
+                gfm: true,
+                headerIds: false,
+                mangle: false
             });
-            return marked.parse(text);
+            const result = marked.parse(text);
+            console.log('[formatMessage] marked.js result:', result.substring(0, 100));
+            return result;
+        } else {
+            console.warn('[formatMessage] marked.js not loaded');
         }
     } catch (e) {
-        console.warn('Markdown parsing failed, using fallback:', e);
+        console.warn('[formatMessage] Markdown parsing failed:', e);
     }
 
     // Fallback: 简单转换
@@ -817,25 +896,54 @@ function updateSearchResults(sources) {
         return;
     }
 
-    panel.innerHTML = sources.map(s => {
+    panel.innerHTML = sources.map((s, idx) => {
         // 根据类型决定链接
         let url = '#';
+        const idStr = String(s.id);
         if (s.type === 'structure') {
             url = '/structure/' + s.id;
         } else if (s.type === 'literature') {
             // 检测 chunk ID 格式: literature_5_full_chunk_185
-            const idStr = String(s.id);
             if (idStr.startsWith('literature_') && idStr.includes('_full_chunk_')) {
                 url = '/literature/chunk/' + idStr;
             } else {
                 url = '/literature/' + s.id;
             }
         }
+        // Extract literature number
+        const litMatch = idStr.match(/literature_(\d+)_/);
+        const litNum = litMatch ? litMatch[1] : (idx + 1);
+
+        // 格式化作者（处理数组）
+        let authorsStr = '';
+        if (s.authors) {
+            if (Array.isArray(s.authors)) {
+                authorsStr = s.authors.slice(0, 3).join(', ');
+                if (s.authors.length > 3) authorsStr += ' et al.';
+            } else {
+                authorsStr = String(s.authors);
+            }
+        }
+
+        // 显示合并的 chunk 范围（如果有）
+        let chunkRangeLabel = '';
+        if (s.chunk_range && s.chunk_count > 1) {
+            chunkRangeLabel = `<span style="background: #2196F3; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7em; margin-left: 5px;">第${s.chunk_range}部分</span>`;
+        } else if (s.chunk_count > 1) {
+            chunkRangeLabel = `<span style="background: #2196F3; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7em; margin-left: 5px;">${s.chunk_count}个片段</span>`;
+        }
+
         return `
-        <div class="search-result-item" onclick="window.location.href='${url}'">
-            <div class="title">${escapeHtml(truncateText(s.title || '', 50))}</div>
-            <div class="meta">
-                ${s.type || 'Unknown'} &bull; ${s.id || 'N/A'}
+        <div class="search-result-item" style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'" onclick="window.location.href='${url}'">
+            <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                <span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; margin-right: 8px;">文献 ${litNum}</span>
+                ${chunkRangeLabel}
+                <span style="font-size: 0.8em; color: #666; margin-left: auto;">${s.year || 'N/A'}</span>
+            </div>
+            <div class="title" style="font-weight: 500; color: #333; margin-bottom: 5px; line-height: 1.3;">${escapeHtml(truncateText(s.title || '', 80))}</div>
+            <div class="meta" style="font-size: 0.8em; color: #666;">
+                ${authorsStr ? `<div>👥 ${escapeHtml(authorsStr)}</div>` : ''}
+                ${s.journal ? `<div>📰 ${escapeHtml(s.journal)}</div>` : ''}
             </div>
         </div>
     `}).join('');
@@ -1078,6 +1186,9 @@ function askQuestion(question) {
 // Removed: toggleAgentMode() - Agent mode is always on
 // Removed: initRagButton() - No longer needed
 // Removed: initAgentModeButton() - No longer needed
+
+// Send message using Agent mode
+async function sendAgentMessage() {
     if (isProcessing) return;
 
     const input = document.getElementById('chat-input');
@@ -1383,12 +1494,21 @@ function processToolResults(toolResults) {
         const toolName = result.tool_name;
         const data = result.result;
 
+        // Fix: Check if data exists before accessing properties
+        if (!data) return;
+
         if (toolName === 'search_literature' && data.results) {
             data.results.forEach(lit => {
                 sources.push({
                     type: 'literature',
                     id: lit.id,
-                    title: lit.title || 'Unknown'
+                    title: lit.title || 'Unknown',
+                    // Add more details for better source display
+                    authors: lit.authors || '',
+                    year: lit.year || '',
+                    journal: lit.journal || '',
+                    doi: lit.doi || '',
+                    content: lit.content || lit.abstract || ''  // Add content for preview
                 });
             });
         } else if (toolName === 'get_structure_details' && data.structure) {

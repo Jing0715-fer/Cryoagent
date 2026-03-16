@@ -379,7 +379,7 @@ class LiteratureManager:
         # 初始化结构QA智能体
         self.structure_qa_agent = None
         try:
-            from structure_qa_agent import StructureQAAgent
+            from core.structure_qa_agent import StructureQAAgent
             self.structure_qa_agent = StructureQAAgent(self)
             logger.info("✅ 结构QA智能体初始化完成")
         except ImportError as e:
@@ -4237,6 +4237,16 @@ class LiteratureManager:
             "literature_type": literature.literature_type.value if hasattr(literature.literature_type, 'value') else str(literature.literature_type),
             "cryoem_targets": safe_json_loads(literature.cryoem_targets, {}),
             "search_text_blob": literature.search_text_blob or "",  # 新增搜索字段
+            # 章节数据 - 用于章节感知分块
+            "parsed_data": {
+                "section_data": safe_json_loads(literature.sections_json, {}),
+                "methods": literature.methods or "",
+                "results": literature.results or "",
+                "introduction": literature.introduction or "",
+                "discussion": literature.discussion or "",
+                "conclusions": literature.conclusions or "",
+                "data_availability": literature.data_availability or "",
+            },
             "created_at": literature.created_at.isoformat() if literature.created_at else None,
             "updated_at": literature.updated_at.isoformat() if literature.updated_at else None,
             "parsed_at": literature.parsed_at.isoformat() if literature.parsed_at else None,

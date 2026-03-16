@@ -46,11 +46,6 @@ class LiteratureIndexManager:
                 "entity_types": {},
                 "integrity": "missing"
             },
-            "faiss_index": {
-                "exists": False,
-                "vector_count": 0,
-                "integrity": "missing"
-            },
             "structure_mappings": {
                 "exists": False,
                 "structures": 0,
@@ -94,21 +89,6 @@ class LiteratureIndexManager:
                     logger.error(f"读取统一索引失败: {e}")
                     integrity["unified_index"]["integrity"] = "corrupted"
             
-            # 检查FAISS索引
-            faiss_index_file = self.index_dir / "faiss_index.bin"
-            if faiss_index_file.exists():
-                try:
-                    import faiss
-                    index = faiss.read_index(str(faiss_index_file))
-                    integrity["faiss_index"]["exists"] = True
-                    integrity["faiss_index"]["vector_count"] = index.ntotal
-                    integrity["faiss_index"]["integrity"] = "valid"
-                except ImportError:
-                    integrity["faiss_index"]["integrity"] = "faiss_not_available"
-                    logger.warning("FAISS库不可用，跳过索引检查")
-                except Exception as e:
-                    logger.error(f"读取FAISS索引失败: {e}")
-                    integrity["faiss_index"]["integrity"] = "corrupted"
             
             # 检查结构映射
             structure_file = self.index_dir / "structure_mappings.json"
@@ -140,11 +120,10 @@ class LiteratureIndexManager:
             
             # 综合评估
             has_unified = integrity["unified_index"]["integrity"] == "valid"
-            has_faiss = integrity["faiss_index"]["integrity"] == "valid"
             has_structure = integrity["structure_mappings"]["integrity"] == "valid"
             has_id_mappings = integrity["id_mappings"]["integrity"] == "valid"
             
-            if has_unified and has_faiss:
+            if has_unified:
                 integrity["overall"] = "healthy"
                 integrity["needs_rebuild"] = False
                 integrity["message"] = f"索引正常: {integrity['unified_index']['documents']} 个文档"
@@ -160,17 +139,6 @@ class LiteratureIndexManager:
                 except Exception as e:
                     logger.warning(f"检查索引时间失败: {e}")
                     
-            elif has_unified or has_faiss:
-                integrity["overall"] = "partial"
-                integrity["needs_rebuild"] = True
-                missing = []
-                if not has_unified:
-                    missing.append("unified_index.json")
-                if not has_faiss:
-                    missing.append("faiss_index.bin")
-                if not has_structure:
-                    missing.append("structure_mappings.json")
-                integrity["message"] = f"索引不完整，缺失: {', '.join(missing)}"
             else:
                 integrity["overall"] = "missing"
                 integrity["needs_rebuild"] = True
@@ -254,10 +222,6 @@ class LiteratureIndexManager:
                     "document_count": 0,
                     "entity_type_distribution": {}
                 },
-                "faiss_index": {
-                    "exists": False,
-                    "vector_count": 0
-                },
                 "structure_mappings": {
                     "exists": False,
                     "structure_count": 0,
@@ -300,16 +264,6 @@ class LiteratureIndexManager:
                 except Exception as e:
                     logger.warning(f"读取统一索引失败: {e}")
             
-            # 检查FAISS索引
-            faiss_file = self.index_dir / "faiss_index.bin"
-            if faiss_file.exists():
-                try:
-                    import faiss
-                    index = faiss.read_index(str(faiss_file))
-                    stats["faiss_index"]["exists"] = True
-                    stats["faiss_index"]["vector_count"] = index.ntotal
-                except Exception as e:
-                    logger.warning(f"读取FAISS索引失败: {e}")
             
             # 检查结构映射
             structure_file = self.index_dir / "structure_mappings.json"
@@ -389,7 +343,6 @@ class LiteratureIndexManager:
             
             # 清理旧版本索引文件
             old_files = [
-                "literature_index.faiss",
                 "chunk_data.json",
                 "index.pkl",
                 "docstore.json"
@@ -435,10 +388,9 @@ class LiteratureIndexManager:
     def migrate_old_index(self, backup: bool = True) -> Dict[str, Any]:
         """迁移旧版本索引到新版本（仅结构，不迁移数据）"""
         try:
-            old_faiss_dir = self.index_dir / "faiss"
             old_llama_dir = self.index_dir / "llama_index"
             
-            if not old_faiss_dir.exists() and not old_llama_dir.exists():
+            if not old_llama_dir.exists():
                 return {
                     "success": False,
                     "message": "未找到旧版本索引目录"
@@ -456,12 +408,6 @@ class LiteratureIndexManager:
                 backup_dir = self.index_dir / f"backup_old_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 backup_dir.mkdir(parents=True, exist_ok=True)
                 
-                if old_faiss_dir.exists():
-                    try:
-                        shutil.copytree(old_faiss_dir, backup_dir / "faiss")
-                        result["directories_migrated"] += 1
-                    except Exception as e:
-                        logger.warning(f"备份faiss目录失败: {e}")
                 
                 if old_llama_dir.exists():
                     try:
@@ -475,9 +421,6 @@ class LiteratureIndexManager:
                     result["backup_location"] = str(backup_dir)
             
             # 重命名旧目录（添加.old后缀）
-            if old_faiss_dir.exists():
-                old_faiss_dir.rename(old_faiss_dir.with_suffix(".old"))
-                logger.info(f"重命名faiss目录: {old_faiss_dir.name} -> {old_faiss_dir.name}.old")
             
             if old_llama_dir.exists():
                 old_llama_dir.rename(old_llama_dir.with_suffix(".old"))
@@ -514,12 +457,6 @@ class LiteratureIndexManager:
             
             inconsistencies = []
             
-            # 检查统一索引和FAISS索引大小是否一致
-            if integrity["unified_index"]["documents"] != integrity["faiss_index"]["vector_count"]:
-                inconsistencies.append({
-                    "type": "size_mismatch",
-                    "message": f"文档数量({integrity['unified_index']['documents']})与向量数量({integrity['faiss_index']['vector_count']})不匹配"
-                })
             
             # 检查结构映射的一致性
             if integrity["structure_mappings"]["integrity"] == "valid":
