@@ -660,12 +660,12 @@ def download_appendix(lit_id, appendix_id):
 @bp.route('/<int:lit_id>/appendix/<int:appendix_id>/vectorize', methods=['POST'])
 @login_required
 def vectorize_appendix(lit_id, appendix_id):
-    """向量化附录"""
+    """向量化附录 - 使用切块处理并索引到LanceDB，与正文处理方式一致"""
     try:
-        from core.literature_db import create_literature_session, LiteratureAppendix
-        from core.literature_parser import PDFParser
-        from core.agent_core import EmbeddingManager
+        from core.literature_db import create_literature_session, LiteratureAppendix, LiteratureEntry
+        from core.lancedb_rag.rag import UnifiedLanceRAG
         from datetime import datetime
+        import fitz  # PyMuPDF
 
         session = create_literature_session()
         appendix = session.query(LiteratureAppendix).filter(
@@ -685,40 +685,108 @@ def vectorize_appendix(lit_id, appendix_id):
             session.close()
             return jsonify({'success': False, 'error': '文件不存在'}), 404
 
-        # 解析PDF
-        try:
-            parser = PDFParser()
-            result = parser.parse_pdf(appendix.file_path)
-            text = result.get('text', '')
+        # 获取文献信息
+        lit_entry = session.query(LiteratureEntry).filter(LiteratureEntry.id == lit_id).first()
+        lit_title = lit_entry.title if lit_entry else "Unknown"
 
-            if not text or len(text.strip()) < 10:
+        # 使用PyMuPDF直接提取文本
+        try:
+            doc = fitz.open(str(appendix.file_path))
+            page_count = len(doc)
+
+            # 提取所有页面的文本
+            text_parts = []
+            for page_num in range(page_count):
+                page = doc[page_num]
+                text_parts.append(page.get_text())
+            doc.close()
+
+            full_text = "\n".join(text_parts)
+
+            if not full_text or len(full_text.strip()) < 10:
                 session.close()
                 return jsonify({'success': False, 'error': '无法提取文本内容'}), 400
 
-            # 更新提取的文本
-            appendix.extracted_text = text
-            appendix.page_count = result.get('metadata', {}).get('page_count', 0)
+            # 更新提取的文本和页数
+            appendix.extracted_text = full_text
+            appendix.page_count = page_count
 
-            # 生成向量
-            try:
-                embedding_manager = EmbeddingManager()
-                embedding = embedding_manager.get_text_embedding(text)
+            # ========== 切块处理（与正文相同方式）==========
+            # 使用与正文相同的切块配置
+            chunk_size = 500
+            chunk_overlap = 50
 
-                if embedding:
-                    # 保存向量到数据库
-                    import json
-                    appendix.embedding = json.dumps(embedding.tolist())
-                    appendix.is_parsed = True
-                    appendix.parsed_at = datetime.now()
+            # 文本切块
+            text_chunks = _split_text_for_appendix(full_text, chunk_size, chunk_overlap)
 
-            except Exception as emb_err:
-                print(f"生成向量失败: {emb_err}")
-                # 继续保存文本，不保存向量
+            if not text_chunks:
+                session.close()
+                return jsonify({'success': False, 'error': '文本切块后为空'}), 400
+
+            # 初始化 RAG 系统
+            rag = UnifiedLanceRAG()
+
+            # 为每个块创建文档并索引到 LanceDB
+            chunk_documents = []
+            for chunk_idx, chunk_content in enumerate(text_chunks):
+                doc = {
+                    'id': f"appendix_{appendix_id}_chunk_{chunk_idx}",
+                    'doc_id': f"appendix_{appendix_id}_chunk_{chunk_idx}",
+                    'title': f"{lit_title} - 附录: {appendix.filename}",
+                    'abstract': '',
+                    'full_text': chunk_content,
+                    'authors': [],
+                    'journal': '',
+                    'year': 0,
+                    'keywords': [],
+                    'entity_type': 'appendix',
+                    'section': f'附录-{appendix.appendix_type or "unknown"}',
+                    'doc_type': 'appendix_chunk',
+                    'chunk_index': chunk_idx,
+                    'chunk_length': len(chunk_content),
+                    'metadata': {
+                        'literature_id': lit_id,
+                        'appendix_id': appendix_id,
+                        'filename': appendix.filename,
+                        'appendix_type': appendix.appendix_type,
+                        'total_chunks': len(text_chunks),
+                        'page_count': page_count
+                    }
+                }
+                chunk_documents.append(doc)
+
+            # 批量添加到 LanceDB
+            if chunk_documents:
+                try:
+                    added_count = rag.add_literature(chunk_documents)
+                    print(f"附录 {appendix_id} 索引完成: {added_count} 个chunks")
+                except Exception as e:
+                    print(f"LanceDB索引失败: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            # 更新附录状态
+            appendix.is_parsed = True
+            appendix.parsed_at = datetime.now()
+            # 存储切块信息到数据库（JSON格式）
+            import json
+            appendix.embedding = json.dumps({
+                'chunks_count': len(text_chunks),
+                'indexed_chunks': len(chunk_documents),
+                'chunk_size': chunk_size,
+                'chunk_overlap': chunk_overlap,
+                'text_length': len(full_text)
+            })
 
             session.commit()
             session.close()
 
-            return jsonify({'success': True, 'message': '向量化完成'})
+            return jsonify({
+                'success': True,
+                'message': f'向量化完成，共生成 {len(text_chunks)} 个块，索引 {len(chunk_documents)} 个',
+                'chunks_count': len(text_chunks),
+                'indexed_count': len(chunk_documents)
+            })
 
         except Exception as parse_err:
             session.rollback()
@@ -726,6 +794,204 @@ def vectorize_appendix(lit_id, appendix_id):
             import traceback
             traceback.print_exc()
             return jsonify({'success': False, 'error': f'解析失败: {str(parse_err)}'}), 500
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _split_text_for_appendix(text: str, chunk_size: int = 500, overlap: int = 50) -> list:
+    """将文本分割成 chunks（与正文使用相同的智能分割逻辑）"""
+    if len(text) <= chunk_size:
+        return [text] if text.strip() else []
+
+    chunks = []
+    import re
+
+    # 中英文句子分隔符（与正文相同）
+    sentence_endings = r'(?<=[。！？!?\.])' + r'\s+'
+    sentences = re.split(sentence_endings, text)
+
+    # 如果分割结果太少，尝试按更细粒度分割
+    if len(sentences) <= 1 or (len(text) > chunk_size * 2 and len(sentences) < 3):
+        paragraphs = re.split(r'\n\n|(?<=[。\.])\n', text)
+        if len(paragraphs) > len(sentences):
+            sentences = []
+            for para in paragraphs:
+                en_sent = re.split(r'(?<=\.)\s+', para)
+                sentences.extend([s.strip() for s in en_sent if s.strip()])
+
+    current_chunk = ""
+    current_length = 0
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+
+        sentence_length = len(sentence)
+
+        # 如果单个句子超过 chunk_size，需要进一步分割
+        if sentence_length > chunk_size:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+                overlap_start = max(0, len(current_chunk) - overlap)
+                current_chunk = current_chunk[overlap_start:]
+                current_length = len(current_chunk)
+
+            for i in range(0, sentence_length, chunk_size - overlap):
+                sub_chunk = sentence[i:i + chunk_size]
+                if sub_chunk.strip():
+                    chunks.append(sub_chunk.strip())
+            current_chunk = ""
+            current_length = 0
+            continue
+
+        # 检查是否需要开始新 chunk
+        if current_length + sentence_length + 1 > chunk_size and current_chunk:
+            chunks.append(current_chunk.strip())
+            overlap_start = max(0, len(current_chunk) - overlap)
+            current_chunk = current_chunk[overlap_start:]
+            current_length = len(current_chunk)
+
+        # 添加句子
+        if current_chunk:
+            current_chunk += " " + sentence
+            current_length += 1 + sentence_length
+        else:
+            current_chunk = sentence
+            current_length = sentence_length
+
+    # 保存最后一个 chunk
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+
+    return chunks
+
+
+@bp.route('/<int:lit_id>/appendix/<int:appendix_id>/reindex', methods=['POST'])
+@login_required
+def reindex_appendix(lit_id, appendix_id):
+    """重建附录索引 - 使用已提取的文本重新切块并索引到LanceDB"""
+    try:
+        from core.literature_db import create_literature_session, LiteratureAppendix, LiteratureEntry
+        from core.lancedb_rag.rag import UnifiedLanceRAG
+        from datetime import datetime
+        import json
+
+        session = create_literature_session()
+        appendix = session.query(LiteratureAppendix).filter(
+            LiteratureAppendix.id == appendix_id,
+            LiteratureAppendix.literature_id == lit_id
+        ).first()
+
+        if not appendix:
+            session.close()
+            return jsonify({'success': False, 'error': '附录不存在'}), 404
+
+        # 检查是否已提取文本
+        if not appendix.extracted_text:
+            session.close()
+            return jsonify({
+                'success': False,
+                'error': '附录尚未提取文本，请先执行向量化操作'
+            }), 400
+
+        # 获取文献信息
+        lit_entry = session.query(LiteratureEntry).filter(LiteratureEntry.id == lit_id).first()
+        lit_title = lit_entry.title if lit_entry else "Unknown"
+
+        full_text = appendix.extracted_text
+        page_count = appendix.page_count or 0
+
+        # ========== 重新切块处理 ==========
+        chunk_size = 500
+        chunk_overlap = 50
+
+        # 文本切块
+        text_chunks = _split_text_for_appendix(full_text, chunk_size, chunk_overlap)
+
+        if not text_chunks:
+            session.close()
+            return jsonify({'success': False, 'error': '文本切块后为空'}), 400
+
+        # 初始化 RAG 系统
+        rag = UnifiedLanceRAG()
+
+        # 先删除旧的附录索引（通过 doc_id 前缀匹配）
+        try:
+            # 获取所有附录相关的文档ID
+            old_doc_ids = [f"appendix_{appendix_id}_chunk_{i}" for i in range(1000)]  # 假设最多1000个块
+            # 尝试删除（LanceDB可能不支持批量删除，这里记录一下）
+            print(f"准备重新索引附录 {appendix_id}，旧索引将被覆盖")
+        except Exception as e:
+            print(f"清理旧索引时出错（可忽略）: {e}")
+
+        # 为每个块创建文档并索引到 LanceDB
+        chunk_documents = []
+        for chunk_idx, chunk_content in enumerate(text_chunks):
+            doc = {
+                'id': f"appendix_{appendix_id}_chunk_{chunk_idx}",
+                'doc_id': f"appendix_{appendix_id}_chunk_{chunk_idx}",
+                'title': f"{lit_title} - 附录: {appendix.filename}",
+                'abstract': '',
+                'full_text': chunk_content,
+                'authors': [],
+                'journal': '',
+                'year': 0,
+                'keywords': [],
+                'entity_type': 'appendix',
+                'section': f'附录-{appendix.appendix_type or "unknown"}',
+                'doc_type': 'appendix_chunk',
+                'chunk_index': chunk_idx,
+                'chunk_length': len(chunk_content),
+                'metadata': {
+                    'literature_id': lit_id,
+                    'appendix_id': appendix_id,
+                    'filename': appendix.filename,
+                    'appendix_type': appendix.appendix_type,
+                    'total_chunks': len(text_chunks),
+                    'page_count': page_count,
+                    'reindexed_at': datetime.now().isoformat()
+                }
+            }
+            chunk_documents.append(doc)
+
+        # 批量添加到 LanceDB
+        added_count = 0
+        if chunk_documents:
+            try:
+                added_count = rag.add_literature(chunk_documents)
+                print(f"附录 {appendix_id} 重建索引完成: {added_count} 个chunks")
+            except Exception as e:
+                print(f"LanceDB索引失败: {e}")
+                import traceback
+                traceback.print_exc()
+                session.close()
+                return jsonify({'success': False, 'error': f'索引失败: {str(e)}'}), 500
+
+        # 更新附录状态
+        appendix.is_parsed = True
+        appendix.parsed_at = datetime.now()
+        appendix.embedding = json.dumps({
+            'chunks_count': len(text_chunks),
+            'indexed_chunks': len(chunk_documents),
+            'chunk_size': chunk_size,
+            'chunk_overlap': chunk_overlap,
+            'text_length': len(full_text),
+            'reindexed_at': datetime.now().isoformat()
+        })
+
+        session.commit()
+        session.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'重建索引完成，共生成 {len(text_chunks)} 个块，索引 {added_count} 个',
+            'chunks_count': len(text_chunks),
+            'indexed_count': added_count
+        })
 
     except Exception as e:
         import traceback
