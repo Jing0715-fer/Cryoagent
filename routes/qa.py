@@ -650,6 +650,7 @@ UniProt ID: [例如: P29274]
         # RAG文献搜索 - 始终执行（RAG默认开启，无需检测关键词）
         print(f"[QA v2] 执行RAG文献搜索...")
         literature_source_ids = []  # 用于去重
+        lit_counter = 0  # 文献编号计数器，确保sources和context中的编号一致
 
         # ====== 首先：使用 LanceDB 向量搜索获取相关 chunks ======
         try:
@@ -676,53 +677,55 @@ UniProt ID: [例如: P29274]
             if vector_results:
                 literature_context += "\n\n【LanceDB向量搜索检索到的相关文献内容】:\n"
 
-                for i, result in enumerate(vector_results[:8], 1):
+                for result in vector_results[:8]:  # 最多8个结果
                     doc = result.get('document', {})
                     content = doc.get('full_text', '') or doc.get('content', '') or doc.get('abstract', '')
                     title = doc.get('title', '')
                     result_id = result.get('id', '')
 
                     if content:
+                        lit_counter += 1
                         literature_context += f"\n{'='*60}\n"
-                        literature_context += f"文献片段 {i}: {title[:100]}\n"
+                        literature_context += f"文献 {lit_counter}: {title[:100]}\n"
                         literature_context += f"ID: {result_id}\n"
                         literature_context += f"{'='*60}\n"
                         literature_context += f"{content}\n"
 
-                        # 添加到 sources
+                        # 添加到 sources - 每个向量结果作为一个独立来源
                         sources.append({
                             'id': str(result_id),
                             'title': title[:100],
-                            'type': 'literature'
+                            'type': 'literature',
+                            'context_index': lit_counter  # 记录对应的上下文编号
                         })
 
-                print(f"[QA v2] LanceDB 向量搜索完成，添加了 {len(vector_results)} 个 chunks")
+                print(f"[QA v2] LanceDB 向量搜索完成，添加了 {len(vector_results)} 个 chunks, 当前lit_counter={lit_counter}")
 
         except Exception as e:
             import traceback
             print(f"[QA v2] LanceDB 向量搜索失败: {e}")
             traceback.print_exc()
 
-            # 继续原有的数据库搜索作为补充
-            try:
-                from core.literature_db import get_literature_entry
-                import sqlite3
-                db_path = os.path.join(PROJECT_ROOT, 'data/literature.db')
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
+        # 数据库搜索 - 作为补充，无论LanceDB是否成功都执行
+        try:
+            from core.literature_db import get_literature_entry
+            import sqlite3
+            db_path = os.path.join(PROJECT_ROOT, 'data/literature.db')
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
 
-                # 提取搜索关键词
-                protein_names = re.findall(r'([A-Z]{2,10}[0-9]{0,5})', question)
-                protein_names_lower = re.findall(r'([a-z]{2,10}[0-9]{0,5})', question.lower())
-                search_proteins = [p.upper() for p in protein_names] + [p.lower() for p in protein_names_lower]
+            # 提取搜索关键词
+            protein_names = re.findall(r'([A-Z]{2,10}[0-9]{0,5})', question)
+            protein_names_lower = re.findall(r'([a-z]{2,10}[0-9]{0,5})', question.lower())
+            search_proteins = [p.upper() for p in protein_names] + [p.lower() for p in protein_names_lower]
 
-                # 添加标准化后的搜索关键词
-                if standardized_gene and standardized_gene.upper() not in [p.upper() for p in search_proteins]:
-                    search_proteins.append(standardized_gene.upper())
-                    print(f"[QA v2] 添加标准化基因名到搜索: {standardized_gene}")
-                if standardized_uniprot and standardized_uniprot.upper() not in [p.upper() for p in search_proteins]:
-                    search_proteins.append(standardized_uniprot.upper())
-                    print(f"[QA v2] 添加UniProt ID到搜索: {standardized_uniprot}")
+            # 添加标准化后的搜索关键词
+            if standardized_gene and standardized_gene.upper() not in [p.upper() for p in search_proteins]:
+                search_proteins.append(standardized_gene.upper())
+                print(f"[QA v2] 添加标准化基因名到搜索: {standardized_gene}")
+            if standardized_uniprot and standardized_uniprot.upper() not in [p.upper() for p in search_proteins]:
+                search_proteins.append(standardized_uniprot.upper())
+                print(f"[QA v2] 添加UniProt ID到搜索: {standardized_uniprot}")
 
                 # 特殊处理：希腊字母和TCR相关关键词（如Vγ9Vδ2, γδ TCR等）
                 greek_keywords = []
@@ -780,182 +783,193 @@ UniProt ID: [例如: P29274]
                             title = getattr(entry, 'title', '')
                             methods = getattr(entry, 'methods', '')
                             if methods and len(methods.strip()) > 20:
+                                lit_counter += 1
                                 # 直接添加到literature_context（而不是rag_context）
                                 literature_context += f"\n\n{'='*60}\n"
-                                literature_context += f"文献 {lit_id}: {title[:100]}\n"
+                                literature_context += f"文献 {lit_counter}: {title[:100]}\n"
                                 literature_context += f"{'='*60}\n\n"
                                 literature_context += f"【Experimental Methods - 英文原文】:\n{methods[:8000]}\n"
 
-                                # 添加到sources
-                                if lit_id not in literature_source_ids:
-                                    literature_source_ids.append(lit_id)
-                                    sources.append({
-                                        'id': str(lit_id),
-                                        'title': title[:100],
-                                        'type': 'literature'
-                                    })
-                                    print(f"[QA v2] >>> 添加到sources: lit_id={lit_id}, title={title[:50]}")
-
-            except Exception as e:
-                import traceback
-                print(f"[QA v2] 从数据库搜索methods失败: {e}")
-
-            # 继续执行原有的unified_index搜索
-            try:
-                # 直接从unified_index.json读取并搜索chunks
-                import json
-                index_path = os.path.join(PROJECT_ROOT, 'literature_indices', 'unified_index.json')
-
-                if os.path.exists(index_path):
-                    with open(index_path, 'r') as f:
-                        index_data = json.load(f)
-
-                    docs = index_data.get('documents', {})
-
-                    # 提取搜索关键词
-                    import re
-                    # 匹配大写蛋白名如 GPR158, PDB 7SHE
-                    protein_names = re.findall(r'([A-Z]{2,10}[0-9]{0,5})', question)
-                    # 也匹配小写蛋白名如 gpr158
-                    protein_names_lower = re.findall(r'([a-z]{2,10}[0-9]{0,5})', question.lower())
-                    search_terms = [t.lower() for t in protein_names] + protein_names_lower
-                    # 如果没有找到任何蛋白名，使用整个问题作为搜索词
-                    if not search_terms:
-                        search_terms = [question.lower()[:20]]
-                    # 也添加中文关键词
-                    if '纯化' in question or '表达' in question or '克隆' in question:
-                        search_terms.extend(['purif', 'express', 'clon', 'method', 'protein', 'buffer', 'column', 'concentration'])
-
-                    # 添加标准化后的搜索关键词
-                    if standardized_gene and standardized_gene.lower() not in search_terms:
-                        search_terms.append(standardized_gene.lower())
-                        print(f"[QA v2] 添加标准化基因名到索引搜索: {standardized_gene}")
-                    if standardized_uniprot and standardized_uniprot.lower() not in search_terms:
-                        search_terms.append(standardized_uniprot.lower())
-                        print(f"[QA v2] 添加UniProt ID到索引搜索: {standardized_uniprot}")
-
-                    # 特殊处理：希腊字母和TCR相关关键词
-                    if 'γ' in question or 'δ' in question or 'gamma' in question.lower() or 'delta' in question.lower() or 'tcr' in question.lower():
-                        if 'γδ' not in search_terms:
-                            search_terms.append('γδ')
-                        if 'gamma-delta' not in search_terms:
-                            search_terms.append('gamma-delta')
-                        if 'tcr' not in search_terms:
-                            search_terms.append('tcr')
-                        print(f"[QA v2] 添加希腊/TCR关键词到索引搜索")
-
-                    print(f"[QA v2] 搜索关键词: {search_terms}")
-
-                    # 搜索chunks
-                    matched_chunks = []
-                    for doc_id, doc in docs.items():
-                        content = doc.get('content', '')
-                        title = doc.get('title', '') or ''
-                        metadata = doc.get('metadata', {})
-                        source_id = doc.get('source_id', '')
-
-                        # 计算匹配分数
-                        text_lower = f"{title} {content}".lower()
-                        score = 0
-                        for term in search_terms:
-                            if term.lower() in text_lower:
-                                score += 1
-                                # 标题匹配权重更高
-                                if term.lower() in title.lower():
-                                    score += 2
-
-                        if score > 0:
-                            matched_chunks.append({
-                                'doc_id': doc_id,
-                                'source_id': source_id,
-                                'title': title,
-                                'content': content,
-                                'score': score,
-                                'doc_type': metadata.get('doc_type', 'unknown') if metadata else 'unknown'
-                            })
-
-                    # 按分数排序
-                    matched_chunks.sort(key=lambda x: x.get('score', 0), reverse=True)
-                    matched_chunks = matched_chunks[:8]  # 取前8个更全面
-
-                    print(f"[QA v2] 找到 {len(matched_chunks)} 个相关chunks")
-
-                    if matched_chunks:
-                        rag_context = "\n\n【检索到的相关文献methods和详细内容】:\n"
-
-                        # 按文献ID分组
-                        lit_sources = {}
-                        for chunk in matched_chunks:
-                            source_id = chunk.get('source_id', '')
-                            # 提取literature ID
-                            lit_id = source_id.replace('literature_', '') if source_id.startswith('literature_') else source_id
-
-                            if lit_id not in lit_sources:
-                                lit_sources[lit_id] = {
-                                    'chunks': [],
-                                    'title': chunk.get('title', '')[:150],
-                                    'full_content': []  # 保存完整内容用于比较
-                                }
-
-                            # 添加chunk内容
-                            chunk_type = chunk.get('doc_type', 'unknown')
-                            content = chunk.get('content', '')
-
-                            lit_sources[lit_id]['chunks'].append({
-                                'type': chunk_type,
-                                'content': content
-                            })
-                            lit_sources[lit_id]['full_content'].append(content)
-
-                        # 获取每个文献的完整信息
-                        from core.literature_db import get_literature_entry
-
-                        # 构建上下文 - 包含完整methods和英文原文
-                        for lit_id, lit_data in lit_sources.items():
-                            try:
-                                entry = get_literature_entry(int(lit_id))
-                            except:
-                                entry = None
-
-                            title = lit_data['title']
-
-                            # 添加文献标题
-                            rag_context += f"\n{'='*60}\n"
-                            rag_context += f"文献 {lit_id}: {title}\n"
-                            rag_context += f"{'='*60}\n\n"
-
-                            if entry:
-                                methods = getattr(entry, 'methods', '')
-                                if methods and len(methods.strip()) > 20:
-                                    # 添加完整methods内容（英文原文）
-                                    rag_context += f"【Experimental Methods - 英文原文】:\n{methods}\n\n"
-
-                            # 添加相关的chunks内容
-                            for chunk_info in lit_data['chunks']:
-                                chunk_type = chunk_info['type']
-                                content = chunk_info['content']
-                                if len(content) > 3000:
-                                    content = content[:3000] + "..."
-                                rag_context += f"[{chunk_type}]:\n{content}\n\n"
-
-                            # 添加到sources（去重）
-                            if lit_id not in literature_source_ids:
+                                # 添加到sources - 使用新的顺序编号
                                 literature_source_ids.append(lit_id)
                                 sources.append({
                                     'id': str(lit_id),
-                                    'title': title,
-                                    'type': 'literature'
+                                    'title': title[:100],
+                                    'type': 'literature',
+                                    'context_index': lit_counter  # 记录对应的上下文编号
                                 })
+                                print(f"[QA v2] >>> 添加到sources: lit_id={lit_id}, context_index={lit_counter}, title={title[:50]}")
 
-                        literature_context += rag_context
-                        print(f"[QA v2] RAG文献上下文已添加, 共 {len(lit_sources)} 篇文献")
-                else:
-                    print(f"[QA v2] 索引文件不存在: {index_path}")
+        except Exception as e:
+            import traceback
+            print(f"[QA v2] 从数据库搜索methods失败: {e}")
 
-            except Exception as e:
-                import traceback
-                print(f"[QA v2] RAG搜索失败: {e}")
-                traceback.print_exc()
+        # 统一索引搜索 - 无论LanceDB是否成功都执行，作为补充
+        try:
+            # 直接从unified_index.json读取并搜索chunks
+            import json
+            index_path = os.path.join(PROJECT_ROOT, 'literature_indices', 'unified_index.json')
+
+            if os.path.exists(index_path):
+                with open(index_path, 'r') as f:
+                    index_data = json.load(f)
+
+                docs = index_data.get('documents', {})
+
+                # 提取搜索关键词
+                import re
+                # 匹配大写蛋白名如 GPR158, PDB 7SHE
+                protein_names = re.findall(r'([A-Z]{2,10}[0-9]{0,5})', question)
+                # 也匹配小写蛋白名如 gpr158
+                protein_names_lower = re.findall(r'([a-z]{2,10}[0-9]{0,5})', question.lower())
+                search_terms = [t.lower() for t in protein_names] + protein_names_lower
+                # 如果没有找到任何蛋白名，使用整个问题作为搜索词
+                if not search_terms:
+                    search_terms = [question.lower()[:20]]
+                # 也添加中文关键词
+                if '纯化' in question or '表达' in question or '克隆' in question:
+                    search_terms.extend(['purif', 'express', 'clon', 'method', 'protein', 'buffer', 'column', 'concentration'])
+
+                # 添加标准化后的搜索关键词
+                if standardized_gene and standardized_gene.lower() not in search_terms:
+                    search_terms.append(standardized_gene.lower())
+                    print(f"[QA v2] 添加标准化基因名到索引搜索: {standardized_gene}")
+                if standardized_uniprot and standardized_uniprot.lower() not in search_terms:
+                    search_terms.append(standardized_uniprot.lower())
+                    print(f"[QA v2] 添加UniProt ID到索引搜索: {standardized_uniprot}")
+
+                # 特殊处理：希腊字母和TCR相关关键词
+                if 'γ' in question or 'δ' in question or 'gamma' in question.lower() or 'delta' in question.lower() or 'tcr' in question.lower():
+                    if 'γδ' not in search_terms:
+                        search_terms.append('γδ')
+                    if 'gamma-delta' not in search_terms:
+                        search_terms.append('gamma-delta')
+                    if 'tcr' not in search_terms:
+                        search_terms.append('tcr')
+                    print(f"[QA v2] 添加希腊/TCR关键词到索引搜索")
+
+                print(f"[QA v2] 搜索关键词: {search_terms}")
+
+                # 搜索chunks
+                matched_chunks = []
+                for doc_id, doc in docs.items():
+                    content = doc.get('content', '')
+                    title = doc.get('title', '') or ''
+                    metadata = doc.get('metadata', {})
+                    source_id = doc.get('source_id', '')
+
+                    # 计算匹配分数
+                    text_lower = f"{title} {content}".lower()
+                    score = 0
+                    for term in search_terms:
+                        if term.lower() in text_lower:
+                            score += 1
+                            # 标题匹配权重更高
+                            if term.lower() in title.lower():
+                                score += 2
+
+                    if score > 0:
+                        matched_chunks.append({
+                            'doc_id': doc_id,
+                            'source_id': source_id,
+                            'title': title,
+                            'content': content,
+                            'score': score,
+                            'doc_type': metadata.get('doc_type', 'unknown') if metadata else 'unknown'
+                        })
+
+                # 按分数排序
+                matched_chunks.sort(key=lambda x: x.get('score', 0), reverse=True)
+                matched_chunks = matched_chunks[:8]  # 取前8个更全面
+
+                print(f"[QA v2] 找到 {len(matched_chunks)} 个相关chunks")
+
+                if matched_chunks:
+                    rag_context = "\n\n【检索到的相关文献methods和详细内容】:\n"
+
+                    # 按文献ID分组
+                    lit_sources = {}
+                    for chunk in matched_chunks:
+                        source_id = chunk.get('source_id', '')
+                        # 提取literature ID
+                        lit_id = source_id.replace('literature_', '') if source_id.startswith('literature_') else source_id
+
+                        if lit_id not in lit_sources:
+                            lit_sources[lit_id] = {
+                                'chunks': [],
+                                'title': chunk.get('title', '')[:150],
+                                'full_content': []  # 保存完整内容用于比较
+                            }
+
+                        # 添加chunk内容
+                        chunk_type = chunk.get('doc_type', 'unknown')
+                        content = chunk.get('content', '')
+
+                        lit_sources[lit_id]['chunks'].append({
+                            'type': chunk_type,
+                            'content': content
+                        })
+                        lit_sources[lit_id]['full_content'].append(content)
+
+                    # 获取每个文献的完整信息
+                    from core.literature_db import get_literature_entry
+
+                    # 构建上下文 - 包含完整methods和英文原文
+                    for lit_id, lit_data in lit_sources.items():
+                        try:
+                            entry = get_literature_entry(int(lit_id))
+                        except:
+                            entry = None
+
+                        title = lit_data['title']
+
+                        # 使用顺序计数器分配文献编号
+                        lit_counter += 1
+                        source_num = lit_counter  # 当前文献的上下文编号
+
+                        # 添加文献标题
+                        rag_context += f"\n{'='*60}\n"
+                        rag_context += f"文献 {source_num}: {title}\n"
+                        rag_context += f"ID: {lit_id}\n"
+                        rag_context += f"{'='*60}\n\n"
+
+                        if entry:
+                            methods = getattr(entry, 'methods', '')
+                            if methods and len(methods.strip()) > 20:
+                                # 添加完整methods内容（英文原文）
+                                rag_context += f"【Experimental Methods - 英文原文】:\n{methods}\n\n"
+
+                        # 添加相关的chunks内容
+                        for chunk_info in lit_data['chunks']:
+                            chunk_type = chunk_info['type']
+                            content = chunk_info['content']
+                            if len(content) > 3000:
+                                content = content[:3000] + "..."
+                            rag_context += f"[{chunk_type}]:\n{content}\n\n"
+
+                        # 添加到sources（去重）- 使用顺序编号
+                        if lit_id not in literature_source_ids:
+                            literature_source_ids.append(lit_id)
+                            sources.append({
+                                'id': str(lit_id),
+                                'title': title,
+                                'type': 'literature',
+                                'context_index': source_num  # 记录对应的上下文编号
+                            })
+                            print(f"[QA v2] >>> 添加到sources: lit_id={lit_id}, context_index={source_num}, title={title[:50]}")
+                        else:
+                            print(f"[QA v2] 文献 {lit_id} 已存在于sources中，但添加新的上下文引用 #{source_num}")
+
+                    literature_context += rag_context
+                    print(f"[QA v2] RAG文献上下文已添加, 共 {len(lit_sources)} 篇文献")
+                    print(f"[QA v2] 当前sources数量: {len(sources)}, literature_source_ids: {literature_source_ids}")
+            else:
+                print(f"[QA v2] 索引文件不存在: {index_path}")
+
+        except Exception as e:
+            import traceback
+            print(f"[QA v2] RAG搜索失败: {e}")
+            traceback.print_exc()
 
         # 搜索结构数据库
         if question_type in ["structure", "sequence", "general"]:

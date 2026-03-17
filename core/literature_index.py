@@ -91,6 +91,7 @@ class EntityType(Enum):
     ORGANISM = "organism"
     METHOD = "method"
     KEYWORD = "keyword"
+    APPENDIX = "appendix"  # 附录类型
 
 @dataclass
 class UnifiedDocument:

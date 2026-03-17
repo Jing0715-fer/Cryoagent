@@ -329,7 +329,7 @@ class UnifiedLanceRAG:
                 "title": chunk.title[:500] if chunk.title else "",
                 "abstract": "",  # chunks 没有单独的 abstract
                 "full_text": chunk.content,
-                "entity_type": "literature",
+                "entity_type": chunk.metadata.get("entity_type", "literature"),
                 "section": chunk.metadata.get("section", ""),
                 "chunk_index": chunk.metadata.get("chunk_index", 0),
                 "doc_type": chunk.metadata.get("doc_type", "content_chunk"),
@@ -413,7 +413,7 @@ class UnifiedLanceRAG:
             "journal": doc.get("journal", ""),
             "year": doc.get("year", 0),
             "keywords": doc.get("keywords", []),
-            "entity_type": "literature",
+            "entity_type": doc.get("entity_type", "literature"),
             "methods": doc.get("methods", ""),
             "results": doc.get("results", ""),
             "introduction": doc.get("introduction", ""),
