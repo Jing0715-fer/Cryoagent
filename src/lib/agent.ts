@@ -412,9 +412,11 @@ export interface AgentOptions {
   onToolCall?: (record: ToolCallRecord) => void;
 }
 
-const TOOL_PROTOCOL = `你可以调用以下工具获取实时数据。当需要外部信息时, 输出格式必须是如下 JSON (独占一行, 不要包裹在 markdown 代码块中):
+const TOOL_PROTOCOL = `你可以调用以下工具获取实时数据。当需要外部信息时, 你的回复必须是一个 JSON 对象 (独占一行, 不要 markdown 代码块):
 
 {"action":"call_tool","tool":"<工具名>","params":{...参数对象...}}
+
+注意: "action" 字段只允许两个值 —— "call_tool" (调用工具) 或 "final_answer" (给出最终回答)。不要把工具名写进 action 字段。
 
 当你已收集到足够信息, 准备给出最终回答时, 输出:
 
@@ -512,34 +514,51 @@ export async function runAgent(
 
 function parseAgentAction(text: string): { type: 'tool'; tool: string; params: Record<string, unknown> } | { type: 'final'; content: string } | null {
   const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  // 尝试直接解析整段
-  try {
-    const obj = JSON.parse(cleaned);
-    return validateAction(obj);
-  } catch {
-    /* 继续尝试提取 */
-  }
-  // 提取第一个 {...}
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  if (match) {
+  const tryParse = (s: string): { type: 'tool'; tool: string; params: Record<string, unknown> } | { type: 'final'; content: string } | null => {
     try {
-      const obj = JSON.parse(match[0]);
+      const obj = JSON.parse(s);
       return validateAction(obj);
     } catch {
       return null;
     }
+  };
+  // 尝试直接解析整段
+  let result = tryParse(cleaned);
+  if (result) return result;
+  // 提取第一个 {...}
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) {
+    result = tryParse(match[0]);
+    if (result) return result;
   }
   return null;
 }
 
+const KNOWN_TOOL_NAMES = new Set(AGENT_TOOLS.map((t) => t.name));
+
 function validateAction(obj: unknown): { type: 'tool'; tool: string; params: Record<string, unknown> } | { type: 'final'; content: string } | null {
   if (typeof obj !== 'object' || obj === null) return null;
   const o = obj as Record<string, unknown>;
+  // 标准格式: {"action":"call_tool","tool":...,"params":{...}}
   if (o.action === 'call_tool' && typeof o.tool === 'string') {
     return { type: 'tool', tool: o.tool, params: (o.params as Record<string, unknown>) || {} };
   }
+  // 标准格式: {"action":"final_answer","content":"..."}
   if (o.action === 'final_answer' && typeof o.content === 'string') {
     return { type: 'final', content: o.content };
+  }
+  // 容错格式: {"action":"<工具名>", ...} 或 {"tool":"<工具名>","params":{...}}
+  const actionName = typeof o.action === 'string' ? o.action : typeof o.tool === 'string' ? o.tool : null;
+  if (actionName && KNOWN_TOOL_NAMES.has(actionName)) {
+    return {
+      type: 'tool',
+      tool: actionName,
+      params: (o.params as Record<string, unknown>) || (o.arguments as Record<string, unknown>) || (o.parameters as Record<string, unknown>) || {},
+    };
+  }
+  // 容错格式: {"final_answer": "..."} / {"answer": "..."}
+  if (typeof o.final_answer === 'string') {
+    return { type: 'final', content: o.final_answer };
   }
   return null;
 }
