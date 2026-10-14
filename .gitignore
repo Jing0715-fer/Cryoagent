@@ -1,58 +1,71 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-.venv/
-env/
-*.egg-info/
-dist/
-build/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Flask
-instance/
-.webassets-cache
+# dependencies
+node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# testing
+/coverage
 
-# Logs
-*.log
-flask_app.log
+# next.js
+/.next/
+/out/
 
-# Databases
-*.db
-*.sqlite
-*.sqlite3
+# production
+/build
 
-# Cache directories
-*_cache/
-pdb_cache/
-pdf_cache/
-literature_cache/
-literature_thumbnails/
-structure_cache/
-unified_vector_cache/
-uniprot_cache/
-
-# Data files (may contain large binaries)
-feishu_documents/
-uploads/
-
-# OS
+# misc
 .DS_Store
-Thumbs.db
+*.pem
 
-# PyMOL
-PyMolAI-master/
-pymol_data/
-pymol_sessions/
-*.pdb
-*.cif
-*.pse
-*.pze
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+local-*
+.claude
+.z-ai-config
+*.log
+dev.log
+dev.out.log
+test
+prompt
+
+server.log
+# Skills directory
+/skills/
+# CryoAgent Pro
+db/*.db
+uploads/*
+!uploads/.gitkeep
+dev.log
+server.log
+*.log
+.env
+worklog.md
+tests/
+download/
+examples/
+.zscripts/
+tool-results/
+mini-services/
+Caddyfile
+.zscripts

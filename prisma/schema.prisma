@@ -1,0 +1,251 @@
+// CryoAgent Pro - Prisma Schema
+// 蛋白质结构智能分析平台 (重构自 Flask + Python 版本)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ 用户与认证 ============
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  displayName  String?
+  role         String   @default("user") // user | admin
+  avatarColor  String   @default("teal")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  qaHistories  QaHistory[]
+  notes        Note[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ============ 文献管理 ============
+
+model Literature {
+  id           String   @id @default(cuid())
+  title        String
+  authors      String   @default("[]") // JSON array
+  year         Int?
+  journal      String?
+  doi          String?
+  abstract     String?
+  keywords     String? // 逗号分隔
+  fileName     String?
+  filePath     String?
+  fileSize     Int?
+  parseStatus  String   @default("pending") // pending | parsed | failed
+  chunkCount   Int      @default(0)
+  wordCount    Int      @default(0)
+  isFavorite   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  chunks    LiteratureChunk[]
+  notes     Note[]
+  structureLinks StructureLink[]
+}
+
+model LiteratureChunk {
+  id           String   @id @default(cuid())
+  literatureId String
+  literature   Literature @relation(fields: [literatureId], references: [id], onDelete: Cascade)
+  chunkIndex   Int
+  section      String   @default("body") // abstract | intro | methods | results | discussion | body
+  page         Int?
+  content      String
+  wordCount    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([literatureId])
+  @@index([chunkIndex])
+}
+
+model Note {
+  id           String   @id @default(cuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  literatureId String?
+  literature   Literature? @relation(fields: [literatureId], references: [id], onDelete: Cascade)
+  content      String
+  anchor       String? // 锚点 (chunk id 等)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ============ 蛋白质结构 ============
+
+model Structure {
+  id             String   @id // PDB ID (大写) 或 EMDB-xxxx
+  title          String
+  method         String? // X-RAY DIFFRACTION | ELECTRON MICROSCOPY | ...
+  resolution     Float?
+  organism       String?
+  uniprotIds     String   @default("[]") // JSON array [{uniprotId, chains, proteinName}]
+  entityCount    Int      @default(0)
+  residueCount   Int?
+  ligandInfo     String   @default("[]") // JSON array
+  citationJson   String? // JSON {title, journal, year, authors}
+  sequenceJson   String? // JSON [{entityId, chains, sequence, length, description}]
+  source         String   @default("rcsb")
+  rawJson        String? // 原始 RCSB entry 缓存
+  accessCount    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  literatureLinks StructureLink[]
+}
+
+model StructureLink {
+  id           String   @id @default(cuid())
+  literatureId String
+  structureId  String
+  mentionCount Int      @default(1)
+  context      String? // 提及上下文
+  createdAt    DateTime @default(now())
+
+  literature Literature @relation(fields: [literatureId], references: [id], onDelete: Cascade)
+  structure  Structure  @relation(fields: [structureId], references: [id], onDelete: Cascade)
+
+  @@unique([literatureId, structureId])
+  @@index([structureId])
+}
+
+// ============ 智能问答 ============
+
+model QaHistory {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId  String
+  question   String
+  answer     String
+  sources    String? // JSON 引用来源 [{literatureId, title, chunkIndex, score, snippet}]
+  mode       String   @default("rag") // rag | agent | direct
+  skillId    String?
+  toolCalls  String? // JSON [{tool, params, result_summary, latency}]
+  model      String?
+  tokensUsed Int?
+  latencyMs  Int?
+  createdAt  DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model AgentSession {
+  id        String   @id
+  userId    String?
+  title     String?
+  messages  String   @default("[]") // JSON [{role, content, toolCalls?}]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============ Skills 系统 ============
+
+model Skill {
+  id              String   @id
+  name            String
+  description     String
+  category        String
+  triggerKeywords String   @default("[]") // JSON array
+  systemPrompt    String
+  tools           String   @default("[]") // JSON array
+  steps           String? // JSON [{id, name, tool, condition}]
+  examples        String   @default("[]") // JSON array
+  parameters      String? // JSON
+  usageCount      Int      @default(0)
+  successCount    Int      @default(0)
+  enabled         Boolean  @default(true)
+  isBuiltin       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============ 序列比对 ============
+
+model AlignmentTask {
+  id         String   @id @default(cuid())
+  seq1       String
+  seq2       String
+  seq1Name   String   @default("Sequence 1")
+  seq2Name   String   @default("Sequence 2")
+  algorithm  String   @default("needleman-wunsch") // needleman-wunsch | smith-waterman
+  matrix     String   @default("BLOSUM62")
+  gapOpen    Int      @default(-11)
+  gapExtend  Int      @default(-1)
+  status     String   @default("completed")
+  result     String? // JSON 完整比对结果
+  identity   Float?
+  score      Float?
+  createdAt  DateTime @default(now())
+}
+
+// ============ RAG 评估 ============
+
+model GroundTruth {
+  id              String   @id @default(cuid())
+  query           String
+  relevantChunkIds String  @default("[]") // JSON array
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([query])
+}
+
+model EvaluationRun {
+  id         String   @id @default(cuid())
+  query      String
+  groundTruthId String?
+  mode       String   @default("hybrid") // bm25 | vector | hybrid
+  precision  Float?
+  recall     Float?
+  f1         Float?
+  mrr        Float?
+  hitRate    Float?
+  latencyMs  Int?
+  resultCount Int?
+  details    String? // JSON 检索结果详情
+  createdAt  DateTime @default(now())
+}
+
+// ============ 搜索监控与配置 ============
+
+model SearchLog {
+  id          String   @id @default(cuid())
+  query       String
+  mode        String // bm25 | vector | hybrid
+  resultCount Int
+  latencyMs   Int
+  topScore    Float?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([query])
+}
+
+model AppConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

@@ -1,8 +1,0 @@
-$17d3f119-fdb7-4421-9fc8-2ef4e6f9507b²àid ÿÿÿÿÿÿÿÿÿ*string08)structure_type ÿÿÿÿÿÿÿÿÿ*string08 title ÿÿÿÿÿÿÿÿÿ*string08&description ÿÿÿÿÿÿÿÿÿ*string08"methods ÿÿÿÿÿÿÿÿÿ*string08%
-resolution ÿÿÿÿÿÿÿÿÿ*double08#organism ÿÿÿÿÿÿÿÿÿ*string08,expression_system ÿÿÿÿÿÿÿÿÿ*string08gene ÿÿÿÿÿÿÿÿÿ*string08'protein_name	 ÿÿÿÿÿÿÿÿÿ*string08 authors
- ÿÿÿÿÿÿÿÿÿ*list08item 
-*string08!keywords ÿÿÿÿÿÿÿÿÿ*list08item *string08'literature_ids ÿÿÿÿÿÿÿÿÿ*list08item *string08&entity_type ÿÿÿÿÿÿÿÿÿ*string08#metadata ÿÿÿÿÿÿÿÿÿ*string08-
-created_at ÿÿÿÿÿÿÿÿÿ*timestamp:us:-08-
-updated_at ÿÿÿÿÿÿÿÿÿ*timestamp:us:-087	embedding ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:38408"'
-lance.auto_cleanup.older_than14days"!
-lance.auto_cleanup.interval20
