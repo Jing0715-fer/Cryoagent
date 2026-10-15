@@ -159,15 +159,45 @@
   font-family: var(--font-instrument-serif), Georgia, serif;
 }
 
-/* 坐标纸背景 — 仅用于 masthead 区域 */
+/* 双级坐标纸 — minor 28px + major 140px, 仅用于 masthead 区域 */
 .grid-bg {
   background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--foreground) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--foreground) 7%, transparent) 1px, transparent 1px),
     linear-gradient(to right, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background-size: 140px 140px, 140px 140px, 28px 28px, 28px 28px;
 }
 
-/* 状态点 */
+/* 水平刻度尺 — 7px 小刻度(4px 高) / 35px 大刻度(8px 高), 锚定元素底边 */
+.ruler-x {
+  background-image:
+    repeating-linear-gradient(to right, color-mix(in oklch, var(--foreground) 25%, transparent) 0 1px, transparent 1px 35px),
+    repeating-linear-gradient(to right, color-mix(in oklch, var(--foreground) 25%, transparent) 0 1px, transparent 1px 7px);
+  background-size: 100% 8px, 100% 4px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
+}
+
+/* 内凹屏幕 — 图表画布区 (深一档中性底 + 内阴影压边) */
+.screen-inset {
+  box-shadow:
+    inset 0 1px 3px color-mix(in oklch, var(--foreground) 7%, transparent),
+    inset 0 0 0 1px color-mix(in oklch, var(--foreground) 4%, transparent);
+  background: color-mix(in oklch, var(--card) 60%, var(--background));
+}
+
+/* 仪器铭牌角标 — 面板四角小标注 (FIG.01 / CH-01) */
+.plate-label {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
+}
+
+/* 状态点 — LED 指示灯 (同色 25% 描边 + 15% 光环, 无发光无模糊) */
 .status-dot {
   display: inline-block;
   width: 6px;
@@ -175,10 +205,28 @@
   border-radius: 999px;
   background: var(--primary);
   flex-shrink: 0;
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--primary) 25%, transparent),
+    0 0 0 3px color-mix(in oklch, var(--primary) 15%, transparent);
 }
-.status-dot[data-tone="amber"] { background: oklch(0.66 0.125 75); }
-.status-dot[data-tone="red"] { background: var(--destructive); }
-.status-dot[data-tone="muted"] { background: var(--muted-foreground); }
+.status-dot[data-tone="amber"] {
+  background: oklch(0.66 0.125 75);
+  box-shadow:
+    0 0 0 1px oklch(0.66 0.125 75 / 25%),
+    0 0 0 3px oklch(0.66 0.125 75 / 15%);
+}
+.status-dot[data-tone="red"] {
+  background: var(--destructive);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--destructive) 25%, transparent),
+    0 0 0 3px color-mix(in oklch, var(--destructive) 15%, transparent);
+}
+.status-dot[data-tone="muted"] {
+  background: var(--muted-foreground);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--muted-foreground) 25%, transparent),
+    0 0 0 3px color-mix(in oklch, var(--muted-foreground) 15%, transparent);
+}
 
 /* 自定义滚动条 — 更细更淡 */
 .custom-scrollbar {

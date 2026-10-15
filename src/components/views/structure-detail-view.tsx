@@ -311,7 +311,7 @@ function StructureViewer3D({
     const raf = requestAnimationFrame(() => {
       try {
         if (!viewerRef.current) {
-          viewerRef.current = Mol.createViewer(el, { backgroundColor: '#fafafa', antialias: true });
+          viewerRef.current = Mol.createViewer(el, { backgroundColor: '#171b1d', antialias: true });
         }
         const viewer = viewerRef.current;
         viewer.clear();
@@ -398,37 +398,51 @@ function StructureViewer3D({
         </div>
       </div>
 
-      {/* 查看器画布 */}
+      {/* 查看器画布 — 石墨仪器屏 + 内凹屏幕质感 */}
       <div className="p-2">
-        <div className="relative overflow-hidden rounded-md border bg-[#fafafa]">
+        <div className="relative overflow-hidden rounded-md border bg-[#171b1d] shadow-[inset_0_1px_4px_rgba(0,0,0,0.35)]">
           <div ref={containerRef} className="h-[420px] w-full" data-testid="mol-viewer" />
 
+          {/* 左上角渲染模式铭牌 — mono 短码 */}
+          <div
+            className="pointer-events-none absolute left-2.5 top-2.5 space-y-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
+            aria-hidden
+          >
+            <div className="text-white/50">RNDR·{style.toUpperCase()} / {color.toUpperCase()}</div>
+            <div className="text-white/35">SURFACE·DRAG ROTATE</div>
+          </div>
+
           {showOverlay && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/70">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" strokeWidth={1.75} />
-              <p className="label-tech !text-[10px] normal-case !tracking-normal">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#171b1d]/80">
+              <Loader2 className="h-5 w-5 animate-spin text-white/70" strokeWidth={1.75} />
+              <p className="font-mono text-[10px] tracking-[0.06em] text-white/55">
                 {!molReady ? '正在加载 3Dmol.js 渲染引擎…' : '正在获取 PDB 坐标数据…'}
               </p>
             </div>
           )}
 
           {showError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background p-6 text-center">
-              <TriangleAlert className="h-5 w-5 text-destructive" strokeWidth={1.75} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#171b1d]/95 p-6 text-center">
+              <TriangleAlert className="h-5 w-5 text-white/60" strokeWidth={1.75} />
               <div>
-                <p className="label-tech !text-[10px] !text-destructive">VIEWER UNAVAILABLE</p>
-                <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-white/60">VIEWER UNAVAILABLE</p>
+                <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-white/45">
                   {molError || pdbErrorShown}
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={retry} className="h-8 gap-1.5 text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={retry}
+                className="h-8 gap-1.5 border-white/25 bg-transparent text-xs text-white/80 hover:bg-white/10 hover:text-white"
+              >
                 <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
                 重试
               </Button>
             </div>
           )}
 
-          <div className="pointer-events-none absolute bottom-2 right-2 rounded-[3px] border bg-card/90 px-1.5 py-px font-mono text-[9px] tracking-wide text-muted-foreground">
+          <div className="pointer-events-none absolute bottom-2 right-2.5 font-mono text-[9px] uppercase tracking-[0.18em] text-white/35">
             {source === 'alphafold' ? `ALPHAFOLD · ${alphaFold.uniprotId}` : `RCSB · ${pdbId}`}
           </div>
         </div>
@@ -895,7 +909,7 @@ export function StructureDetailView() {
                     {s.ligands.map((l, i) => (
                       <span
                         key={`${l.name}-${i}`}
-                        title={[l.formula, l.description].filter(Boolean).join(' · ')}
+                        title={l.description || l.formula || undefined}
                         className="inline-flex items-baseline gap-1.5 rounded-[3px] border px-1.5 py-px font-mono text-[10px]"
                       >
                         {l.name}

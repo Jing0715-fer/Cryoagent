@@ -106,6 +106,35 @@ function methodTone(method: string | null): string {
   return 'border-border text-muted-foreground';
 }
 
+/** 分辨率质量读数条 — 24×3px 仪器读数, 宽度按分辨率分档 (一眼判断数据质量) */
+function ResolutionBar({ value }: { value: number | null }) {
+  let widthPct = 25;
+  let tone = 'bg-muted-foreground/35';
+  if (value != null) {
+    if (value <= 1.5) {
+      widthPct = 100;
+      tone = 'bg-chart-1';
+    } else if (value <= 2.5) {
+      widthPct = 80;
+      tone = 'bg-chart-1';
+    } else if (value <= 3.5) {
+      widthPct = 60;
+      tone = 'bg-chart-1';
+    } else if (value <= 5) {
+      widthPct = 40;
+      tone = 'bg-chart-1';
+    }
+  }
+  return (
+    <span
+      className="inline-flex h-[3px] w-6 shrink-0 items-center overflow-hidden rounded-[1px] bg-foreground/10"
+      aria-hidden
+    >
+      <span className={cn('h-full rounded-[1px]', tone)} style={{ width: `${widthPct}%` }} />
+    </span>
+  );
+}
+
 function MethodTag({ method }: { method: string | null }) {
   return (
     <span
@@ -155,19 +184,22 @@ function StructureRow({ item }: { item: StructureListItem }) {
       type="button"
       aria-label={`查看结构 ${item.id}`}
       onClick={() => navigate('structure-detail', { id: item.id })}
-      className="flex w-full flex-col gap-1 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+      className="group flex w-full flex-col gap-1 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-        <span className="num text-[13px] font-semibold tracking-tight">{item.id}</span>
+        {/* PDB ID — 左侧 2px 分类短色条 + hover 转信号色 */}
+        <span className="flex shrink-0 items-start gap-1.5">
+          <span className="mt-[3px] h-3.5 w-[2px] shrink-0 bg-chart-1/70" aria-hidden />
+          <span className="num text-[15px] font-semibold leading-none tracking-tight text-foreground transition-colors group-hover:text-primary">
+            {item.id}
+          </span>
+        </span>
         <MethodTag method={item.method} />
         {item.resolution != null && (
-          <span className="num text-[10px] text-muted-foreground">{item.resolution.toFixed(1)}Å</span>
-        )}
-        {item.entityCount != null && (
-          <span className="num hidden text-[10px] text-muted-foreground/70 sm:inline">{item.entityCount} ENT</span>
-        )}
-        {item.residueCount != null && (
-          <span className="num hidden text-[10px] text-muted-foreground/70 md:inline">{item.residueCount} RES</span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span className="num text-[10px] text-muted-foreground">{item.resolution.toFixed(1)}Å</span>
+            <ResolutionBar value={item.resolution} />
+          </span>
         )}
         <span className="ml-auto flex shrink-0 items-center gap-2.5">
           <span className="num text-[10px] text-muted-foreground">LIT {item.literatureCount}</span>
@@ -177,14 +209,27 @@ function StructureRow({ item }: { item: StructureListItem }) {
           </span>
         </span>
       </div>
-      <div className="flex min-w-0 items-baseline gap-2">
-        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.title}</p>
-        {item.organism && (
-          <p className="hidden max-w-[220px] shrink-0 truncate text-[10px] text-muted-foreground/60 lg:block">
-            {item.organism}
-          </p>
-        )}
-      </div>
+      <p className="min-w-0 truncate text-xs text-muted-foreground">{item.title}</p>
+      {/* 第二 mono 数据行 — 物种 / 实体 / 残基 */}
+      {(item.organism || item.entityCount != null || item.residueCount != null) && (
+        <div className="flex min-w-0 items-baseline gap-x-2.5">
+          {item.organism && (
+            <p className="min-w-0 max-w-[300px] truncate font-mono text-[10px] text-muted-foreground/55">
+              {item.organism}
+            </p>
+          )}
+          {item.entityCount != null && (
+            <span className="num hidden shrink-0 text-[10px] text-muted-foreground/55 sm:inline">
+              {item.entityCount} ENT
+            </span>
+          )}
+          {item.residueCount != null && (
+            <span className="num hidden shrink-0 text-[10px] text-muted-foreground/55 md:inline">
+              {item.residueCount.toLocaleString()} RES
+            </span>
+          )}
+        </div>
+      )}
     </button>
   );
 }
@@ -199,10 +244,15 @@ function RcsbHitRow({ hit }: { hit: RcsbHit }) {
       type="button"
       aria-label={`查看 RCSB 结构 ${hit.identifier}`}
       onClick={() => navigate('structure-detail', { id: hit.identifier })}
-      className="flex w-full flex-col gap-1 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+      className="group flex w-full flex-col gap-1 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-        <span className="num text-[13px] font-semibold tracking-tight">{hit.identifier}</span>
+        <span className="flex shrink-0 items-start gap-1.5">
+          <span className="mt-[3px] h-3.5 w-[2px] shrink-0 bg-chart-1/70" aria-hidden />
+          <span className="num text-[15px] font-semibold leading-none tracking-tight text-foreground transition-colors group-hover:text-primary">
+            {hit.identifier}
+          </span>
+        </span>
         {hit.cached && (
           <span className="shrink-0 rounded-[3px] border border-primary/40 px-1.5 py-px font-mono text-[9px] font-medium text-primary">
             CACHED
@@ -210,7 +260,10 @@ function RcsbHitRow({ hit }: { hit: RcsbHit }) {
         )}
         <MethodTag method={hit.method ?? null} />
         {hit.resolution != null && (
-          <span className="num text-[10px] text-muted-foreground">{hit.resolution.toFixed(1)}Å</span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span className="num text-[10px] text-muted-foreground">{hit.resolution.toFixed(1)}Å</span>
+            <ResolutionBar value={hit.resolution} />
+          </span>
         )}
         <span className="num ml-auto shrink-0 text-[10px] text-muted-foreground/70">SCORE {hit.score.toFixed(1)}</span>
       </div>
@@ -312,7 +365,12 @@ export function StructuresView() {
       <div className="grid-bg border-b">
         <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
           <div>
-            <div className="label-tech !text-[10px]">PDB Library · 结构浏览器</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="label-tech !text-[10px]">PDB Library · 结构浏览器</div>
+              <span className="plate-label rounded-[3px] border border-border px-1.5 py-px" title="Chapter · Library">
+                CH·LIB
+              </span>
+            </div>
             <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               结构浏览器
               <span className="font-display ml-2.5 font-normal italic text-foreground/60">Structure Library</span>

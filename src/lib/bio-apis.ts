@@ -71,6 +71,22 @@ export interface RcsbEntry {
     initial_release_date?: string;
   };
   organismNames?: string[];
+  rcsb_entry_container_identifiers?: {
+    non_polymer_entity_ids?: string[];
+    emdb_ids?: string[];
+  };
+}
+
+/** RCSB 非聚合实体 (配体/小分子) */
+export interface RcsbNonpolymerEntity {
+  pdbx_entity_nonpoly?: {
+    comp_id?: string;
+    name?: string;
+  };
+  rcsb_nonpolymer_entity?: {
+    pdbx_description?: string;
+    pdbx_number_of_molecules?: number;
+  };
 }
 
 export interface RcsbEntity {
@@ -133,12 +149,35 @@ export async function fetchStructureDetail(pdbIdRaw: string): Promise<StructureD
     )
   ).filter((e): e is RcsbEntity => e !== null);
 
-  // 配体信息
-  const ligands = await cachedFetch<{ rcsb_ligand_container_identifiers?: { id?: string } }[]>(
-    `ligands:${pdbId}`,
-    `https://data.rcsb.org/rest/v1/core/chem_ref/${pdbId}`,
-    5000
-  );
+  // 配体信息 — 经 entry 的 non_polymer_entity_ids 逐个拉取 nonpolymer_entity (chem_ref 端点已失效, 见 CR-1 M4)
+  const nonPolyIds = entry.rcsb_entry_container_identifiers?.non_polymer_entity_ids || [];
+  const nonpolyEntities = nonPolyIds.length
+    ? (
+        await Promise.all(
+          nonPolyIds.slice(0, 24).map((entityId) =>
+            cachedFetch<RcsbNonpolymerEntity>(
+              `nonpoly:${pdbId}:${entityId}`,
+              `https://data.rcsb.org/rest/v1/core/nonpolymer_entity/${pdbId}/${entityId}`,
+              6000
+            )
+          )
+        )
+      ).filter((e): e is RcsbNonpolymerEntity => e !== null)
+    : [];
+  const ligandSeen = new Set<string>();
+  const ligands: { name: string; formula?: string; description?: string }[] = [];
+  for (const e of nonpolyEntities) {
+    const compId = e.pdbx_entity_nonpoly?.comp_id;
+    if (!compId || ligandSeen.has(compId)) continue;
+    ligandSeen.add(compId);
+    const count = e.rcsb_nonpolymer_entity?.pdbx_number_of_molecules;
+    const desc = e.rcsb_nonpolymer_entity?.pdbx_description || e.pdbx_entity_nonpoly?.name || '';
+    ligands.push({
+      name: compId,
+      formula: count != null ? `×${count}` : undefined,
+      description: desc,
+    });
+  }
 
   // UniProt 蛋白名称
   const uniprotMap = new Map<string, { chains: string[]; proteinName: string }>();
@@ -194,10 +233,7 @@ export async function fetchStructureDetail(pdbIdRaw: string): Promise<StructureD
     uniprotIds: [...uniprotMap.entries()].map(([uniprotId, v]) => ({ uniprotId, ...v })),
     entityCount: entityCount,
     residueCount: entry.rcsb_entry_info?.polymer_monomer_count ?? null,
-    ligands: (ligands || [])
-      .map((l) => ({ name: l.rcsb_ligand_container_identifiers?.id || '' }))
-      .filter((l) => l.name && l.name !== pdbId)
-      .slice(0, 20),
+    ligands: ligands.slice(0, 20),
     citation: cit
       ? {
           title: cit.title || '',

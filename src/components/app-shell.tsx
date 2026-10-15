@@ -21,7 +21,7 @@ import {
 import {
   LayoutDashboard, MessageSquare, BookOpen, Boxes, Network, GitCompareArrows, FlaskConical, Sparkles,
   ClipboardCheck, Settings, BookMarked, Menu, Search, Sun, Moon, Monitor, LogOut, LogIn, UserPlus, PanelLeft,
-  Command as CommandIcon, type LucideIcon,
+  ChevronRight, Command as CommandIcon, type LucideIcon,
 } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -29,23 +29,24 @@ import { toast } from 'sonner';
 export interface NavItem {
   id: ViewId;
   label: string;
-  slug: string; // 仪器面板式拉丁短码 (面包屑/命令面板用)
+  slug: string; // 仪器面板式拉丁短码 (面包屑/命令面板用, 仅显示)
+  code: string; // 侧栏通道选择器短码 (BENCH/QA/SKL…)
   icon: LucideIcon;
   group: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: '平台总览', slug: 'bench', icon: LayoutDashboard, group: '总览' },
-  { id: 'qa', label: '智能问答', slug: 'qa', icon: MessageSquare, group: 'AI 分析' },
-  { id: 'skills', label: '技能中心', slug: 'skills', icon: Sparkles, group: 'AI 分析' },
-  { id: 'literature', label: '文献管理', slug: 'library', icon: BookOpen, group: '知识库' },
-  { id: 'structures', label: '结构浏览器', slug: 'pdb', icon: Boxes, group: '知识库' },
-  { id: 'kg', label: '知识图谱', slug: 'graph', icon: Network, group: '知识库' },
-  { id: 'alignment', label: '序列比对', slug: 'align', icon: GitCompareArrows, group: '分析工具' },
-  { id: 'sequence-analyzer', label: '序列理化分析', slug: 'seq', icon: FlaskConical, group: '分析工具' },
-  { id: 'evaluation', label: '评估中心', slug: 'bench', icon: ClipboardCheck, group: '系统' },
-  { id: 'settings', label: '系统设置', slug: 'config', icon: Settings, group: '系统' },
-  { id: 'api-docs', label: '接口文档', slug: 'api', icon: BookMarked, group: '系统' },
+  { id: 'dashboard', label: '平台总览', slug: 'bench', code: 'BENCH', icon: LayoutDashboard, group: '总览' },
+  { id: 'qa', label: '智能问答', slug: 'qa', code: 'QA', icon: MessageSquare, group: 'AI 分析' },
+  { id: 'skills', label: '技能中心', slug: 'skills', code: 'SKL', icon: Sparkles, group: 'AI 分析' },
+  { id: 'literature', label: '文献管理', slug: 'library', code: 'LIB', icon: BookOpen, group: '知识库' },
+  { id: 'structures', label: '结构浏览器', slug: 'pdb', code: 'PDB', icon: Boxes, group: '知识库' },
+  { id: 'kg', label: '知识图谱', slug: 'graph', code: 'KG', icon: Network, group: '知识库' },
+  { id: 'alignment', label: '序列比对', slug: 'align', code: 'ALN', icon: GitCompareArrows, group: '分析工具' },
+  { id: 'sequence-analyzer', label: '序列理化分析', slug: 'seq', code: 'SEQ', icon: FlaskConical, group: '分析工具' },
+  { id: 'evaluation', label: '评估中心', slug: 'eval', code: 'EVAL', icon: ClipboardCheck, group: '系统' },
+  { id: 'settings', label: '系统设置', slug: 'cfg', code: 'CFG', icon: Settings, group: '系统' },
+  { id: 'api-docs', label: '接口文档', slug: 'api', code: 'API', icon: BookMarked, group: '系统' },
 ];
 
 const GROUP_ORDER = ['总览', 'AI 分析', '知识库', '分析工具', '系统'];
@@ -67,6 +68,26 @@ const TITLE_OF_DETAIL: Partial<Record<ViewId, { label: string; slug: string }>> 
   'literature-detail': { label: '文献详情', slug: 'library/item' },
   'structure-detail': { label: '结构详情', slug: 'pdb/item' },
 };
+
+/** 仪器时钟 — 活体 HH:MM:SS (1s 步进, 卸载即清理) */
+function LiveClock({ className }: { className?: string }) {
+  const [time, setTime] = useState('--:--:--');
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      const p = (n: number) => String(n).padStart(2, '0');
+      setTime(`${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span className={cn('num tabular-nums normal-case tracking-normal', className)} suppressHydrationWarning>
+      {time}
+    </span>
+  );
+}
 
 export function AppShell({ children, activeView }: { children: React.ReactNode; activeView: ViewId }) {
   const { navigate, sidebarOpen, setSidebarOpen, commandOpen, setCommandOpen } = useAppStore();
@@ -161,10 +182,15 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
       {/* 品牌区 — 衬线 wordmark + 仪器铭牌 */}
       <div className="border-b border-sidebar-border px-4 pb-3.5 pt-4">
         <div className="flex items-baseline justify-between">
-          <span className="font-display text-[22px] leading-none tracking-tight text-sidebar-foreground">
-            CryoAgent
+          <span className="flex items-baseline gap-2">
+            <img src="/logo.svg" alt="" aria-hidden="true" className="h-4 w-4 shrink-0" />
+            <span className="font-display text-[22px] leading-none tracking-tight text-sidebar-foreground">
+              CryoAgent
+            </span>
           </span>
-          <span className="label-tech !text-[9px] text-sidebar-primary">PRO</span>
+          <span className="label-tech rounded-[3px] border border-sidebar-primary/45 px-1 py-px !text-[9px] !tracking-[0.14em] text-sidebar-primary">
+            PRO
+          </span>
         </div>
         <div className="label-tech mt-2 !text-[9px] !tracking-[0.18em]">
           Cryo-EM Intelligence Workbench
@@ -175,7 +201,10 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
       <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-4 custom-scrollbar" aria-label="主导航">
         {grouped.map(({ group, items }) => (
           <div key={group}>
-            <div className="label-tech mb-1.5 px-2.5 !text-[9px]">{group}</div>
+            <div className="mb-1.5 flex items-center gap-2 px-2.5">
+              <span className="label-tech shrink-0 !text-[9px]">{group}</span>
+              <span className="flex-1 border-t border-sidebar-border" aria-hidden />
+            </div>
             <div className="space-y-px">
               {items.map((item) => {
                 const active = activeView === item.id || parentView === item.id;
@@ -195,6 +224,17 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
                     {active && <span className="absolute inset-y-[5px] left-0 w-[2px] rounded-full bg-sidebar-primary" aria-hidden />}
                     <item.icon className="h-[15px] w-[15px] shrink-0" strokeWidth={active ? 2 : 1.75} />
                     <span className="truncate">{item.label}</span>
+                    <span
+                      className={cn(
+                        'ml-auto shrink-0 font-mono text-[9px] font-medium uppercase tracking-[0.1em] transition-colors',
+                        active
+                          ? 'text-sidebar-primary/75'
+                          : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/80'
+                      )}
+                      aria-hidden
+                    >
+                      {item.code}
+                    </span>
                   </button>
                 );
               })}
@@ -203,12 +243,16 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
         ))}
       </nav>
 
-      {/* 底部铭牌 — 系统状态 */}
+      {/* 底部铭牌 — 系统状态 + 仪器时钟 */}
       <div className="border-t border-sidebar-border px-4 py-2.5">
         <div className="label-tech flex items-center gap-2 !text-[9px]">
           <span className="status-dot" aria-hidden />
           <span className="text-sidebar-foreground/80">SYS ONLINE</span>
           <span className="ml-auto text-sidebar-foreground/45">NEXT·16</span>
+        </div>
+        <div className="label-tech mt-1 flex items-center justify-between !text-[9px]">
+          <span className="text-sidebar-foreground/45">SYS.TIME</span>
+          <LiveClock className="text-[12px] leading-none text-sidebar-foreground/75" />
         </div>
       </div>
     </div>
@@ -286,10 +330,11 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
               <PanelLeft className="h-4 w-4" />
             </Button>
 
-            {/* 面包屑 — 中文标题 + 拉丁短码 */}
-            <nav className="flex min-w-0 items-center gap-2 pl-1" aria-label="当前视图">
+            {/* 面包屑 — 中文标题 + chevron + 拉丁短码 */}
+            <nav className="flex min-w-0 items-center gap-1.5 pl-1" aria-label="当前视图">
               <h1 className="truncate text-[13.5px] font-medium tracking-tight">{crumb.label}</h1>
-              <span className="label-tech hidden !text-[10px] sm:inline">/ {crumb.slug}</span>
+              <ChevronRight className="hidden h-2.5 w-2.5 shrink-0 text-muted-foreground/50 sm:block" strokeWidth={2} aria-hidden />
+              <span className="label-tech hidden !text-[10px] sm:inline">{crumb.slug}</span>
             </nav>
 
             <div className="ml-auto flex items-center gap-1.5">
@@ -372,6 +417,10 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
                     CRYOAGENT PRO v2.1
                   </span>
                   <span className="hidden text-muted-foreground/70 sm:inline">BM25+VEC 混合检索 · 11 AGENT TOOLS · 14 SKILLS</span>
+                  <span className="hidden items-center gap-1.5 text-muted-foreground/70 sm:flex">
+                    SYS.TIME
+                    <LiveClock className="text-[12px] leading-none text-foreground/75" />
+                  </span>
                   <Link
                     href="#"
                     onClick={(e) => { e.preventDefault(); setCommandOpen(true); }}

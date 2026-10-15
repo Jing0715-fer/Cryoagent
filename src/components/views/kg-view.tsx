@@ -428,7 +428,14 @@ export function KgView() {
                   {loading ? (
                     <Skeleton className="h-[460px] w-full rounded-md" />
                   ) : graph && graph.nodes.length > 0 ? (
-                    <ForceGraph nodes={graph.nodes} edges={graph.edges} height={460} onNodeClick={handleNodeClick} />
+                    <div className="relative overflow-hidden rounded-md">
+                      <ForceGraph nodes={graph.nodes} edges={graph.edges} height={460} onNodeClick={handleNodeClick} />
+                      {/* 内凹屏幕质感 — 顶部暗色内影 (深浅色主题均可接受) */}
+                      <div
+                        className="pointer-events-none absolute inset-0 rounded-md shadow-[inset_0_1px_3px_rgba(0,0,0,0.08)]"
+                        aria-hidden
+                      />
+                    </div>
                   ) : (
                     <Empty text="NO DATA — 请先上传文献并关联结构, 图谱节点随文献库自动生长" />
                   )}
@@ -453,7 +460,14 @@ export function KgView() {
                       onClick={() => navigate('structure-detail', { id: s.id })}
                       className="flex w-full items-baseline gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
                     >
-                      <span className="num w-4 shrink-0 text-[10px] text-muted-foreground/60">{String(i + 1).padStart(2, '0')}</span>
+                      <span
+                        className={cn(
+                          'num w-4 shrink-0 text-[10px]',
+                          i < 3 ? 'font-semibold text-primary' : 'text-muted-foreground/60'
+                        )}
+                      >
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
                       <span className="num text-[13px] font-semibold tracking-tight">{s.id}</span>
                       <span className="ml-auto num shrink-0 text-[10px] text-muted-foreground">{s.linkCount} 篇</span>
                       <span className="sr-only">{s.title}</span>
@@ -526,13 +540,19 @@ export function KgView() {
                 />
                 <div className="p-2">
                   {nbData.nodes.length > 1 ? (
-                    <ForceGraph
-                      nodes={nbData.nodes}
-                      edges={nbData.edges}
-                      height={460}
-                      centerId={`struct:${nbData.center}`}
-                      onNodeClick={handleNodeClick}
-                    />
+                    <div className="relative overflow-hidden rounded-md">
+                      <ForceGraph
+                        nodes={nbData.nodes}
+                        edges={nbData.edges}
+                        height={460}
+                        centerId={`struct:${nbData.center}`}
+                        onNodeClick={handleNodeClick}
+                      />
+                      <div
+                        className="pointer-events-none absolute inset-0 rounded-md shadow-[inset_0_1px_3px_rgba(0,0,0,0.08)]"
+                        aria-hidden
+                      />
+                    </div>
                   ) : (
                     <Empty text={`NO LINKS — ${nbData.center} 暂无关联文献, 请先在文献中检测该结构`} />
                   )}

@@ -207,7 +207,12 @@ export function ForceGraph({
   return (
     <div
       className="relative overflow-hidden rounded-md border bg-background"
-      style={{ height }}
+      style={{
+        height,
+        backgroundImage:
+          'linear-gradient(to right, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px)',
+        backgroundSize: '28px 28px',
+      }}
     >
       <svg
         ref={svgRef}
@@ -224,17 +229,24 @@ export function ForceGraph({
         }}
       >
         <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k}) translate(${(1 - transform.k) * width / 2},${(1 - transform.k) * height / 2})`}>
-          {/* 边 — 令牌化配色: maps_to 走 chart-3 虚线, 常规边走 foreground 混合, 激活边走 primary */}
+          {/* 边 — 数据重量映射: opacity 随 weight 增强, mentions 高权重加粗; maps_to 虚线保持 */}
           {edges.map((e, i) => {
             const a = nodeMap.get(e.source);
             const b = nodeMap.get(e.target);
             if (!a || !b) return null;
             const isActive = selected === e.source || selected === e.target || hovered === e.source || hovered === e.target;
+            const w = e.weight || 1;
+            const opacity = 0.25 + (Math.min(w, 8) / 8) * 0.5;
             const stroke = isActive
               ? 'var(--primary)'
               : e.type === 'maps_to'
-                ? 'color-mix(in oklch, var(--chart-3) 55%, transparent)'
-                : 'color-mix(in oklch, var(--foreground) 26%, transparent)';
+                ? 'var(--chart-3)'
+                : 'var(--foreground)';
+            const strokeWidth = isActive
+              ? 2
+              : e.type === 'mentions' && w >= 3
+                ? 1.5
+                : 1;
             return (
               <g key={`e-${i}`}>
                 <line
@@ -242,14 +254,14 @@ export function ForceGraph({
                   y1={a.y}
                   x2={b.x}
                   y2={b.y}
-                  style={{ stroke }}
-                  strokeWidth={isActive ? 2 : Math.max(0.8, (e.weight || 1) * 0.55)}
+                  style={{ stroke, opacity: isActive ? 1 : opacity }}
+                  strokeWidth={strokeWidth}
                   strokeDasharray={e.type === 'maps_to' ? '4 3' : undefined}
                 />
               </g>
             );
           })}
-          {/* 节点 — 分类编码 chart-1..3, 选中/悬停高亮 primary */}
+          {/* 节点 — 分类编码 chart-1..3; 常规描边 background 分离, 悬停/选中 halo 环, 中心双环 */}
           {simNodes.map((n) => {
             const token = TYPE_TOKENS[n.id === centerId ? 'center' : n.type] || TYPE_TOKENS.structure;
             const r = radius(n);
@@ -259,7 +271,7 @@ export function ForceGraph({
             const isDim = selected && !isSelected && !edges.some(
               (e) => (e.source === selected && e.target === n.id) || (e.target === selected && e.source === n.id)
             );
-            const stroke = isSelected || isHovered || isCenter ? 'var(--primary)' : token;
+            const stroke = isSelected || isHovered || isCenter ? 'var(--primary)' : 'var(--background)';
             return (
               <g
                 key={n.id}
@@ -270,10 +282,32 @@ export function ForceGraph({
                 onMouseEnter={() => setHovered(n.id)}
                 onMouseLeave={() => setHovered(null)}
               >
+                {/* 中心节点 — 外环双环标记 */}
+                {isCenter && (
+                  <circle
+                    r={r + 5}
+                    fill="none"
+                    stroke="var(--primary)"
+                    strokeOpacity={0.4}
+                    strokeWidth={1.25}
+                    className="pointer-events-none"
+                  />
+                )}
+                {/* 悬停/选中 — halo 环 (选中走 primary) */}
+                {(isSelected || isHovered) && (
+                  <circle
+                    r={r + 4}
+                    fill="none"
+                    stroke={isSelected ? 'var(--primary)' : token}
+                    strokeOpacity={0.35}
+                    strokeWidth={1}
+                    className="pointer-events-none"
+                  />
+                )}
                 <circle
                   r={r}
                   style={{ fill: token, stroke }}
-                  strokeWidth={isSelected ? 2.5 : isHovered || isCenter ? 1.8 : 1.25}
+                  strokeWidth={isSelected ? 2.5 : isHovered || isCenter ? 1.8 : 1.5}
                   className="transition-all"
                 />
                 <text
@@ -284,6 +318,10 @@ export function ForceGraph({
                     fill: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)',
                     fontFamily: MONO_FONT,
                     fontSize: 10,
+                    paintOrder: 'stroke',
+                    stroke: 'var(--background)',
+                    strokeWidth: 3,
+                    strokeLinejoin: 'round',
                   }}
                 >
                   {n.label.length > 22 ? `${n.label.slice(0, 21)}…` : n.label}
@@ -296,11 +334,11 @@ export function ForceGraph({
 
       {/* 图例 — 仪器面板角标 */}
       <div className="absolute left-2.5 top-2.5 rounded-[5px] border bg-card/95 px-2.5 py-2">
-        <div className="label-tech mb-1.5 !text-[9px]">Legend</div>
+        <div className="label-tech mb-1.5 border-b pb-1.5 !text-[9px]">Legend</div>
         <div className="space-y-1">
           {(['structure', 'literature', 'uniprot'] as const).map((t) => (
             <div key={t} className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full" style={{ background: TYPE_TOKENS[t] }} aria-hidden />
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TYPE_TOKENS[t] }} aria-hidden />
               <span className="label-tech !text-[9px] normal-case !tracking-[0.06em]">{TYPE_LABELS[t]}</span>
             </div>
           ))}

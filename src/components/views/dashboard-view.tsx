@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore, api } from '@/lib/store';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +37,10 @@ interface StatsData {
 }
 
 const AXIS = { fontSize: 9, fontFamily: 'var(--font-plex-mono), monospace', fill: 'currentColor', opacity: 0.55 };
+/** 轴刻度小线 — 仪器轴刻度 */
+const TICK_LINE = { stroke: 'currentColor', opacity: 0.35 };
+/** 轴线 — hairline 基线 */
+const AXIS_LINE = { stroke: 'currentColor', opacity: 0.25 };
 const TOOLTIP_STYLE = {
   fontSize: 11,
   fontFamily: 'var(--font-plex-mono), monospace',
@@ -57,6 +61,7 @@ function Panel({ children, className }: { children: React.ReactNode; className?:
 function PanelHead({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 border-b px-4 py-2.5">
+      <span className="h-1 w-1 shrink-0 bg-primary/70" aria-hidden />
       <span className="label-tech !text-[10px] text-foreground/75">{title}</span>
       {hint && <span className="label-tech ml-auto !text-[9px]">{hint}</span>}
       {action}
@@ -64,11 +69,13 @@ function PanelHead({ title, hint, action }: { title: string; hint?: string; acti
   );
 }
 
-/** 精确空态 — mono 指引而非占位插画 */
+/** 精确空态 — mono 指引 + hairline 虚线内框 (待接入的仪器通道) */
 function Empty({ text }: { text: string }) {
   return (
-    <div className="label-tech flex h-full min-h-[88px] items-center justify-center px-4 py-8 text-center !text-[10px] normal-case !tracking-[0.06em]">
-      {text}
+    <div className="flex h-full min-h-[88px] items-center justify-center px-4 py-8">
+      <span className="label-tech rounded-md border border-dashed border-border px-6 py-4 text-center !text-[10px] normal-case !tracking-[0.06em]">
+        {text}
+      </span>
     </div>
   );
 }
@@ -120,41 +127,53 @@ export function DashboardView() {
 
   return (
     <div className="animate-fade-in-up">
-      {/* ===== Masthead — 坐标纸 + 编辑性标题 ===== */}
+      {/* ===== Masthead — 双级坐标纸 + 刻度尺 + 编辑性标题 ===== */}
       <div className="grid-bg relative border-b">
-        <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6 md:py-7">
+        <span className="plate-label absolute left-4 top-3 md:left-6">FIG.00 · WORKBENCH</span>
+        <div className="flex flex-wrap items-end justify-between gap-4 px-4 pb-4 pt-8 md:px-6 md:pb-5 md:pt-9">
           <div>
             <div className="label-tech !text-[10px]">Workbench · 平台总览</div>
-            <h1 className="font-display mt-1.5 text-[28px] leading-none tracking-tight md:text-[34px]">
+            <h1 className="font-display mt-1 text-[30px] leading-none tracking-tight md:text-[40px]">
               CryoAgent <span className="italic text-primary">Pro</span>
             </h1>
-            <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
+            <p className="mt-2 max-w-lg text-xs leading-normal text-muted-foreground">
               冷冻电镜文献与蛋白质结构智能分析系统 — 混合检索 · Agent 工具调用 · 3D 可视化 · 序列深度分析
             </p>
           </div>
-          <div className="label-tech space-y-1.5 text-right !text-[10px]">
+          <div className="label-tech space-y-1 text-right !text-[10px]">
             <div className="flex items-center justify-end gap-2">
               <span className="status-dot" aria-hidden /> ALL SYSTEMS NOMINAL
             </div>
-            <div className="text-muted-foreground/60">
-              HYBRID BM25+VEC · SSE STREAMING
+            <div className="flex items-center justify-end gap-2 text-muted-foreground/70">
+              <span className="h-[3px] w-[3px] shrink-0 bg-foreground/40" aria-hidden /> HYBRID BM25+VEC
+            </div>
+            <div className="flex items-center justify-end gap-2 text-muted-foreground/70">
+              <span className="h-[3px] w-[3px] shrink-0 bg-foreground/40" aria-hidden /> SSE STREAMING
+            </div>
+            <div className="flex items-center justify-end gap-2 text-muted-foreground/70">
+              <span className="h-[3px] w-[3px] shrink-0 bg-foreground/40" aria-hidden /> RAG INDEXED
             </div>
           </div>
         </div>
+        {/* 水平刻度尺 — 7px 小刻度 / 35px 大刻度 */}
+        <div className="ruler-x h-[10px]" aria-hidden />
       </div>
 
       <div className="space-y-4 p-4 md:p-6">
         {/* ===== KPI 条 — hairline 分隔, 无卡片 ===== */}
         <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-3 lg:grid-cols-6 [&>*:nth-child(2)]:border-l-0 md:[&>*]:border-l md:[&>*:first-child]:border-l-0 lg:[&>*:nth-child(2)]:border-l">
-          {kpis.map((k) => (
-            <div key={k.label} className="min-w-0 px-4 py-3">
+          {kpis.map((k, i) => (
+            <div key={k.label} className="relative min-w-0 px-4 py-3 transition-colors hover:bg-accent/40">
+              <span className="plate-label pointer-events-none absolute right-2.5 top-2 !text-muted-foreground/40" aria-hidden>
+                {String(i + 1).padStart(2, '0')}
+              </span>
               <div className="label-tech !text-[9px]">{k.label}</div>
               {k.value === undefined ? (
-                <Skeleton className="mt-1.5 h-6 w-14" />
+                <Skeleton className="mt-1 h-[26px] w-16" />
               ) : (
-                <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">{k.value.toLocaleString()}</div>
+                <div className="num mt-1 text-[26px] font-medium leading-none tracking-tight">{k.value.toLocaleString()}</div>
               )}
-              <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">{k.sub}</div>
+              <div className="label-tech mt-1 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">{k.sub}</div>
             </div>
           ))}
         </div>
@@ -168,16 +187,18 @@ export function DashboardView() {
             />
             <div className="p-3">
               {data && data.qaActivity.length > 0 ? (
-                <ResponsiveContainer width="100%" height={168}>
-                  <BarChart data={data.qaActivity} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="2 5" stroke="currentColor" vertical={false} opacity={0.08} />
-                    <XAxis dataKey="date" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={{ opacity: 0.2 }} />
-                    <YAxis allowDecimals={false} tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={false} width={30} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--accent)', opacity: 0.5 }} />
-                    <Bar dataKey="rag" name="RAG" stackId="a" fill="var(--chart-1)" />
-                    <Bar dataKey="agent" name="AGENT" stackId="a" fill="var(--chart-2)" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="screen-inset rounded-md p-3">
+                  <ResponsiveContainer width="100%" height={168}>
+                    <BarChart data={data.qaActivity} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="2 4" stroke="currentColor" vertical={false} opacity={0.14} />
+                      <XAxis dataKey="date" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={AXIS_LINE} />
+                      <YAxis allowDecimals={false} tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={false} width={30} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--accent)', opacity: 0.5 }} />
+                      <Bar dataKey="rag" name="RAG" stackId="a" fill="var(--chart-1)" barSize={14} />
+                      <Bar dataKey="agent" name="AGENT" stackId="a" fill="var(--chart-2)" barSize={14} radius={[1, 1, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               ) : (
                 <Empty text="NO DATA — 在「智能问答」发起第一次提问后显示活动趋势" />
               )}
@@ -317,19 +338,21 @@ export function DashboardView() {
             <PanelHead title="实验方法分布" hint="RCSB CACHED" />
             <div className="p-3">
               {data && data.methodStats.length > 0 ? (
-                <ResponsiveContainer width="100%" height={140}>
-                  <BarChart data={data.methodStats} layout="vertical" margin={{ top: 0, right: 12, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="2 5" stroke="currentColor" horizontal={false} opacity={0.08} />
-                    <XAxis type="number" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={{ opacity: 0.2 }} />
-                    <YAxis type="category" dataKey="method" tick={AXIS} width={92} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--accent)', opacity: 0.5 }} />
-                    <Bar dataKey="count" name="结构数" fill="var(--chart-1)" barSize={10}>
-                      {data.methodStats.map((_, i) => (
-                        <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="screen-inset rounded-md p-3">
+                  <ResponsiveContainer width="100%" height={140}>
+                    <BarChart data={data.methodStats} layout="vertical" margin={{ top: 0, right: 12, left: 8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="2 4" stroke="currentColor" horizontal={false} opacity={0.14} />
+                      <XAxis type="number" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={AXIS_LINE} />
+                      <YAxis type="category" dataKey="method" tick={AXIS} width={92} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={false} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--accent)', opacity: 0.5 }} />
+                      <Bar dataKey="count" name="结构数" fill="var(--chart-1)" barSize={12} radius={[0, 1, 1, 0]}>
+                        {data.methodStats.map((_, i) => (
+                          <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               ) : (
                 <Empty text="NO DATA — 去结构浏览器缓存 RCSB 结构后显示方法分布" />
               )}
@@ -340,15 +363,27 @@ export function DashboardView() {
             <PanelHead title="文献年份分布" hint={t ? `${t.literature} 篇入库` : undefined} />
             <div className="p-3">
               {data && data.yearStats.length > 0 ? (
-                <ResponsiveContainer width="100%" height={140}>
-                  <LineChart data={data.yearStats} margin={{ top: 6, right: 8, left: -22, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="2 5" stroke="currentColor" vertical={false} opacity={0.08} />
-                    <XAxis dataKey="year" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={{ opacity: 0.2 }} />
-                    <YAxis allowDecimals={false} tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={false} width={30} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} />
-                    <Line type="monotone" dataKey="count" name="文献" stroke="var(--chart-1)" strokeWidth={1.75} dot={{ r: 2.5, fill: 'var(--chart-1)', strokeWidth: 0 }} activeDot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="screen-inset rounded-md p-3">
+                  <ResponsiveContainer width="100%" height={140}>
+                    <AreaChart data={data.yearStats} margin={{ top: 6, right: 8, left: -22, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="2 4" stroke="currentColor" vertical={false} opacity={0.14} />
+                      <XAxis dataKey="year" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={AXIS_LINE} />
+                      <YAxis allowDecimals={false} tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={false} width={30} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} />
+                      <Area
+                        type="monotone"
+                        dataKey="count"
+                        name="文献"
+                        stroke="var(--chart-1)"
+                        strokeWidth={2}
+                        fill="var(--chart-1)"
+                        fillOpacity={0.06}
+                        dot={{ r: 3, fill: 'var(--chart-1)', strokeWidth: 0 }}
+                        activeDot={{ r: 4 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               ) : (
                 <Empty text="NO DATA — 上传第一篇 PDF 后显示年份分布" />
               )}
