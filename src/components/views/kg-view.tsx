@@ -232,9 +232,9 @@ export function KgView() {
         <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
           <div>
             <div className="label-tech !text-[10px]">Knowledge Graph · 知识图谱</div>
-            <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+            <h1 className="font-display mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               知识图谱
-              <span className="font-display ml-2.5 font-normal italic title-gradient">Knowledge Graph</span>
+              <span className="title-accent">Knowledge Graph</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               结构 — 文献 — 蛋白质三元关联网络 · 力导向可视化 · 邻域展开 · 最短路径发现与序列相似度参考

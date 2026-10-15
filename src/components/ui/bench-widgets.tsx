@@ -327,8 +327,8 @@ export function StatCard({
         <div className="label-tech min-w-0 flex-1 !tracking-[0.1em] !text-muted-foreground">{title}</div>
         {indicator && <div className="flex shrink-0 items-center justify-center">{indicator}</div>}
       </div>
-      {/* 行 2: 大数字 */}
-      <div className="text-xl font-bold leading-tight tracking-tight sm:text-2xl">
+      {/* 行 2: 大数字 — Fraunces 衬线数字（印刷期刊质感 + 等宽对齐） */}
+      <div className="font-display text-xl leading-tight tracking-tight [font-variant-numeric:tabular-nums] sm:text-2xl">
         {loading ? (
           <span className="shimmer inline-block h-6 w-16 rounded-md" />
         ) : isText ? (

@@ -634,9 +634,9 @@ export function SequenceAnalyzerView() {
         <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
           <div>
             <div className="label-tech !text-[10px]">Protein Profile · 序列理化分析</div>
-            <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+            <h1 className="font-display mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               序列理化分析
-              <span className="font-display ml-2 font-normal italic title-gradient">Sequence Profiling</span>
+              <span className="title-accent">Sequence Profiling</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               蛋白质 / 核酸序列理化性质计算 — 分子量 · 等电点 · GRAVY 疏水性 · 二级结构倾向 · ORF 与密码子偏好, 类型自动检测

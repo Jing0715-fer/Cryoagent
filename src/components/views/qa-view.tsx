@@ -338,8 +338,8 @@ export function QaView() {
         <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-4 md:px-6 md:py-5">
           <div>
             <div className="label-tech !text-[10px]">QA Console · 智能问答</div>
-            <h1 className="mt-1.5 text-[24px] font-semibold leading-none tracking-tight md:text-[28px]">
-              智能问答 <span className="font-display italic title-gradient">Q&amp;A</span>
+            <h1 className="font-display mt-1.5 text-[24px] font-semibold leading-none tracking-tight md:text-[28px]">
+              智能问答 <span className="title-accent">Q&amp;A</span>
             </h1>
             <p className="mt-2 max-w-lg text-xs leading-relaxed text-muted-foreground">
               基于本地文献库的混合检索问答 · RAG 回答附可溯源引用；AGENT 模式自动调用结构 / 序列 / 文献工具多步推理

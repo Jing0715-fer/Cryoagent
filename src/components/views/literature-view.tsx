@@ -399,8 +399,8 @@ export function LiteratureView() {
         <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
           <div>
             <div className="label-tech !text-[10px]">Library · 文献管理</div>
-            <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
-              文献库 <span className="font-display italic title-gradient">Index</span>
+            <h1 className="font-display mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+              文献库 <span className="title-accent">Index</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               上传 PDF / TXT / MD 自动解析分块并建立 RAG 检索索引 · 同时检测文中 PDB / UniProt 标识并关联结构

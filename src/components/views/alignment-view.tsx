@@ -484,9 +484,9 @@ export function AlignmentView() {
         <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
           <div>
             <div className="label-tech !text-[10px]">Alignment · 序列比对</div>
-            <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+            <h1 className="font-display mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               序列比对
-              <span className="font-display ml-2 font-normal italic title-gradient">Pairwise Alignment</span>
+              <span className="title-accent">Pairwise Alignment</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               Gotoh 仿射间隙动态规划 — NW 全局 / SW 局部比对 · BLOSUM / PAM 替换矩阵 · 一致序列与 Chothia-Lesk RMSD 估算 · 支持 RCSB 实体序列提取

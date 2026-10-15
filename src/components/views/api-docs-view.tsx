@@ -264,9 +264,9 @@ export function ApiDocsView() {
         <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
           <div>
             <div className="label-tech !text-[10px]">API Reference · 接口文档</div>
-            <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+            <h1 className="font-display mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               接口文档
-              <span className="font-display ml-2.5 align-middle text-[20px] font-normal italic tracking-normal title-gradient md:text-[24px]">
+              <span className="title-accent">
                 Reference
               </span>
             </h1>

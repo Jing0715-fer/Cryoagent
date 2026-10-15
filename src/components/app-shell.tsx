@@ -196,14 +196,14 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline gap-1.5">
-              <span className="font-display text-[21px] leading-none tracking-tight text-sidebar-foreground">
+              <span className="font-display text-[21px] font-semibold leading-none tracking-tight text-sidebar-foreground">
                 CryoAgent
               </span>
               <span className="label-tech rounded-[4px] border border-sidebar-primary/40 bg-primary-wash px-1 py-px !text-[9px] !tracking-[0.12em] text-sidebar-primary">
                 PRO
               </span>
             </div>
-            <div className="label-tech mt-1.5 !text-[9px] !tracking-[0.16em]">
+            <div className="label-tech mt-1.5 !text-[9px] !tracking-[0.08em] text-sidebar-foreground/70">
               Cryo-EM Intelligence Workbench
             </div>
           </div>
@@ -495,7 +495,7 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
                 </svg>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-display text-lg leading-none tracking-tight">CryoAgent</div>
+                <div className="font-display text-lg font-semibold leading-none tracking-tight">CryoAgent</div>
                 <div className="label-tech mt-1 !text-[9px]">{loginMode === 'login' ? 'SIGN IN' : 'SIGN UP'}</div>
               </div>
             </div>

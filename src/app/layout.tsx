@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Instrument_Serif, IBM_Plex_Mono } from "next/font/google";
+import { Geist, Fraunces, Noto_Serif_SC, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -7,11 +7,21 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-instrument-serif",
+/* 展示衬线 — Fraunces 可变字体（光学尺寸轴 9→144，大字号自动切换高对比精致字形）
+ * 暖调软终端设计，与奶油纸底+赤陶色系统天然契合，替代纤细的 Instrument Serif */
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
-  weight: "400",
   style: ["normal", "italic"],
+  axes: ["opsz", "SOFT"],
+});
+
+/* 中文标题衬线 — 思源宋体，与 Fraunces 统一「印刷期刊」气质，
+ * 解决中文黑体标题与英文衬线强调词的质感断层 */
+const notoSerifSC = Noto_Serif_SC({
+  variable: "--font-noto-serif-sc",
+  weight: ["500", "600", "700"],
+  preload: false,
 });
 
 const plexMono = IBM_Plex_Mono({
@@ -41,7 +51,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${instrumentSerif.variable} ${plexMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${fraunces.variable} ${notoSerifSC.variable} ${plexMono.variable} antialiased bg-background text-foreground`}
       >
         {children}
       </body>

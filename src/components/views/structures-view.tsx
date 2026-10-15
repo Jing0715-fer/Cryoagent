@@ -340,9 +340,9 @@ export function StructuresView() {
                 CH·LIB
               </span>
             </div>
-            <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+            <h1 className="font-display mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               结构浏览器
-              <span className="font-display ml-2.5 font-normal italic title-gradient">Structure Library</span>
+              <span className="title-accent">Structure Library</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               本地结构缓存与 RCSB Protein Data Bank 远程检索 — 打开详情自动入库, 支撑 3D 可视化与知识图谱关联

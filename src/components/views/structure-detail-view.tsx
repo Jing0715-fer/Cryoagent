@@ -681,7 +681,7 @@ export function StructureDetailView() {
             <div className="min-w-0">
               <div className="label-tech !text-[10px]">PDB Entry · 结构详情</div>
               <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
-                <h1 className="font-display title-gradient text-[30px] leading-none tracking-tight md:text-[34px]">{s.pdbId}</h1>
+                <h1 className="font-display text-[30px] leading-none tracking-tight md:text-[34px]">{s.pdbId}</h1>
                 <MethodBadge method={s.method} />
                 {s.resolution != null && (
                   <span className="num text-xs text-muted-foreground">{s.resolution.toFixed(1)}Å</span>

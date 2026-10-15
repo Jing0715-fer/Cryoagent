@@ -466,9 +466,9 @@ export function SkillsView() {
         <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
           <div>
             <div className="label-tech !text-[10px]">Skills · 技能中心</div>
-            <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+            <h1 className="font-display mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               技能中心
-              <span className="font-display ml-2 font-normal italic title-gradient">Expert Skills</span>
+              <span className="title-accent">Expert Skills</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               预设专家技能库 — 按触发关键词自动路由激活, 覆盖结构比较 · 文献综述 · 序列分析 · 实验方法 · 靶点与突变分析

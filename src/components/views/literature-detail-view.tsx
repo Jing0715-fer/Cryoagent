@@ -621,7 +621,7 @@ export function LiteratureDetailView() {
             </button>
             <span className="label-tech !text-[10px]">Library / Item · 文献详情</span>
           </div>
-          <h1 className="mt-2.5 max-w-4xl text-[22px] font-semibold leading-snug tracking-tight md:text-[26px] md:line-clamp-2">
+          <h1 className="font-display mt-2.5 max-w-4xl text-[22px] font-semibold leading-snug tracking-tight md:text-[26px] md:line-clamp-2">
             {lit.title}
           </h1>
           <p className="mt-1.5 max-w-3xl truncate text-xs text-muted-foreground">
