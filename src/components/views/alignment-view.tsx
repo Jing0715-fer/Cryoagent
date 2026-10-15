@@ -14,6 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { TierBadge } from '@/components/ui/bench-widgets';
 import { toast } from 'sonner';
 import {
   ArrowRight, Boxes, ChevronDown, Copy, Dna, Loader2, Play, RotateCcw,
@@ -472,6 +473,10 @@ export function AlignmentView() {
       : v >= 20 ? 'text-foreground'
         : 'text-muted-foreground';
 
+  /** 一致性分档 — TierBadge 等级 (>=90 TOP / >=75 HIGH / >=50 MID / 其余 LOW) */
+  const identityTier = (v: number): 'top' | 'high' | 'mid' | 'low' =>
+    v >= 90 ? 'top' : v >= 75 ? 'high' : v >= 50 ? 'mid' : 'low';
+
   return (
     <div className="animate-fade-in-up">
       {/* ===== Masthead — 坐标纸 + 模块代号 ===== */}
@@ -481,7 +486,7 @@ export function AlignmentView() {
             <div className="label-tech !text-[10px]">Alignment · 序列比对</div>
             <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               序列比对
-              <span className="font-display ml-2 font-normal italic text-muted-foreground">Pairwise Alignment</span>
+              <span className="font-display ml-2 font-normal italic title-gradient">Pairwise Alignment</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               Gotoh 仿射间隙动态规划 — NW 全局 / SW 局部比对 · BLOSUM / PAM 替换矩阵 · 一致序列与 Chothia-Lesk RMSD 估算 · 支持 RCSB 实体序列提取
@@ -575,24 +580,27 @@ export function AlignmentView() {
             </Panel>
 
             {/* 结果 */}
-            {aligning && <Skeleton className="h-64 w-full rounded-lg" />}
+            {aligning && <Skeleton className="shimmer h-64 w-full rounded-lg" />}
             {response && result && !aligning && (
               <div className="space-y-4">
                 {/* 指标条 — hairline 分隔 */}
                 <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4">
                   {[
-                    { label: '比对得分', value: String(result.score), hint: `${result.matrix} · GAP -11/-1` },
-                    { label: '一致性', value: `${result.identity}%`, hint: '完全相同残基占比', accent: true },
-                    { label: '相似度', value: `${result.similarity}%`, hint: '含正相似替换' },
-                    { label: 'Gap 数量', value: String(result.gaps), hint: `占比 ${result.gapRatio}%` },
-                    { label: '比对长度', value: `${result.alignedLength} 列`, hint: `SEQ1 ${response.seq1Length} / SEQ2 ${response.seq2Length} AA` },
-                    { label: 'RMSD 估算', value: Number.isNaN(rmsd) ? '—' : `${rmsd?.toFixed(2)} Å`, hint: 'Chothia-Lesk 经验公式' },
-                    { label: '转换', value: String(result.transitions), hint: 'TRANSITION · 嘌呤↔嘌呤' },
-                    { label: '颠换', value: String(result.transversions), hint: 'TRANSVERSION · 嘌呤↔嘧啶' },
+                    { label: '比对得分', value: String(result.score), hint: `${result.matrix} · GAP -11/-1`, badge: undefined },
+                    { label: '一致性', value: `${result.identity}%`, hint: '完全相同残基占比', accent: true, badge: <TierBadge tier={identityTier(result.identity)} /> },
+                    { label: '相似度', value: `${result.similarity}%`, hint: '含正相似替换', badge: undefined },
+                    { label: 'Gap 数量', value: String(result.gaps), hint: `占比 ${result.gapRatio}%`, badge: undefined },
+                    { label: '比对长度', value: `${result.alignedLength} 列`, hint: `SEQ1 ${response.seq1Length} / SEQ2 ${response.seq2Length} AA`, badge: undefined },
+                    { label: 'RMSD 估算', value: Number.isNaN(rmsd) ? '—' : `${rmsd?.toFixed(2)} Å`, hint: 'Chothia-Lesk 经验公式', badge: undefined },
+                    { label: '转换', value: String(result.transitions), hint: 'TRANSITION · 嘌呤↔嘌呤', badge: undefined },
+                    { label: '颠换', value: String(result.transversions), hint: 'TRANSVERSION · 嘌呤↔嘧啶', badge: undefined },
                   ].map((m) => (
                     <div key={m.label} className="min-w-0 bg-card px-4 py-3">
                       <div className="label-tech !text-[9px]">{m.label}</div>
-                      <div className={cn('num mt-1 text-[20px] font-medium leading-none tracking-tight', m.accent && 'text-primary')}>{m.value}</div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span className={cn('num text-[20px] font-medium leading-none tracking-tight', m.accent && 'text-primary')}>{m.value}</span>
+                        {m.badge}
+                      </div>
                       <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">{m.hint}</div>
                     </div>
                   ))}
@@ -719,7 +727,7 @@ export function AlignmentView() {
           />
           {tasksLoading ? (
             <div className="space-y-2 p-4">
-              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 rounded-md" />)}
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="shimmer h-9 rounded-md" />)}
             </div>
           ) : tasks.length === 0 ? (
             <Empty text="NO HISTORY — 完成第一次比对后在此显示任务记录" />
@@ -749,7 +757,12 @@ export function AlignmentView() {
                       </td>
                       <td className="num">{t.algorithm === 'smith-waterman' ? 'SW' : 'NW'}</td>
                       <td className="num">{t.matrix}</td>
-                      <td className={cn('num text-right font-medium', identityTone(t.identity))}>{t.identity}%</td>
+                      <td className="text-right">
+                        <span className="inline-flex items-center justify-end gap-1.5">
+                          <span className={cn('num font-medium', identityTone(t.identity))}>{t.identity}%</span>
+                          <TierBadge tier={identityTier(t.identity)} />
+                        </span>
+                      </td>
                       <td className="num text-right">{t.score}</td>
                     </tr>
                   ))}

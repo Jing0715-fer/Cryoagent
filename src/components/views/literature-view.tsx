@@ -400,7 +400,7 @@ export function LiteratureView() {
           <div>
             <div className="label-tech !text-[10px]">Library · 文献管理</div>
             <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
-              文献库 <span className="font-display italic text-primary">Index</span>
+              文献库 <span className="font-display italic title-gradient">Index</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               上传 PDF / TXT / MD 自动解析分块并建立 RAG 检索索引 · 同时检测文中 PDB / UniProt 标识并关联结构
@@ -483,7 +483,7 @@ export function LiteratureView() {
         </div>
 
         {/* ===== 索引列表面板 ===== */}
-        <section className="overflow-hidden rounded-lg border bg-card">
+        <section className="card-shadow overflow-hidden rounded-lg border bg-card">
           <div className="flex items-center gap-3 border-b px-4 py-2.5">
             <span className="label-tech !text-[10px] text-foreground/75">Library Index · 文献索引</span>
             {favOnly && <span className="label-tech !text-[9px] text-chart-2">FAVORITE ONLY</span>}
@@ -497,13 +497,13 @@ export function LiteratureView() {
             <div className="divide-y">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3 px-4 py-3">
-                  <Skeleton className="hidden h-3 w-6 md:block" />
+                  <Skeleton className="shimmer hidden h-3 w-6 md:block" />
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <Skeleton className="h-4 w-3/5" />
-                    <Skeleton className="h-3 w-2/5" />
+                    <Skeleton className="shimmer h-4 w-3/5" />
+                    <Skeleton className="shimmer h-3 w-2/5" />
                   </div>
-                  <Skeleton className="hidden h-3 w-40 md:block" />
-                  <Skeleton className="h-8 w-8" />
+                  <Skeleton className="shimmer hidden h-3 w-40 md:block" />
+                  <Skeleton className="shimmer h-8 w-8" />
                 </div>
               ))}
             </div>

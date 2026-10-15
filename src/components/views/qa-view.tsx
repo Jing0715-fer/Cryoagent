@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { SegmentedTabs } from '@/components/ui/bench-widgets';
 import { cn } from '@/lib/utils';
 import {
   Send, Square, Plus, BookOpen, Cpu, Sparkles, History,
@@ -338,7 +339,7 @@ export function QaView() {
           <div>
             <div className="label-tech !text-[10px]">QA Console · 智能问答</div>
             <h1 className="mt-1.5 text-[24px] font-semibold leading-none tracking-tight md:text-[28px]">
-              智能问答 <span className="font-display italic text-primary">Q&amp;A</span>
+              智能问答 <span className="font-display italic title-gradient">Q&amp;A</span>
             </h1>
             <p className="mt-2 max-w-lg text-xs leading-relaxed text-muted-foreground">
               基于本地文献库的混合检索问答 · RAG 回答附可溯源引用；AGENT 模式自动调用结构 / 序列 / 文献工具多步推理
@@ -418,7 +419,7 @@ export function QaView() {
                       <button
                         key={p.text}
                         onClick={() => void sendQuestion(p.text)}
-                        className="group flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/50"
+                        className="group lift-on-hover flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/50"
                         type="button"
                       >
                         <span className="num w-8 shrink-0 text-[10px] text-muted-foreground/60">{p.code}</span>
@@ -440,7 +441,7 @@ export function QaView() {
                           onClick={() => setActiveSkill(activeSkill === s.id ? null : s.id)}
                           aria-pressed={activeSkill === s.id}
                           className={cn(
-                            'min-h-9 rounded-[3px] border px-2 py-1.5 font-mono text-[10px] transition-colors',
+                            'lift-on-hover min-h-9 rounded-[3px] border px-2 py-1.5 font-mono text-[10px] transition-colors',
                             activeSkill === s.id
                               ? 'border-chart-3/60 bg-chart-3/10 text-chart-3'
                               : 'text-muted-foreground hover:border-foreground/25 hover:text-foreground'
@@ -476,30 +477,29 @@ export function QaView() {
             <div className="mx-auto max-w-3xl px-4 py-3">
               {/* 模式切换 + 状态行 */}
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <div className="flex rounded-[5px] border bg-background p-0.5" role="group" aria-label="问答模式">
-                  <button
-                    type="button"
-                    onClick={() => setMode('rag')}
-                    aria-pressed={mode === 'rag'}
-                    className={cn(
-                      'flex h-11 items-center gap-1.5 rounded-[4px] px-3 text-[11px] font-medium transition-colors md:h-8',
-                      mode === 'rag' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <BookOpen className="h-3.5 w-3.5" strokeWidth={1.75} />RAG 检索
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode('agent')}
-                    aria-pressed={mode === 'agent'}
-                    className={cn(
-                      'flex h-11 items-center gap-1.5 rounded-[4px] px-3 text-[11px] font-medium transition-colors md:h-8',
-                      mode === 'agent' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <Cpu className="h-3.5 w-3.5" strokeWidth={1.75} />AGENT 工具
-                  </button>
-                </div>
+                {/* 模式切换 — 滑动药丸分段控制 */}
+                <SegmentedTabs
+                  value={mode}
+                  onChange={(v) => setMode(v === 'agent' ? 'agent' : 'rag')}
+                  options={[
+                    {
+                      value: 'rag',
+                      label: (
+                        <>
+                          <BookOpen className="h-3.5 w-3.5" strokeWidth={1.75} />检索 RAG
+                        </>
+                      ),
+                    },
+                    {
+                      value: 'agent',
+                      label: (
+                        <>
+                          <Cpu className="h-3.5 w-3.5" strokeWidth={1.75} />智能体 AGENT
+                        </>
+                      ),
+                    },
+                  ]}
+                />
 
                 {activeSkillInfo && (
                   <Tooltip>

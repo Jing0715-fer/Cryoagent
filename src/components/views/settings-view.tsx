@@ -201,7 +201,7 @@ export function SettingsView() {
           <div className="label-tech !text-[10px]">Config · 系统设置</div>
           <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
             系统设置
-            <span className="font-display ml-2.5 align-middle text-[20px] font-normal italic tracking-normal text-muted-foreground/60 md:text-[24px]">
+            <span className="font-display ml-2.5 align-middle text-[20px] font-normal italic tracking-normal title-gradient md:text-[24px]">
               Configuration
             </span>
           </h1>
@@ -225,9 +225,9 @@ export function SettingsView() {
       <div className="animate-fade-in-up">
         {masthead}
         <div className="space-y-4 p-4 md:p-6">
-          <Skeleton className="h-9 w-full max-w-md rounded-lg" />
-          <Skeleton className="h-48 w-full rounded-lg" />
-          <Skeleton className="h-64 w-full rounded-lg" />
+          <Skeleton className="shimmer h-9 w-full max-w-md rounded-lg" />
+          <Skeleton className="shimmer h-48 w-full rounded-lg" />
+          <Skeleton className="shimmer h-64 w-full rounded-lg" />
         </div>
       </div>
     );

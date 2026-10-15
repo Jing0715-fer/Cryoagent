@@ -423,3 +423,202 @@ table.bench tbody tr {
 table.bench tbody tr:hover {
   background: color-mix(in srgb, var(--accent) 55%, transparent);
 }
+
+/* ============ 质感层 — 参照 pdb-tracker-web-v5 组件级细节 ============ */
+
+/* ---- 方法领域色 + 淡底 (浅色) ---- */
+:root {
+  --method-xray: #7c5cbf;
+  --method-xray-bg: #f0ebf8;
+  --method-cryoem: #2d8f8f;
+  --method-cryoem-bg: #e8f5f5;
+  --method-nmr: #c9872e;
+  --method-nmr-bg: #fdf4e5;
+  --method-pred: #6b7280;
+  --method-pred-bg: #f3f4f6;
+}
+/* ---- 方法领域色 + 深色淡底 ---- */
+.dark {
+  --method-xray: #9b7ed8;
+  --method-xray-bg: #2a2438;
+  --method-cryoem: #3db5b5;
+  --method-cryoem-bg: #1e2f2f;
+  --method-nmr: #d9a24e;
+  --method-nmr-bg: #332a1a;
+  --method-pred: #9b9590;
+  --method-pred-bg: #26242a;
+}
+
+/* 方法徽章 — 淡底 + 领域色文字 + 同色细边 (比 outline 更有质感) */
+.method-xray     { background: var(--method-xray-bg); color: var(--method-xray); border: 1px solid color-mix(in srgb, var(--method-xray) 22%, transparent); }
+.method-cryoem   { background: var(--method-cryoem-bg); color: var(--method-cryoem); border: 1px solid color-mix(in srgb, var(--method-cryoem) 22%, transparent); }
+.method-nmr      { background: var(--method-nmr-bg); color: var(--method-nmr); border: 1px solid color-mix(in srgb, var(--method-nmr) 22%, transparent); }
+.method-pred     { background: var(--method-pred-bg); color: var(--method-pred); border: 1px solid color-mix(in srgb, var(--method-pred) 22%, transparent); }
+
+/* ---- KPI 指标卡 — 顶部渐变揭示线 + 悬停微抬升 (参考 kpi-card-enhanced) ---- */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--card);
+  transition: transform 0.2s ease, box-shadow 0.25s ease;
+}
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--kpi-accent, var(--primary)), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 24px -8px color-mix(in srgb, var(--kpi-accent, var(--primary)) 28%, transparent),
+    0 1px 3px rgba(26, 26, 26, 0.05);
+}
+.kpi-card:hover::before {
+  opacity: 1;
+}
+.dark .kpi-card:hover {
+  box-shadow:
+    0 8px 24px -8px color-mix(in srgb, var(--kpi-accent, var(--primary)) 32%, transparent),
+    0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* KPI 图标瓦片 — 领域色渐变 + 微浮呼吸 */
+.kpi-icon-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #ffffff;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--kpi-accent, var(--primary)) 35%, transparent);
+}
+
+/* ---- Shimmer 骨架屏 — 替代静态灰块 ---- */
+@keyframes shimmer-move {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #f0ece5 25%, #f9f5ef 50%, #f0ece5 75%);
+  background-size: 200% 100%;
+  animation: shimmer-move 1.5s ease-in-out infinite;
+}
+.dark .shimmer {
+  background: linear-gradient(90deg, #2b2926 25%, #353230 50%, #2b2926 75%);
+  background-size: 200% 100%;
+}
+
+/* ---- 分段式 Tab — 圆角轨道 + 滑动药丸 (参考 mode-segmented-control) ---- */
+.seg-tabs {
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 9%, transparent);
+}
+.seg-pill {
+  background: var(--card);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 4px rgba(26, 26, 26, 0.13), 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent);
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.dark .seg-pill {
+  background: #302d2a;
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.seg-tab {
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: color 0.2s;
+}
+.seg-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/* ---- 等级徽章 — 评估分数/影响因子分档 (淡底体系) ---- */
+.tier-top  { background: rgba(220, 38, 38, 0.08); color: #dc2626; border: 1px solid rgba(220, 38, 38, 0.16); }
+.tier-high { background: rgba(234, 88, 12, 0.08); color: #ea580c; border: 1px solid rgba(234, 88, 12, 0.16); }
+.tier-mid  { background: rgba(22, 163, 74, 0.08); color: #16a34a; border: 1px solid rgba(22, 163, 74, 0.16); }
+.tier-low  { background: rgba(107, 114, 128, 0.08); color: #6b7280; border: 1px solid rgba(107, 114, 128, 0.16); }
+.dark .tier-top  { background: rgba(239, 107, 107, 0.1); color: #ef6b6b; border-color: rgba(239, 107, 107, 0.2); }
+.dark .tier-high { background: rgba(240, 144, 64, 0.1); color: #f09040; border-color: rgba(240, 144, 64, 0.2); }
+.dark .tier-mid  { background: rgba(61, 187, 94, 0.1); color: #3dbb5e; border-color: rgba(61, 187, 94, 0.2); }
+.dark .tier-low  { background: rgba(155, 149, 144, 0.1); color: #9b9590; border-color: rgba(155, 149, 144, 0.2); }
+
+/* ---- 仪器表格 — 斑马纹 (参考 table-row-odd) ---- */
+table.bench tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--foreground) 1.4%, transparent);
+}
+table.bench tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+/* ---- 图表 tooltip — 深色玻璃 + 赤陶描边 (参考 RCSB 仪表质感) ---- */
+.chart-tooltip {
+  background: rgba(36, 34, 32, 0.95) !important;
+  border: 1px solid color-mix(in srgb, var(--primary) 32%, transparent) !important;
+  border-radius: 8px !important;
+  color: #faf8f5 !important;
+  font-size: 11px !important;
+  font-family: var(--font-plex-mono), ui-monospace, monospace !important;
+  padding: 4px 10px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18) !important;
+}
+.chart-tooltip .recharts-tooltip-item-name,
+.chart-tooltip .recharts-tooltip-item-value {
+  color: #faf8f5 !important;
+}
+
+/* ---- 数字滚动发光 — 计数动画期间同色光晕 ---- */
+@keyframes number-glow {
+  0%, 100% { text-shadow: none; }
+  50% { text-shadow: 0 0 12px color-mix(in srgb, var(--glow-color, var(--primary)) 45%, transparent); }
+}
+.animated-number-glow {
+  animation: number-glow 1.2s ease-in-out;
+}
+
+/* ---- 空态引导 — 径向柔光 (参考 empty-state-glow, 极轻) ---- */
+.empty-glow {
+  position: relative;
+}
+.empty-glow::after {
+  content: "";
+  position: absolute;
+  inset: -28px;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--primary) 5%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+/* ---- 悬停微抬升 — 密集行/列表通用 ---- */
+.lift-on-hover {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.lift-on-hover:hover {
+  transform: translateY(-1px);
+}
+
+/* 单卡入场动画 — StatCard 等独立元素 (配合 style.animationDelay) */
+.stagger-list-item {
+  animation: stagger-in 0.3s ease-out both;
+}
+
+/* ---- 标题渐变文字 — 赤陶→琥珀 135° (masthead 强调词) ---- */
+.title-gradient {
+  background: linear-gradient(135deg, #c96442 0%, #d4784f 45%, #c9872e 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .title-gradient {
+  background: linear-gradient(135deg, #d4784f 0%, #e08a62 45%, #d9a24e 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

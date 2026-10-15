@@ -88,14 +88,16 @@ const EXAMPLE_NUCLEIC = 'ACGTTCAATGGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTGCTTAACCGGATGGC
 
 // BENCH 图表轴 / 提示框样式 (与标杆视图一致)
 const AXIS = { fontSize: 9, fontFamily: 'var(--font-plex-mono), monospace', fill: 'currentColor', opacity: 0.55 };
+/** 深色玻璃 tooltip — recharts 内联样式不跟随主题 class 切换, 用固定 rgba (深浅两主题通用) */
 const TOOLTIP_STYLE = {
   fontSize: 11,
   fontFamily: 'var(--font-plex-mono), monospace',
-  borderRadius: 4,
-  border: '1px solid var(--border)',
-  background: 'var(--popover)',
-  color: 'var(--popover-foreground)',
-  padding: '4px 8px',
+  borderRadius: 8,
+  border: '1px solid color-mix(in srgb, var(--primary) 32%, transparent)',
+  background: 'rgba(36, 34, 32, 0.95)',
+  color: '#faf8f5',
+  padding: '4px 10px',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.18)',
 };
 
 /** 碱基分类编码 — chart 色彩体系 */
@@ -634,7 +636,7 @@ export function SequenceAnalyzerView() {
             <div className="label-tech !text-[10px]">Protein Profile · 序列理化分析</div>
             <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               序列理化分析
-              <span className="font-display ml-2 font-normal italic text-muted-foreground">Sequence Profiling</span>
+              <span className="font-display ml-2 font-normal italic title-gradient">Sequence Profiling</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               蛋白质 / 核酸序列理化性质计算 — 分子量 · 等电点 · GRAVY 疏水性 · 二级结构倾向 · ORF 与密码子偏好, 类型自动检测
@@ -774,9 +776,9 @@ export function SequenceAnalyzerView() {
         {analyzing && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[88px] rounded-lg" />)}
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="shimmer h-[88px] rounded-lg" />)}
             </div>
-            <Skeleton className="h-[300px] w-full rounded-lg" />
+            <Skeleton className="shimmer h-[300px] w-full rounded-lg" />
           </div>
         )}
 

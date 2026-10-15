@@ -1,16 +1,17 @@
 'use client';
 
 /**
- * CryoAgent Pro — 平台总览 (BENCH 设计系统标杆视图)
- * masthead(坐标纸) + KPI 条(hairline 分隔) + 不对称工作区 + 密集数据行
+ * CryoAgent Pro — 平台总览 (WARM BENCH 标杆视图)
+ * masthead(坐标纸) + 领域色渐变 KPI 卡(计数动画+迷你可视化) + 深色玻璃图表 tooltip + 密集数据行
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppStore, api } from '@/lib/store';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ArrowRight, ArrowUpRight } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, BookOpen, Boxes, Database, MessageSquare, GitCompareArrows, Network } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { StatCard, MiniDonut, type DonutSegment } from '@/components/ui/bench-widgets';
 
 interface StatsData {
   totals: {
@@ -44,11 +45,12 @@ const AXIS_LINE = { stroke: 'currentColor', opacity: 0.25 };
 const TOOLTIP_STYLE = {
   fontSize: 11,
   fontFamily: 'var(--font-plex-mono), monospace',
-  borderRadius: 4,
-  border: '1px solid var(--border)',
-  background: 'var(--popover)',
-  color: 'var(--popover-foreground)',
-  padding: '4px 8px',
+  borderRadius: 8,
+  border: '1px solid color-mix(in srgb, var(--primary) 32%, transparent)',
+  background: 'rgba(36, 34, 32, 0.95)',
+  color: '#faf8f5',
+  padding: '4px 10px',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.18)',
 };
 
 /** 面板骨架 — 统一 hairline 分区容器 */
@@ -98,6 +100,13 @@ export function DashboardView() {
   const t = data?.totals;
   const ragQa = t ? t.qa - t.agentQa : 0;
 
+  /** 方法分布甜甜圈 — 结构卡右上角指示器 */
+  const methodDonut: DonutSegment[] = useMemo(() => {
+    const hex = { xray: '#7c5cbf', cryoem: '#2d8f8f', nmr: '#c9872e', other: '#6b7280' } as const;
+    const pick = (m: string) => (m.includes('X-RAY') ? hex.xray : m.includes('ELECTRON') ? hex.cryoem : m.includes('NMR') ? hex.nmr : hex.other);
+    return (data?.methodStats || []).slice(0, 4).map((s) => ({ label: s.method, value: s.count, color: pick(s.method.toUpperCase()) }));
+  }, [data]);
+
   if (error) {
     return (
       <div className="p-6">
@@ -109,14 +118,8 @@ export function DashboardView() {
     );
   }
 
-  const kpis = [
-    { label: '文献', sub: `${t?.notes ?? 0} 条笔记`, value: t?.literature },
-    { label: '检索分块', sub: `${data?.ragIndex.indexAge ?? 0} 分钟前建索引`, value: t?.chunks },
-    { label: '蛋白结构', sub: 'RCSB 缓存', value: t?.structures },
-    { label: '问答', sub: `RAG ${ragQa} · AGENT ${t?.agentQa ?? 0}`, value: t?.qa },
-    { label: '比对任务', sub: 'NW / SW', value: t?.alignments },
-    { label: '图谱关联', sub: `${t?.users ?? 0} 位用户`, value: t?.links },
-  ];
+  // KPI 数据 (渲染在下方 StatCard 网格)
+  const loading = !data && !error;
 
   const entries = [
     { label: '智能问答', desc: 'RAG + AGENT 双模式', view: 'qa' as const, bar: 'bg-chart-1' },
@@ -160,22 +163,80 @@ export function DashboardView() {
       </div>
 
       <div className="space-y-4 p-4 md:p-6">
-        {/* ===== KPI 条 — hairline 分隔, 无卡片 ===== */}
-        <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-3 lg:grid-cols-6 [&>*:nth-child(2)]:border-l-0 md:[&>*]:border-l md:[&>*:first-child]:border-l-0 lg:[&>*:nth-child(2)]:border-l">
-          {kpis.map((k, i) => (
-            <div key={k.label} className="relative min-w-0 px-4 py-3 transition-colors hover:bg-accent/40">
-              <span className="plate-label pointer-events-none absolute right-2.5 top-2 !text-muted-foreground/40" aria-hidden>
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <div className="label-tech !text-[9px]">{k.label}</div>
-              {k.value === undefined ? (
-                <Skeleton className="mt-1 h-[26px] w-16" />
-              ) : (
-                <div className="num mt-1 text-[26px] font-medium leading-none tracking-tight">{k.value.toLocaleString()}</div>
-              )}
-              <div className="label-tech mt-1 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">{k.sub}</div>
-            </div>
-          ))}
+        {/* ===== KPI 卡 — 领域色渐变图标 + 计数动画 + 迷你可视化 ===== */}
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-6 [grid-auto-rows:1fr]">
+          <StatCard
+            title="文献"
+            value={t?.literature ?? 0}
+            subtitle={t ? `${t.notes} 条笔记` : undefined}
+            icon={<BookOpen className="h-3.5 w-3.5" />}
+            gradient="from-[#c96442] to-[#a04e32]"
+            accent="#c96442"
+            loading={loading}
+            delay={0}
+            tooltip={`文献 ${t?.literature ?? 0} 篇 · 笔记 ${t?.notes ?? 0} 条`}
+            onClick={() => navigate('literature')}
+          />
+          <StatCard
+            title="检索分块"
+            value={t?.chunks ?? 0}
+            subtitle={data ? `${data.ragIndex.indexAge} 分钟前建索引` : undefined}
+            icon={<Database className="h-3.5 w-3.5" />}
+            gradient="from-[#c9872e] to-[#a06b1a]"
+            accent="#c9872e"
+            loading={loading}
+            delay={45}
+            tooltip={`RAG 分块 ${t?.chunks ?? 0} · 平均延迟 ${data?.searchAvgLatency ?? '—'}ms`}
+          />
+          <StatCard
+            title="蛋白结构"
+            value={t?.structures ?? 0}
+            subtitle="RCSB 缓存"
+            icon={<Boxes className="h-3.5 w-3.5" />}
+            gradient="from-[#2d8f8f] to-[#1a6b6b]"
+            accent="#2d8f8f"
+            loading={loading}
+            delay={90}
+            tooltip={`结构 ${t?.structures ?? 0} 个 · 实验方法分布见右上环图`}
+            indicator={methodDonut.length > 0 ? <MiniDonut segments={methodDonut} size={28} /> : undefined}
+            onClick={() => navigate('structures')}
+          />
+          <StatCard
+            title="问答"
+            value={t?.qa ?? 0}
+            subtitle={t ? `RAG ${ragQa} · AGENT ${t.agentQa}` : undefined}
+            icon={<MessageSquare className="h-3.5 w-3.5" />}
+            gradient="from-[#7c5cbf] to-[#5a3d99]"
+            accent="#7c5cbf"
+            loading={loading}
+            delay={135}
+            tooltip={`累计问答 ${t?.qa ?? 0} — RAG ${ragQa} · AGENT ${t?.agentQa ?? 0}`}
+            onClick={() => navigate('qa')}
+          />
+          <StatCard
+            title="比对任务"
+            value={t?.alignments ?? 0}
+            subtitle="NW / SW"
+            icon={<GitCompareArrows className="h-3.5 w-3.5" />}
+            gradient="from-[#c96442] to-[#8a3d22]"
+            accent="#c96442"
+            loading={loading}
+            delay={180}
+            tooltip={`序列比对 ${t?.alignments ?? 0} 次`}
+            onClick={() => navigate('alignment')}
+          />
+          <StatCard
+            title="图谱关联"
+            value={t?.links ?? 0}
+            subtitle={t ? `${t.users} 位用户` : undefined}
+            icon={<Network className="h-3.5 w-3.5" />}
+            gradient="from-[#6b7280] to-[#4b5563]"
+            accent="#6b7280"
+            loading={loading}
+            delay={225}
+            tooltip={`知识图谱关联边 ${t?.links ?? 0} 条`}
+            onClick={() => navigate('kg')}
+          />
         </div>
 
         {/* ===== 主工作区: 检索活动 (2/3) + 快速入口/服务状态 (1/3) ===== */}

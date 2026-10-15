@@ -19,9 +19,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { MiniBar, MiniRing, SegmentedTabs, StatCard, TierBadge } from '@/components/ui/bench-widgets';
 import { toast } from 'sonner';
-import { Activity, Database, Gauge, Loader2, Play, Plus, Trash2 } from 'lucide-react';
+import {
+  Activity, ClipboardCheck, Crosshair, Database, Gauge, ListChecks, Loader2,
+  Play, Plus, Target, Timer, TrendingUp, Trash2,
+} from 'lucide-react';
 
 // ============ 类型定义 (API 契约) ============
 
@@ -100,15 +104,34 @@ const AXIS = {
 const TOOLTIP_STYLE = {
   fontSize: 11,
   fontFamily: 'var(--font-plex-mono), monospace',
-  borderRadius: 4,
-  border: '1px solid var(--border)',
-  background: 'var(--popover)',
-  color: 'var(--popover-foreground)',
-  padding: '4px 8px',
+  borderRadius: 8,
+  border: '1px solid color-mix(in srgb, var(--primary) 32%, transparent)',
+  background: 'rgba(36, 34, 32, 0.95)',
+  color: '#faf8f5',
+  padding: '4px 10px',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.18)',
 };
 
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+/** 评分分档 — F1 等百分比指标 (>=90 TOP / >=75 HIGH / >=50 MID / 其余 LOW) */
+function scoreTier(v: number): 'top' | 'high' | 'mid' | 'low' {
+  return v >= 90 ? 'top' : v >= 75 ? 'high' : v >= 50 ? 'mid' : 'low';
+}
+
+/** 评分卡配置 — StatCard 网格渲染 (指标值均为 0-100 百分比) */
+interface MetricCardCfg {
+  title: string;
+  sub: string;
+  value: number | null;
+  suffix?: string;
+  decimals?: number;
+  icon: React.ReactNode;
+  gradient: string;
+  accent: string;
+  indicator?: React.ReactNode;
 }
 
 function formatTime(iso: string): string {
@@ -215,13 +238,62 @@ function RetrievalEvalTab({
   );
   const maxScore = Math.max(...(effectiveResult?.retrieved ?? []).map((h) => h.score), 0.0001);
 
-  const metrics = effectiveResult
+  // 评分卡 — F1 主卡 (MiniRing) + P/R/MRR/HitRate/Latency (指标均为 0-100 百分比)
+  const metricCards: MetricCardCfg[] = effectiveResult
     ? [
-        { label: 'Precision · 查准率', sub: '检索命中中的相关占比', value: effectiveResult.metrics.precision },
-        { label: 'Recall · 查全率', sub: '相关内容被召回的占比', value: effectiveResult.metrics.recall },
-        { label: 'F1 · 调和均值', sub: 'P 与 R 的调和平均', value: effectiveResult.metrics.f1 },
-        { label: 'MRR · 倒数排名', sub: '首个相关结果的排名倒数', value: effectiveResult.metrics.mrr },
-        { label: 'HitRate · 命中率', sub: '至少命中一个相关结果', value: effectiveResult.metrics.hitRate },
+        {
+          title: 'F1 · 调和均值',
+          sub: 'P 与 R 的调和平均',
+          value: effectiveResult.metrics.f1,
+          icon: <ClipboardCheck className="h-3.5 w-3.5" />,
+          gradient: 'from-[#c96442] to-[#a04e32]',
+          accent: '#c96442',
+          indicator: effectiveResult.metrics.f1 != null ? <MiniRing value={effectiveResult.metrics.f1} color="#c96442" size={26} /> : undefined,
+        },
+        {
+          title: 'Precision · 查准率',
+          sub: '检索命中中的相关占比',
+          value: effectiveResult.metrics.precision,
+          icon: <Target className="h-3.5 w-3.5" />,
+          gradient: 'from-[#2d8f8f] to-[#1a6b6b]',
+          accent: '#2d8f8f',
+          indicator: effectiveResult.metrics.precision != null ? <MiniBar value={effectiveResult.metrics.precision} color="#2d8f8f" showPct={false} /> : undefined,
+        },
+        {
+          title: 'Recall · 查全率',
+          sub: '相关内容被召回的占比',
+          value: effectiveResult.metrics.recall,
+          icon: <ListChecks className="h-3.5 w-3.5" />,
+          gradient: 'from-[#7c5cbf] to-[#5a3d99]',
+          accent: '#7c5cbf',
+          indicator: effectiveResult.metrics.recall != null ? <MiniBar value={effectiveResult.metrics.recall} color="#7c5cbf" showPct={false} /> : undefined,
+        },
+        {
+          title: 'MRR · 倒数排名',
+          sub: '首个相关结果的排名倒数',
+          value: effectiveResult.metrics.mrr,
+          icon: <TrendingUp className="h-3.5 w-3.5" />,
+          gradient: 'from-[#c9872e] to-[#a06b1a]',
+          accent: '#c9872e',
+        },
+        {
+          title: 'HitRate · 命中率',
+          sub: '至少命中一个相关结果',
+          value: effectiveResult.metrics.hitRate,
+          icon: <Crosshair className="h-3.5 w-3.5" />,
+          gradient: 'from-[#6b7280] to-[#4b5563]',
+          accent: '#6b7280',
+        },
+        {
+          title: 'Latency · 延迟',
+          sub: `${MODE_LABELS[effectiveResult.mode] ?? effectiveResult.mode} 检索 · ${effectiveResult.retrieved.length} 条结果 · ${effectiveResult.hasGroundTruth ? 'GT MATCHED' : '无 GT 标注'}`,
+          value: effectiveResult.latencyMs,
+          suffix: 'ms',
+          decimals: 0,
+          icon: <Timer className="h-3.5 w-3.5" />,
+          gradient: 'from-[#6b7280] to-[#4b5563]',
+          accent: '#6b7280',
+        },
       ]
     : [];
 
@@ -269,42 +341,27 @@ function RetrievalEvalTab({
       </Panel>
 
       {/* ===== 最新结果 ===== */}
-      {running && <Skeleton className="h-56 w-full rounded-lg" />}
+      {running && <Skeleton className="shimmer h-56 w-full rounded-lg" />}
       {effectiveResult && !running && (
         <div className="space-y-4">
-          {/* KPI 条 — hairline 分隔, mono 大数字 */}
-          <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-3 lg:grid-cols-6 [&>*:nth-child(2)]:border-l-0 md:[&>*]:border-l md:[&>*:first-child]:border-l-0 lg:[&>*:nth-child(2)]:border-l">
-            {metrics.map((m) => (
-              <div key={m.label} className="min-w-0 px-4 py-3">
-                <div className="label-tech !text-[9px]">{m.label}</div>
-                <div className={cn('num mt-1 text-[22px] font-medium leading-none tracking-tight', m.value == null && 'text-muted-foreground/50')}>
-                  {m.value != null ? m.value.toFixed(2) : '—'}
-                  {m.value != null && <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">%</span>}
-                </div>
-                <div className="mt-2 h-[3px] w-full overflow-hidden rounded-full bg-muted" aria-hidden>
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-500"
-                    style={{ width: `${m.value != null ? Math.min(100, m.value) : 0}%` }}
-                  />
-                </div>
-                <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">
-                  {m.value != null ? m.sub : 'NO GROUND TRUTH'}
-                </div>
-              </div>
+          {/* KPI 卡 — 领域色渐变图标 + 计数动画 + 迷你可视化 */}
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-6 [grid-auto-rows:1fr]">
+            {metricCards.map((m, i) => (
+              <StatCard
+                key={m.title}
+                title={m.title}
+                value={m.value ?? '—'}
+                suffix={m.value != null ? (m.suffix ?? '%') : ''}
+                decimals={m.decimals ?? 2}
+                subtitle={m.value != null ? m.sub : 'NO GROUND TRUTH'}
+                icon={m.icon}
+                gradient={m.gradient}
+                accent={m.accent}
+                delay={i * 45}
+                indicator={m.indicator}
+                tooltip={`${m.title}: ${m.value != null ? `${m.value.toFixed(m.decimals ?? 2)}${m.suffix ?? '%'}` : '无 Ground Truth'}`}
+              />
             ))}
-            <div className="min-w-0 px-4 py-3">
-              <div className="label-tech !text-[9px]">Latency · 延迟</div>
-              <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">
-                {effectiveResult.latencyMs}
-                <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">ms</span>
-              </div>
-              <div className="label-tech mt-2 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">
-                {MODE_LABELS[effectiveResult.mode] ?? effectiveResult.mode} 检索 · {effectiveResult.retrieved.length} 条结果
-              </div>
-              <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">
-                {effectiveResult.hasGroundTruth ? 'GT MATCHED' : '无 GT 标注'}
-              </div>
-            </div>
           </div>
 
           {/* ===== 检索结果 — 密集列表行 ===== */}
@@ -411,7 +468,16 @@ function RetrievalEvalTab({
                     </td>
                     <td className="num text-right">{r.precision != null ? `${r.precision.toFixed(2)}%` : '—'}</td>
                     <td className="num text-right">{r.recall != null ? `${r.recall.toFixed(2)}%` : '—'}</td>
-                    <td className="num text-right font-semibold">{r.f1 != null ? `${r.f1.toFixed(2)}%` : '—'}</td>
+                    <td className="text-right">
+                      {r.f1 != null ? (
+                        <span className="inline-flex items-center justify-end gap-1.5">
+                          <span className="num font-semibold">{r.f1.toFixed(2)}%</span>
+                          <TierBadge tier={scoreTier(r.f1)} />
+                        </span>
+                      ) : (
+                        <span className="num text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="num text-right text-muted-foreground">{r.resultCount}</td>
                     <td className="num whitespace-nowrap text-muted-foreground">{formatTime(r.createdAt)}</td>
                     <td>
@@ -579,39 +645,44 @@ function MonitorTab({ monitor, runs }: { monitor: Monitor | null; runs: EvalRun[
   );
 
   if (!monitor) {
-    return <Skeleton className="h-64 w-full rounded-lg" />;
+    return <Skeleton className="shimmer h-64 w-full rounded-lg" />;
   }
 
   return (
     <div className="space-y-4">
-      {/* KPI 条 — hairline 分隔 */}
-      <div className="grid grid-cols-1 divide-y divide-border rounded-lg border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-        <div className="min-w-0 px-4 py-3">
-          <div className="label-tech !text-[9px]">累计搜索</div>
-          <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">{monitor.totalSearches}</div>
-          <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">SEARCH LOG TOTAL</div>
-        </div>
-        <div className="min-w-0 px-4 py-3">
-          <div className="label-tech !text-[9px]">平均检索延迟</div>
-          <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">
-            {monitor.avgLatency != null ? monitor.avgLatency : '—'}
-            {monitor.avgLatency != null && <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">ms</span>}
-          </div>
-          <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">全量搜索日志均值</div>
-        </div>
-        <div className="min-w-0 px-4 py-3">
-          <div className="label-tech flex items-center gap-1.5 !text-[9px]">
-            零结果率
-            {monitor.zeroResultRate > 20 && <span className="status-dot" data-tone="amber" aria-hidden />}
-          </div>
-          <div className={cn('num mt-1 text-[22px] font-medium leading-none tracking-tight', monitor.zeroResultRate > 20 && 'text-chart-2')}>
-            {monitor.zeroResultRate}
-            <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">%</span>
-          </div>
-          <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">
-            {monitor.zeroResultRate > 20 ? '偏高 — 建议扩充语料或调整分块' : '空召回占比正常'}
-          </div>
-        </div>
+      {/* KPI 卡 — 领域色渐变图标 + 迷你可视化 */}
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3 [grid-auto-rows:1fr]">
+        <StatCard
+          title="累计搜索"
+          value={monitor.totalSearches}
+          subtitle="SEARCH LOG TOTAL"
+          icon={<Database className="h-3.5 w-3.5" />}
+          gradient="from-[#2d8f8f] to-[#1a6b6b]"
+          accent="#2d8f8f"
+          delay={0}
+        />
+        <StatCard
+          title="平均检索延迟"
+          value={monitor.avgLatency ?? '—'}
+          suffix={monitor.avgLatency != null ? 'ms' : ''}
+          subtitle="全量搜索日志均值"
+          icon={<Activity className="h-3.5 w-3.5" />}
+          gradient="from-[#c9872e] to-[#a06b1a]"
+          accent="#c9872e"
+          delay={45}
+        />
+        <StatCard
+          title="零结果率"
+          value={monitor.zeroResultRate}
+          suffix="%"
+          subtitle={monitor.zeroResultRate > 20 ? '偏高 — 建议扩充语料或调整分块' : '空召回占比正常'}
+          icon={<Gauge className="h-3.5 w-3.5" />}
+          gradient="from-[#6b7280] to-[#4b5563]"
+          accent={monitor.zeroResultRate > 20 ? '#c9872e' : '#6b7280'}
+          delay={90}
+          tooltip={`零结果率 ${monitor.zeroResultRate}% — ${monitor.zeroResultRate > 20 ? '偏高, 建议扩充语料或调整分块策略' : '空召回占比处于正常区间'}`}
+          indicator={<MiniRing value={monitor.zeroResultRate} color={monitor.zeroResultRate > 20 ? '#c9872e' : '#6b7280'} size={26} />}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -669,6 +740,7 @@ export function EvaluationView() {
   const [data, setData] = useState<AllResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [tab, setTab] = useState('retrieval');
 
   const loadAll = useCallback(async () => {
     try {
@@ -711,7 +783,7 @@ export function EvaluationView() {
           <div className="label-tech !text-[10px]">Benchmark · 评估中心</div>
           <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
             评估中心
-            <span className="font-display ml-2.5 align-middle text-[20px] font-normal italic tracking-normal text-muted-foreground/60 md:text-[24px]">
+            <span className="font-display ml-2.5 align-middle text-[20px] font-normal italic tracking-normal title-gradient md:text-[24px]">
               Benchmark
             </span>
           </h1>
@@ -746,23 +818,22 @@ export function EvaluationView() {
 
         {loading ? (
           <div className="space-y-4">
-            <Skeleton className="h-10 w-full max-w-md rounded-lg" />
-            <Skeleton className="h-36 w-full rounded-lg" />
-            <Skeleton className="h-56 w-full rounded-lg" />
+            <Skeleton className="shimmer h-10 w-full max-w-md rounded-lg" />
+            <Skeleton className="shimmer h-36 w-full rounded-lg" />
+            <Skeleton className="shimmer h-56 w-full rounded-lg" />
           </div>
         ) : (
-          <Tabs defaultValue="retrieval" className="space-y-4">
-            <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-lg border bg-card p-1 sm:w-auto">
-              <TabsTrigger value="retrieval" className="h-7 gap-1.5 px-3 text-xs data-[state=active]:!bg-accent data-[state=active]:!shadow-none dark:data-[state=active]:!bg-accent dark:data-[state=active]:!border-transparent">
-                <Gauge className="h-3.5 w-3.5" strokeWidth={1.75} />检索评估
-              </TabsTrigger>
-              <TabsTrigger value="gt" className="h-7 gap-1.5 px-3 text-xs data-[state=active]:!bg-accent data-[state=active]:!shadow-none dark:data-[state=active]:!bg-accent dark:data-[state=active]:!border-transparent">
-                <Database className="h-3.5 w-3.5" strokeWidth={1.75} />Ground Truth
-              </TabsTrigger>
-              <TabsTrigger value="monitor" className="h-7 gap-1.5 px-3 text-xs data-[state=active]:!bg-accent data-[state=active]:!shadow-none dark:data-[state=active]:!bg-accent dark:data-[state=active]:!border-transparent">
-                <Activity className="h-3.5 w-3.5" strokeWidth={1.75} />监控统计
-              </TabsTrigger>
-            </TabsList>
+          <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+            <SegmentedTabs
+              className="w-full sm:w-auto [&>button]:flex-1 [&>button]:min-w-0 sm:[&>button]:flex-none"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: 'retrieval', label: '检索评估' },
+                { value: 'gt', label: 'Ground Truth' },
+                { value: 'monitor', label: '监控统计' },
+              ]}
+            />
 
             <TabsContent value="retrieval">
               <RetrievalEvalTab runs={data?.runs ?? []} onDeleted={handleRunDeleted} onRunCompleted={handleGtChanged} />

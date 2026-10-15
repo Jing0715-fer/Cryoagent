@@ -12,14 +12,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { MethodBadge, SegmentedTabs, StatCard } from '@/components/ui/bench-widgets';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Loader2, PencilLine, Plus,
-  Search, Star, Trash2,
+  ArrowLeft, Boxes, ChevronDown, ChevronUp, Database, ExternalLink, FileText, Loader2, PencilLine, Plus,
+  Search, Star, StickyNote, Trash2,
 } from 'lucide-react';
 
 // ============ 类型定义 (API 契约) ============
@@ -91,31 +92,6 @@ function formatSize(bytes: number | null): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-/** 实验方法 tag — 分类色编码 (仅描边, 无底色块) */
-function MethodTag({ method }: { method: string | null }) {
-  const m = (method || '').toUpperCase();
-  let cls = 'border-border text-muted-foreground';
-  let label = method || '未知方法';
-  if (m.includes('X-RAY')) {
-    cls = 'border-chart-5/50 text-chart-5';
-    label = 'X-RAY';
-  } else if (m.includes('ELECTRON MICROSCOPY')) {
-    cls = 'border-chart-1/50 text-chart-1';
-    label = 'CRYO-EM';
-  } else if (m.includes('NMR')) {
-    cls = 'border-chart-2/50 text-chart-2';
-    label = 'NMR';
-  } else if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) {
-    cls = 'border-chart-3/50 text-chart-3';
-    label = 'PREDICTED';
-  }
-  return (
-    <span className={cn('shrink-0 rounded-[3px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide', cls)}>
-      {label}
-    </span>
-  );
 }
 
 // ============ 元数据编辑表单 (对话框与元数据 Tab 共用) ============
@@ -480,6 +456,7 @@ export function LiteratureDetailView() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [favBusy, setFavBusy] = useState(false);
+  const [tab, setTab] = useState('chunks');
 
   // 编辑对话框
   const [editOpen, setEditOpen] = useState(false);
@@ -595,19 +572,19 @@ export function LiteratureDetailView() {
     return (
       <div className="space-y-4 p-4 md:p-6">
         <div className="space-y-2.5 px-1">
-          <Skeleton className="h-3 w-36" />
-          <Skeleton className="h-7 w-3/4" />
-          <Skeleton className="h-3.5 w-1/2" />
+          <Skeleton className="shimmer h-3 w-36" />
+          <Skeleton className="shimmer h-7 w-3/4" />
+          <Skeleton className="shimmer h-3.5 w-1/2" />
         </div>
-        <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-4 [&>*:nth-child(2)]:border-l-0 md:[&>*]:border-l md:[&>*:first-child]:border-l-0">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4 [grid-auto-rows:1fr]">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="px-4 py-3">
-              <Skeleton className="h-2.5 w-12" />
-              <Skeleton className="mt-2 h-5 w-14" />
+            <div key={i} className="rounded-lg border bg-card p-3">
+              <Skeleton className="shimmer h-2.5 w-12" />
+              <Skeleton className="shimmer mt-2 h-5 w-14" />
             </div>
           ))}
         </div>
-        <Skeleton className="h-64 w-full rounded-lg" />
+        <Skeleton className="shimmer h-64 w-full rounded-lg" />
       </div>
     );
   }
@@ -627,13 +604,6 @@ export function LiteratureDetailView() {
 
   const lit = detail.literature;
   const isFav = lit.isFavorite;
-
-  const stats = [
-    { label: '分块', sub: 'RAG INDEX', value: String(lit.chunkCount) },
-    { label: '总词数', sub: 'PARSED', value: lit.wordCount.toLocaleString() },
-    { label: '关联结构', sub: 'PDB LINK', value: String(detail.structures.length) },
-    { label: '阅读笔记', sub: 'ANNOTATION', value: String(detail.notes.length) },
-  ];
 
   return (
     <div className="animate-fade-in-up">
@@ -717,15 +687,48 @@ export function LiteratureDetailView() {
           </span>
         </div>
 
-        {/* ===== KPI hairline 条 ===== */}
-        <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-4 [&>*:nth-child(2)]:border-l-0 md:[&>*]:border-l md:[&>*:first-child]:border-l-0">
-          {stats.map((s) => (
-            <div key={s.label} className="min-w-0 px-4 py-3">
-              <div className="label-tech !text-[9px]">{s.label}</div>
-              <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">{s.value}</div>
-              <div className="label-tech mt-1.5 !text-[9px] text-muted-foreground/70">{s.sub}</div>
-            </div>
-          ))}
+        {/* ===== KPI StatCard 网格 — 领域色渐变图标 + 计数动画 ===== */}
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4 [grid-auto-rows:1fr]">
+          <StatCard
+            title="分块"
+            value={lit.chunkCount}
+            subtitle="RAG INDEX"
+            icon={<Database className="h-3.5 w-3.5" />}
+            gradient="from-[#c9872e] to-[#a06b1a]"
+            accent="#c9872e"
+            delay={0}
+            tooltip={`检索分块 ${lit.chunkCount} 个`}
+          />
+          <StatCard
+            title="总词数"
+            value={lit.wordCount}
+            subtitle="PARSED"
+            icon={<FileText className="h-3.5 w-3.5" />}
+            gradient="from-[#6b7280] to-[#4b5563]"
+            accent="#6b7280"
+            delay={45}
+            tooltip={`解析总词数 ${lit.wordCount.toLocaleString()}`}
+          />
+          <StatCard
+            title="关联结构"
+            value={detail.structures.length}
+            subtitle="PDB LINK"
+            icon={<Boxes className="h-3.5 w-3.5" />}
+            gradient="from-[#2d8f8f] to-[#1a6b6b]"
+            accent="#2d8f8f"
+            delay={90}
+            tooltip={`文中提及并自动关联的结构 ${detail.structures.length} 个`}
+          />
+          <StatCard
+            title="阅读笔记"
+            value={detail.notes.length}
+            subtitle="ANNOTATION"
+            icon={<StickyNote className="h-3.5 w-3.5" />}
+            gradient="from-[#c96442] to-[#a04e32]"
+            accent="#c96442"
+            delay={135}
+            tooltip={`阅读笔记 ${detail.notes.length} 条`}
+          />
         </div>
 
         {/* ===== 摘要面板 ===== */}
@@ -741,34 +744,19 @@ export function LiteratureDetailView() {
           </section>
         )}
 
-        {/* ===== 主体 Tabs ===== */}
-        <Tabs defaultValue="chunks" className="gap-3">
-          <TabsList className="h-11 w-full justify-start gap-0.5 rounded-[5px] border bg-card p-[3px] md:h-9 sm:w-auto">
-            <TabsTrigger
-              value="chunks"
-              className="flex-1 px-3 text-xs sm:flex-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              分块检索
-            </TabsTrigger>
-            <TabsTrigger
-              value="structures"
-              className="flex-1 px-3 text-xs sm:flex-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              关联结构
-            </TabsTrigger>
-            <TabsTrigger
-              value="notes"
-              className="flex-1 px-3 text-xs sm:flex-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              阅读笔记
-            </TabsTrigger>
-            <TabsTrigger
-              value="metadata"
-              className="flex-1 px-3 text-xs sm:flex-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground"
-            >
-              元数据
-            </TabsTrigger>
-          </TabsList>
+        {/* ===== 主体 Tabs — 滑动药丸分段控制 ===== */}
+        <Tabs value={tab} onValueChange={setTab} className="gap-3">
+          <SegmentedTabs
+            className="w-full sm:w-auto [&>button]:flex-1 [&>button]:min-w-0 sm:[&>button]:flex-none"
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'chunks', label: '分块检索' },
+              { value: 'structures', label: '关联结构' },
+              { value: 'notes', label: '阅读笔记' },
+              { value: 'metadata', label: '元数据' },
+            ]}
+          />
 
           {/* 分块检索 */}
           <TabsContent value="chunks">
@@ -805,7 +793,7 @@ export function LiteratureDetailView() {
                       aria-label={`查看结构 ${s.id}`}
                     >
                       <span className="num shrink-0 text-[13px] font-semibold tracking-tight">{s.id}</span>
-                      <MethodTag method={s.method} />
+                      <MethodBadge method={s.method} />
                       <span className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground md:block">{s.title}</span>
                       {s.resolution != null && (
                         <span className="num ml-auto shrink-0 text-[10px] text-muted-foreground">{s.resolution} Å</span>

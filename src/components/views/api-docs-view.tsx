@@ -266,7 +266,7 @@ export function ApiDocsView() {
             <div className="label-tech !text-[10px]">API Reference · 接口文档</div>
             <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               接口文档
-              <span className="font-display ml-2.5 align-middle text-[20px] font-normal italic tracking-normal text-muted-foreground/60 md:text-[24px]">
+              <span className="font-display ml-2.5 align-middle text-[20px] font-normal italic tracking-normal title-gradient md:text-[24px]">
                 Reference
               </span>
             </h1>

@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { MethodBadge, SegmentedTabs } from '@/components/ui/bench-widgets';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -87,26 +88,6 @@ function Empty({ text, action }: { text: string; action?: React.ReactNode }) {
   );
 }
 
-/** 实验方法短码标签 — 分类编码走 chart 色系, outline 风格 */
-function methodShort(method: string | null): string {
-  const m = (method || '').toUpperCase();
-  if (m.includes('X-RAY')) return 'X-RAY';
-  if (m.includes('ELECTRON MICROSCOPY')) return 'CRYO-EM';
-  if (m.includes('NMR')) return 'NMR';
-  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'PRED';
-  return method ? method.slice(0, 8).toUpperCase() : '—';
-}
-
-/** 实验方法领域色 — 参照 pdb-tracker-web-v5: X-ray 紫罗兰 · Cryo-EM 青绿 · NMR 琥珀 · 预测 石板灰 */
-function methodTone(method: string | null): string {
-  const m = (method || '').toUpperCase();
-  if (m.includes('X-RAY')) return 'border-chart-3/45 text-chart-3';
-  if (m.includes('ELECTRON MICROSCOPY')) return 'border-chart-2/45 text-chart-2';
-  if (m.includes('NMR')) return 'border-chart-4/45 text-chart-4';
-  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'border-chart-5/45 text-chart-5';
-  return 'border-border text-muted-foreground';
-}
-
 /** 分辨率质量读数条 — 24×3px 仪器读数, 宽度按分辨率分档 (一眼判断数据质量) */
 function ResolutionBar({ value }: { value: number | null }) {
   let widthPct = 25;
@@ -132,19 +113,6 @@ function ResolutionBar({ value }: { value: number | null }) {
       aria-hidden
     >
       <span className={cn('h-full rounded-[1px]', tone)} style={{ width: `${widthPct}%` }} />
-    </span>
-  );
-}
-
-function MethodTag({ method }: { method: string | null }) {
-  return (
-    <span
-      className={cn(
-        'shrink-0 rounded-[4px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide',
-        methodTone(method)
-      )}
-    >
-      {methodShort(method)}
     </span>
   );
 }
@@ -195,7 +163,7 @@ function StructureRow({ item }: { item: StructureListItem }) {
             {item.id}
           </span>
         </span>
-        <MethodTag method={item.method} />
+        <MethodBadge method={item.method} />
         {item.resolution != null && (
           <span className="flex shrink-0 items-center gap-1.5">
             <span className="num text-[10px] text-muted-foreground">{item.resolution.toFixed(1)}Å</span>
@@ -259,7 +227,7 @@ function RcsbHitRow({ hit }: { hit: RcsbHit }) {
             CACHED
           </span>
         )}
-        <MethodTag method={hit.method ?? null} />
+        <MethodBadge method={hit.method ?? null} />
         {hit.resolution != null && (
           <span className="flex shrink-0 items-center gap-1.5">
             <span className="num text-[10px] text-muted-foreground">{hit.resolution.toFixed(1)}Å</span>
@@ -374,7 +342,7 @@ export function StructuresView() {
             </div>
             <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               结构浏览器
-              <span className="font-display ml-2.5 font-normal italic text-foreground/60">Structure Library</span>
+              <span className="font-display ml-2.5 font-normal italic title-gradient">Structure Library</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               本地结构缓存与 RCSB Protein Data Bank 远程检索 — 打开详情自动入库, 支撑 3D 可视化与知识图谱关联
@@ -392,21 +360,23 @@ export function StructuresView() {
 
       <div className="p-4 md:p-6">
         <Tabs value={tab} onValueChange={setTab} className="gap-4">
-          <TabsList className="h-9 w-full gap-0 rounded-[5px] border bg-card p-[3px] shadow-none sm:w-auto">
-            <TabsTrigger
-              value="local"
-              className="flex-1 gap-1.5 rounded-[4px] px-4 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
-            >
-              本地缓存
-              {data && <span className="num text-[9px] text-muted-foreground">{data.total}</span>}
-            </TabsTrigger>
-            <TabsTrigger
-              value="rcsb"
-              className="flex-1 gap-1.5 rounded-[4px] px-4 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
-            >
-              RCSB 搜索
-            </TabsTrigger>
-          </TabsList>
+          <SegmentedTabs
+            className="w-full sm:w-auto [&>button]:flex-1 [&>button]:min-w-0 sm:[&>button]:flex-none"
+            value={tab}
+            onChange={setTab}
+            options={[
+              {
+                value: 'local',
+                label: (
+                  <>
+                    本地缓存
+                    {data && <span className="num text-[9px] text-muted-foreground">{data.total}</span>}
+                  </>
+                ),
+              },
+              { value: 'rcsb', label: 'RCSB 搜索' },
+            ]}
+          />
 
           {/* ======== 本地缓存 ======== */}
           <TabsContent value="local" className="space-y-4">
@@ -473,10 +443,10 @@ export function StructuresView() {
                 <div className="divide-y">
                   {Array.from({ length: 8 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-3">
-                      <Skeleton className="h-4 w-14" />
-                      <Skeleton className="h-4 w-16" />
-                      <Skeleton className="h-3 flex-1" />
-                      <Skeleton className="hidden h-3 w-20 sm:block" />
+                      <Skeleton className="shimmer h-4 w-14" />
+                      <Skeleton className="shimmer h-4 w-16" />
+                      <Skeleton className="shimmer h-3 flex-1" />
+                      <Skeleton className="shimmer hidden h-3 w-20 sm:block" />
                     </div>
                   ))}
                 </div>
@@ -594,9 +564,9 @@ export function StructuresView() {
                 <div className="divide-y">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-3">
-                      <Skeleton className="h-4 w-14" />
-                      <Skeleton className="h-4 w-16" />
-                      <Skeleton className="h-3 flex-1" />
+                      <Skeleton className="shimmer h-4 w-14" />
+                      <Skeleton className="shimmer h-4 w-16" />
+                      <Skeleton className="shimmer h-3 flex-1" />
                     </div>
                   ))}
                 </div>

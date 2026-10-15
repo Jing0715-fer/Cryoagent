@@ -11,7 +11,8 @@ import { useAppStore, api } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { MethodBadge, SegmentedTabs } from '@/components/ui/bench-widgets';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -184,38 +185,6 @@ function Empty({ text }: { text: string }) {
     <div className="label-tech flex h-full min-h-[96px] items-center justify-center px-4 py-10 text-center !text-[10px] normal-case !tracking-[0.06em]">
       {text}
     </div>
-  );
-}
-
-/** 实验方法短码标签 — 分类编码走 chart 色系 */
-function methodShort(method: string | null): string {
-  const m = (method || '').toUpperCase();
-  if (m.includes('X-RAY')) return 'X-RAY';
-  if (m.includes('ELECTRON MICROSCOPY')) return 'CRYO-EM';
-  if (m.includes('NMR')) return 'NMR';
-  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'PRED';
-  return method ? method.slice(0, 8).toUpperCase() : '—';
-}
-
-function methodTone(method: string | null): string {
-  const m = (method || '').toUpperCase();
-  if (m.includes('X-RAY')) return 'border-chart-3/45 text-chart-3';
-  if (m.includes('ELECTRON MICROSCOPY')) return 'border-chart-2/45 text-chart-2';
-  if (m.includes('NMR')) return 'border-chart-4/45 text-chart-4';
-  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'border-chart-5/45 text-chart-5';
-  return 'border-border text-muted-foreground';
-}
-
-function MethodTag({ method }: { method: string | null }) {
-  return (
-    <span
-      className={cn(
-        'shrink-0 rounded-[3px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide',
-        methodTone(method)
-      )}
-    >
-      {methodShort(method)}
-    </span>
   );
 }
 
@@ -555,6 +524,7 @@ export function StructureDetailView() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [tab, setTab] = useState('overview');
 
   // 拉取结构详情
   useEffect(() => {
@@ -636,19 +606,19 @@ export function StructureDetailView() {
         <div className="grid-bg border-b">
           <div className="space-y-3 px-4 py-6 md:px-6">
             <div className="flex items-center justify-between">
-              <Skeleton className="h-3 w-32" />
-              <Skeleton className="h-3 w-24" />
+              <Skeleton className="shimmer h-3 w-32" />
+              <Skeleton className="shimmer h-3 w-24" />
             </div>
-            <Skeleton className="h-8 w-44" />
-            <Skeleton className="h-3 w-full max-w-lg" />
+            <Skeleton className="shimmer h-8 w-44" />
+            <Skeleton className="shimmer h-3 w-full max-w-lg" />
           </div>
         </div>
         <div className="space-y-4 p-4 md:p-6">
           <div className="grid gap-4 lg:grid-cols-3">
-            <Skeleton className="h-[520px] rounded-lg lg:col-span-2" />
-            <Skeleton className="h-[520px] rounded-lg" />
+            <Skeleton className="shimmer h-[520px] rounded-lg lg:col-span-2" />
+            <Skeleton className="shimmer h-[520px] rounded-lg" />
           </div>
-          <Skeleton className="h-40 rounded-lg" />
+          <Skeleton className="shimmer h-40 rounded-lg" />
         </div>
       </div>
     );
@@ -711,8 +681,8 @@ export function StructureDetailView() {
             <div className="min-w-0">
               <div className="label-tech !text-[10px]">PDB Entry · 结构详情</div>
               <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
-                <h1 className="font-display text-[30px] leading-none tracking-tight md:text-[34px]">{s.pdbId}</h1>
-                <MethodTag method={s.method} />
+                <h1 className="font-display title-gradient text-[30px] leading-none tracking-tight md:text-[34px]">{s.pdbId}</h1>
+                <MethodBadge method={s.method} />
                 {s.resolution != null && (
                   <span className="num text-xs text-muted-foreground">{s.resolution.toFixed(1)}Å</span>
                 )}
@@ -770,7 +740,7 @@ export function StructureDetailView() {
             <div className="divide-y text-muted-foreground/40 [&>*]:divide-x-0">
               <MetaRow label="实验方法">
                 <span className="flex items-center gap-2">
-                  <MethodTag method={s.method} />
+                  <MethodBadge method={s.method} />
                   <span className="num text-[10px] text-muted-foreground">{s.method || '—'}</span>
                 </span>
               </MetaRow>
@@ -820,25 +790,20 @@ export function StructureDetailView() {
         </div>
 
         {/* ===== 主体 Tabs ===== */}
-        <Tabs defaultValue="overview" className="gap-4">
-          <TabsList className="h-9 w-full gap-0 rounded-[5px] border bg-card p-[3px] shadow-none sm:w-auto">
-            {(
+        <Tabs value={tab} onValueChange={setTab} className="gap-4">
+          <SegmentedTabs
+            className="w-full sm:w-auto [&>button]:flex-1 [&>button]:min-w-0 sm:[&>button]:flex-none"
+            value={tab}
+            onChange={setTab}
+            options={(
               [
-                ['overview', `概览`],
+                ['overview', '概览'],
                 ['sequences', `实体序列${s.sequences.length ? ` ${s.sequences.length}` : ''}`],
                 ['literature', `关联文献${detail.literature.length ? ` ${detail.literature.length}` : ''}`],
                 ['related', `相关结构${detail.relatedStructures.length ? ` ${detail.relatedStructures.length}` : ''}`],
               ] as const
-            ).map(([value, label]) => (
-              <TabsTrigger
-                key={value}
-                value={value}
-                className="flex-1 gap-1.5 rounded-[4px] px-3.5 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
-              >
-                {label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+            ).map(([value, label]) => ({ value, label }))}
+          />
 
           {/* ======== 概览 ======== */}
           <TabsContent value="overview" className="space-y-4">

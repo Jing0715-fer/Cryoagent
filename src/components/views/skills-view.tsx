@@ -16,9 +16,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatCard } from '@/components/ui/bench-widgets';
 import { toast } from 'sonner';
 import {
-  ArrowRight, Loader2, MessageSquare, Search, Target,
+  Activity, ArrowRight, Layers, Loader2, MessageSquare, Search, Sparkles, Target,
 } from 'lucide-react';
 
 // ============ 类型定义 (API 契约) ============
@@ -337,7 +338,7 @@ function SkillMatcher() {
   };
 
   return (
-    <section className="rounded-lg border bg-card">
+    <section className="card-shadow rounded-lg border bg-card">
       <div className="flex items-center gap-3 border-b px-4 py-2.5">
         <span className="label-tech !text-[10px] text-foreground/75">匹配测试器 · ROUTER TEST</span>
         <span className="label-tech ml-auto !text-[9px]">KEYWORD MATCH</span>
@@ -467,7 +468,7 @@ export function SkillsView() {
             <div className="label-tech !text-[10px]">Skills · 技能中心</div>
             <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               技能中心
-              <span className="font-display ml-2 font-normal italic text-muted-foreground">Expert Skills</span>
+              <span className="font-display ml-2 font-normal italic title-gradient">Expert Skills</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               预设专家技能库 — 按触发关键词自动路由激活, 覆盖结构比较 · 文献综述 · 序列分析 · 实验方法 · 靶点与突变分析
@@ -485,6 +486,42 @@ export function SkillsView() {
       </div>
 
       <div className="space-y-4 p-4 md:p-6">
+        {/* ===== 技能规模 StatCard — 领域色渐变图标 + 计数动画 ===== */}
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 [grid-auto-rows:1fr]">
+          <StatCard
+            title="技能总数"
+            value={data?.total ?? 0}
+            subtitle="预设专家技能 · 关键词自动路由"
+            icon={<Sparkles className="h-3.5 w-3.5" />}
+            gradient="from-[#c96442] to-[#a04e32]"
+            accent="#c96442"
+            loading={loading}
+            delay={0}
+            tooltip={`预设专家技能 ${data?.total ?? 0} 个 · ${data?.categories.length ?? 0} 分类`}
+          />
+          <StatCard
+            title="覆盖分类"
+            value={data?.categories.length ?? 0}
+            subtitle="结构 · 文献 · 序列 · 方法 · 靶点"
+            icon={<Layers className="h-3.5 w-3.5" />}
+            gradient="from-[#6b7280] to-[#4b5563]"
+            accent="#6b7280"
+            loading={loading}
+            delay={45}
+          />
+          <StatCard
+            title="累计调用"
+            value={data?.skills.reduce((sum, s) => sum + s.usageCount, 0) ?? 0}
+            subtitle="历史技能调用次数 · 全库"
+            icon={<Activity className="h-3.5 w-3.5" />}
+            gradient="from-[#7c5cbf] to-[#5a3d99]"
+            accent="#7c5cbf"
+            loading={loading}
+            delay={90}
+            className="col-span-2 md:col-span-1"
+          />
+        </div>
+
         {/* 错误 */}
         {error && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4" role="alert">
@@ -530,7 +567,7 @@ export function SkillsView() {
 
         {/* 技能目录 — 分组 Panel + 密集行 */}
         {loading ? (
-          <section className="rounded-lg border bg-card">
+          <section className="card-shadow rounded-lg border bg-card">
             <div className="flex items-center gap-3 border-b px-4 py-2.5">
               <span className="label-tech !text-[10px] text-foreground/75">技能目录 · CATALOG</span>
               <span className="label-tech ml-auto !text-[9px]">LOADING…</span>
@@ -538,8 +575,8 @@ export function SkillsView() {
             <div className="divide-y">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="px-4 py-3">
-                  <Skeleton className="h-4 w-36" />
-                  <Skeleton className="mt-2 h-3 w-full max-w-md" />
+                  <Skeleton className="shimmer h-4 w-36" />
+                  <Skeleton className="shimmer mt-2 h-3 w-full max-w-md" />
                 </div>
               ))}
             </div>
@@ -547,7 +584,7 @@ export function SkillsView() {
         ) : (
           <div className={cn('grid gap-4', category === 'all' && 'xl:grid-cols-2')}>
             {grouped.map((cat) => (
-              <section key={cat.id} className="rounded-lg border bg-card">
+              <section key={cat.id} className="card-shadow rounded-lg border bg-card">
                 <div className="relative flex items-center gap-3 border-b px-4 py-2.5">
                   <span className={cn('absolute inset-y-[9px] left-0 w-[2px]', categoryBar(cat.id))} aria-hidden />
                   <span className="label-tech !text-[10px] text-foreground/75">{cat.label} · {categoryCode(cat.id)}</span>

@@ -14,9 +14,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { MethodBadge, MiniRing, SegmentedTabs, StatCard } from '@/components/ui/bench-widgets';
 import { toast } from 'sonner';
-import { ChevronRight, GitBranch, Loader2, Network, Route, Search } from 'lucide-react';
+import {
+  BookOpen, Boxes, ChevronRight, GitBranch, Loader2, Network, Route, Search, Share2,
+} from 'lucide-react';
 
 // ============ 类型定义 (API 契约) ============
 
@@ -86,37 +89,6 @@ function Empty({ text }: { text: string }) {
   );
 }
 
-/** 实验方法短码标签 — 分类编码走 chart 色系 */
-function methodShort(method: string | null): string {
-  const m = (method || '').toUpperCase();
-  if (m.includes('X-RAY')) return 'X-RAY';
-  if (m.includes('ELECTRON MICROSCOPY')) return 'CRYO-EM';
-  if (m.includes('NMR')) return 'NMR';
-  return method ? method.slice(0, 10).toUpperCase() : '—';
-}
-
-function methodTone(method: string | null): string {
-  const m = (method || '').toUpperCase();
-  if (m.includes('X-RAY')) return 'border-chart-3/45 text-chart-3';
-  if (m.includes('ELECTRON MICROSCOPY')) return 'border-chart-2/45 text-chart-2';
-  if (m.includes('NMR')) return 'border-chart-4/45 text-chart-4';
-  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'border-chart-5/45 text-chart-5';
-  return 'border-border text-muted-foreground';
-}
-
-function MethodTag({ method }: { method: string | null }) {
-  return (
-    <span
-      className={cn(
-        'shrink-0 rounded-[3px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide',
-        methodTone(method)
-      )}
-    >
-      {methodShort(method)}
-    </span>
-  );
-}
-
 // ============ 工具 ============
 
 /** 节点点击 → 跳转详情 */
@@ -163,6 +135,9 @@ export function KgView() {
   const [pathTarget, setPathTarget] = useState('7A5I');
   const [pathResult, setPathResult] = useState<KgPathResponse | null>(null);
   const [pathLoading, setPathLoading] = useState(false);
+
+  // Tab 视图切换 (受控 — 供 SegmentedTabs 滑动药丸)
+  const [tab, setTab] = useState('global');
 
   // 初始加载: 统计 + 全局图谱
   useEffect(() => {
@@ -259,7 +234,7 @@ export function KgView() {
             <div className="label-tech !text-[10px]">Knowledge Graph · 知识图谱</div>
             <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
               知识图谱
-              <span className="font-display ml-2.5 font-normal italic text-foreground/60">Knowledge Graph</span>
+              <span className="font-display ml-2.5 font-normal italic title-gradient">Knowledge Graph</span>
             </h1>
             <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
               结构 — 文献 — 蛋白质三元关联网络 · 力导向可视化 · 邻域展开 · 最短路径发现与序列相似度参考
@@ -276,64 +251,100 @@ export function KgView() {
       </div>
 
       <div className="space-y-4 p-4 md:p-6">
-        {/* ===== KPI 条 — hairline 分隔, 无卡片 ===== */}
-        {loading ? (
-          <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="px-4 py-3">
-                <Skeleton className="h-2.5 w-14" />
-                <Skeleton className="mt-2 h-6 w-16" />
-              </div>
-            ))}
-          </div>
-        ) : error ? (
+        {/* ===== KPI — StatCard 网格: 领域色渐变图标 + 计数动画 + 迷你可视化 ===== */}
+        {error ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4">
             <div className="label-tech !text-[10px] !text-destructive">GRAPH LOAD FAILED</div>
             <p className="mt-1 text-xs text-destructive/90">{error}</p>
           </div>
-        ) : stats ? (
-          <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-4">
-            {(
-              [
-                ['节点', 'NODES', stats.nodeCount],
-                ['结构节点', 'STRUCT', stats.structureCount],
-                ['文献节点', 'LIT', stats.literatureCount],
-                ['关联边', 'EDGES', stats.edgeCount],
-              ] as const
-            ).map(([label, code, value]) => (
-              <div key={code} className="min-w-0 px-4 py-3">
-                <div className="label-tech !text-[9px]">{label}</div>
-                <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">{value.toLocaleString()}</div>
-                <div className="label-tech mt-1.5 !text-[9px] text-muted-foreground/70">{code}</div>
-              </div>
-            ))}
+        ) : (
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 [grid-auto-rows:1fr]">
+            <StatCard
+              title="节点总数"
+              value={stats?.nodeCount ?? 0}
+              subtitle={stats ? '结构 · 文献 · 蛋白实体' : undefined}
+              icon={<Network className="h-3.5 w-3.5" />}
+              gradient="from-[#6b7280] to-[#4b5563]"
+              accent="#6b7280"
+              loading={!stats}
+              delay={0}
+              tooltip={stats ? `知识图谱节点 ${stats.nodeCount} 个` : undefined}
+            />
+            <StatCard
+              title="结构节点"
+              value={stats?.structureCount ?? 0}
+              subtitle={
+                stats
+                  ? `占节点 ${Math.round((stats.structureCount / Math.max(stats.nodeCount, 1)) * 100)}%`
+                  : undefined
+              }
+              icon={<Boxes className="h-3.5 w-3.5" />}
+              gradient="from-[#2d8f8f] to-[#1a6b6b]"
+              accent="#2d8f8f"
+              loading={!stats}
+              delay={45}
+              tooltip={stats ? `结构节点 ${stats.structureCount} / 总节点 ${stats.nodeCount}` : undefined}
+              indicator={
+                stats ? <MiniRing value={stats.structureCount} max={stats.nodeCount} color="#2d8f8f" /> : undefined
+              }
+            />
+            <StatCard
+              title="文献节点"
+              value={stats?.literatureCount ?? 0}
+              subtitle={stats ? '上传文献实体' : undefined}
+              icon={<BookOpen className="h-3.5 w-3.5" />}
+              gradient="from-[#c96442] to-[#a04e32]"
+              accent="#c96442"
+              loading={!stats}
+              delay={90}
+              tooltip={stats ? `文献节点 ${stats.literatureCount} 篇` : undefined}
+            />
+            <StatCard
+              title="关联边"
+              value={stats?.edgeCount ?? 0}
+              subtitle={stats ? '结构 ↔ 文献关联' : undefined}
+              icon={<Share2 className="h-3.5 w-3.5" />}
+              gradient="from-[#7c5cbf] to-[#5a3d99]"
+              accent="#7c5cbf"
+              loading={!stats}
+              delay={135}
+              tooltip={stats ? `关联边 ${stats.edgeCount} 条` : undefined}
+            />
           </div>
-        ) : null}
+        )}
 
-        <Tabs defaultValue="global" className="gap-4">
-          <TabsList className="h-9 w-full gap-0 rounded-[5px] border bg-card p-[3px] shadow-none sm:w-auto">
-            <TabsTrigger
-              value="global"
-              className="flex-1 gap-1.5 rounded-[4px] px-4 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
-            >
-              <Network className="h-3.5 w-3.5" strokeWidth={1.75} />
-              全局图谱
-            </TabsTrigger>
-            <TabsTrigger
-              value="neighborhood"
-              className="flex-1 gap-1.5 rounded-[4px] px-4 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
-            >
-              <GitBranch className="h-3.5 w-3.5" strokeWidth={1.75} />
-              邻域查询
-            </TabsTrigger>
-            <TabsTrigger
-              value="path"
-              className="flex-1 gap-1.5 rounded-[4px] px-4 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
-            >
-              <Route className="h-3.5 w-3.5" strokeWidth={1.75} />
-              路径发现
-            </TabsTrigger>
-          </TabsList>
+        <Tabs value={tab} onValueChange={setTab} className="gap-4">
+          <SegmentedTabs
+            className="w-full sm:w-auto [&>button]:flex-1 [&>button]:min-w-0 sm:[&>button]:flex-none"
+            value={tab}
+            onChange={setTab}
+            options={[
+              {
+                value: 'global',
+                label: (
+                  <>
+                    <Network className="h-3.5 w-3.5" strokeWidth={1.75} /> 全局图谱
+                  </>
+                ),
+              },
+              {
+                value: 'neighborhood',
+                label: (
+                  <>
+                    <GitBranch className="h-3.5 w-3.5" strokeWidth={1.75} /> 邻域查询
+                  </>
+                ),
+              },
+              {
+                value: 'path',
+                label: (
+                  <>
+                    <Route className="h-3.5 w-3.5" strokeWidth={1.75} /> 路径发现
+                  </>
+                ),
+              },
+            ]}
+          />
 
           {/* ============ 全局图谱 ============ */}
           <TabsContent value="global" className="space-y-4">
@@ -383,7 +394,7 @@ export function KgView() {
                             className="flex w-full items-baseline gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
                           >
                             <span className="num text-[13px] font-semibold tracking-tight">{s.id}</span>
-                            <MethodTag method={s.method} />
+                            <MethodBadge method={s.method} />
                             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{s.title}</span>
                             <span className="num shrink-0 text-[10px] text-muted-foreground">LIT {s.literatureCount}</span>
                           </button>
@@ -427,7 +438,7 @@ export function KgView() {
                 />
                 <div className="p-2">
                   {loading ? (
-                    <Skeleton className="h-[460px] w-full rounded-md" />
+                    <Skeleton className="shimmer h-[460px] w-full rounded-md" />
                   ) : graph && graph.nodes.length > 0 ? (
                     <div className="relative overflow-hidden rounded-md">
                       <ForceGraph nodes={graph.nodes} edges={graph.edges} height={460} onNodeClick={handleNodeClick} />
@@ -449,8 +460,8 @@ export function KgView() {
                 <div className="max-h-[478px] flex-1 divide-y overflow-y-auto custom-scrollbar">
                   {loading && Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="px-4 py-3">
-                      <Skeleton className="h-3.5 w-20" />
-                      <Skeleton className="mt-1.5 h-2.5 w-full" />
+                      <Skeleton className="shimmer h-3.5 w-20" />
+                      <Skeleton className="shimmer mt-1.5 h-2.5 w-full" />
                     </div>
                   ))}
                   {popular.map((s, i) => (
@@ -523,7 +534,7 @@ export function KgView() {
             {nbLoading && (
               <Panel>
                 <div className="p-2">
-                  <Skeleton className="h-[460px] w-full rounded-md" />
+                  <Skeleton className="shimmer h-[460px] w-full rounded-md" />
                 </div>
               </Panel>
             )}
@@ -608,9 +619,9 @@ export function KgView() {
             {pathLoading && (
               <Panel>
                 <div className="p-4">
-                  <Skeleton className="h-8 w-48" />
-                  <Skeleton className="mt-4 h-7 w-full" />
-                  <Skeleton className="mt-4 h-16 w-full" />
+                  <Skeleton className="shimmer h-8 w-48" />
+                  <Skeleton className="shimmer mt-4 h-7 w-full" />
+                  <Skeleton className="shimmer mt-4 h-16 w-full" />
                 </div>
               </Panel>
             )}
