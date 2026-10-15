@@ -189,7 +189,7 @@ export function DashboardView() {
               {data && data.qaActivity.length > 0 ? (
                 <div className="screen-inset rounded-md p-3">
                   <ResponsiveContainer width="100%" height={168}>
-                    <BarChart data={data.qaActivity} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                    <BarChart data={data.qaActivity} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="2 4" stroke="currentColor" vertical={false} opacity={0.14} />
                       <XAxis dataKey="date" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={AXIS_LINE} />
                       <YAxis allowDecimals={false} tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={false} width={30} />
@@ -365,7 +365,7 @@ export function DashboardView() {
               {data && data.yearStats.length > 0 ? (
                 <div className="screen-inset rounded-md p-3">
                   <ResponsiveContainer width="100%" height={140}>
-                    <AreaChart data={data.yearStats} margin={{ top: 6, right: 8, left: -22, bottom: 0 }}>
+                    <AreaChart data={data.yearStats} margin={{ top: 6, right: 8, left: -16, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="2 4" stroke="currentColor" vertical={false} opacity={0.14} />
                       <XAxis dataKey="year" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={AXIS_LINE} />
                       <YAxis allowDecimals={false} tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={TICK_LINE} axisLine={false} width={30} />

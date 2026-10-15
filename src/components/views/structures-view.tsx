@@ -97,12 +97,13 @@ function methodShort(method: string | null): string {
   return method ? method.slice(0, 8).toUpperCase() : '—';
 }
 
+/** 实验方法领域色 — 参照 pdb-tracker-web-v5: X-ray 紫罗兰 · Cryo-EM 青绿 · NMR 琥珀 · 预测 石板灰 */
 function methodTone(method: string | null): string {
   const m = (method || '').toUpperCase();
-  if (m.includes('X-RAY')) return 'border-chart-1/45 text-chart-1';
-  if (m.includes('ELECTRON MICROSCOPY')) return 'border-chart-3/45 text-chart-3';
-  if (m.includes('NMR')) return 'border-chart-2/45 text-chart-2';
-  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'border-chart-4/45 text-chart-4';
+  if (m.includes('X-RAY')) return 'border-chart-3/45 text-chart-3';
+  if (m.includes('ELECTRON MICROSCOPY')) return 'border-chart-2/45 text-chart-2';
+  if (m.includes('NMR')) return 'border-chart-4/45 text-chart-4';
+  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'border-chart-5/45 text-chart-5';
   return 'border-border text-muted-foreground';
 }
 
@@ -139,7 +140,7 @@ function MethodTag({ method }: { method: string | null }) {
   return (
     <span
       className={cn(
-        'shrink-0 rounded-[3px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide',
+        'shrink-0 rounded-[4px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide',
         methodTone(method)
       )}
     >

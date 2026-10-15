@@ -4,10 +4,14 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * ============ CryoAgent Pro — "BENCH" 设计系统 ============
- * 视觉语言: 科学仪器面板 × 印刷期刊
- * 原则: 零渐变 / 零装饰光斑 / hairline 边框 / mono 面板标签 /
- *       高信息密度 / 单一信号色 (teal) 仅用于 状态·激活·关键数据
+ * ============ CryoAgent Pro — "WARM BENCH" 设计系统 ============
+ * 视觉语言: Claude 式暖纸底 × 印刷期刊 × 科学仪器细节
+ * 迁移自 BENCH 冷调体系 → 参照 pdb-tracker-web-v5 的暖调语言:
+ *   · 奶油纸底 (#faf8f5) + 纯白卡面, 层叠而非平面
+ *   · 赤陶信号色 (terracotta #c96442) — 仅用于 状态/激活/关键数据
+ *   · 领域方法色: Cryo-EM 青绿 · X-ray 紫罗兰 · NMR 琥珀
+ *   · 柔和圆角 (10px) + 轻盈卡片阴影 + 悬停微抬升
+ *   · 保留 BENCH 的科学细节: mono 标签 / 坐标纸 / 仪器表格 / 刻度尺
  */
 
 @theme inline {
@@ -41,86 +45,93 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-wash: var(--primary-wash);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: calc(var(--radius) - 1px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 3px);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* ---- 浅色 · 实验台纸张 (warm bench paper) ---- */
+/* ---- 浅色 · 暖纸工作台 (warm cream paper) ---- */
 :root {
-  --radius: 0.375rem; /* 收紧圆角 → 仪器感 */
-  --background: oklch(0.972 0.004 95);
-  --foreground: oklch(0.245 0.012 80);
-  --card: oklch(0.992 0.001 95);
-  --card-foreground: oklch(0.245 0.012 80);
-  --popover: oklch(0.992 0.001 95);
-  --popover-foreground: oklch(0.245 0.012 80);
-  /* 信号色 — 冰晶 teal, 只表达 状态/激活/关键数据 */
-  --primary: oklch(0.545 0.095 176);
-  --primary-foreground: oklch(0.985 0.002 95);
-  --secondary: oklch(0.935 0.004 95);
-  --secondary-foreground: oklch(0.3 0.012 80);
-  --muted: oklch(0.938 0.003 95);
-  --muted-foreground: oklch(0.51 0.011 85);
-  --accent: oklch(0.945 0.008 176);
-  --accent-foreground: oklch(0.3 0.012 80);
-  --destructive: oklch(0.55 0.19 27);
-  --border: oklch(0.245 0.012 80 / 13%);
-  --input: oklch(0.245 0.012 80 / 16%);
-  --ring: oklch(0.545 0.095 176 / 55%);
-  --chart-1: oklch(0.565 0.095 176); /* teal — 主数据 */
-  --chart-2: oklch(0.66 0.125 75);   /* amber — 次数据 */
-  --chart-3: oklch(0.52 0.13 300);   /* violet */
-  --chart-4: oklch(0.6 0.15 15);     /* rose */
-  --chart-5: oklch(0.55 0.025 250);  /* slate */
-  --sidebar: oklch(0.962 0.004 95);
-  --sidebar-foreground: oklch(0.245 0.012 80);
-  --sidebar-primary: oklch(0.545 0.095 176);
-  --sidebar-primary-foreground: oklch(0.985 0.002 95);
-  --sidebar-accent: oklch(0.925 0.006 95);
-  --sidebar-accent-foreground: oklch(0.3 0.012 80);
-  --sidebar-border: oklch(0.245 0.012 80 / 12%);
-  --sidebar-ring: oklch(0.545 0.095 176 / 55%);
+  --radius: 0.625rem; /* 柔和圆角 → Claude 式亲和感 */
+  --background: #faf8f5;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  /* 信号色 — 赤陶 terracotta, 只表达 状态/激活/关键数据 */
+  --primary: #c96442;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f0ea;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f5f0ea;
+  --muted-foreground: #6b6560;
+  --accent: #f0ebe4;          /* 悬停底 — 暖沙 */
+  --accent-foreground: #1a1a1a;
+  --destructive: #dc2626;
+  --border: #e8e4dd;
+  --border-strong: #dcd6cc;
+  --input: #e8e4dd;
+  --ring: #c96442;
+  /* 图表语义: chart-1 赤陶(主数据) · chart-2 青绿(Cryo-EM) · chart-3 紫罗兰(X-ray) · chart-4 琥珀(NMR) · chart-5 石板灰 */
+  --chart-1: #c96442;
+  --chart-2: #2d8f8f;
+  --chart-3: #7c5cbf;
+  --chart-4: #c9872e;
+  --chart-5: #6b7280;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0ebe4;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #ece7e0;
+  --sidebar-ring: #c96442;
+  /* 赤陶浅底 — 激活导航/选中态 */
+  --primary-wash: #fdf0eb;
 }
 
-/* ---- 深色 · 仪器面板 (cool graphite) ---- */
+/* ---- 深色 · 暖夜面板 (warm graphite) ---- */
 .dark {
-  --background: oklch(0.178 0.008 190);
-  --foreground: oklch(0.92 0.004 95);
-  --card: oklch(0.218 0.008 190);
-  --card-foreground: oklch(0.92 0.004 95);
-  --popover: oklch(0.218 0.008 190);
-  --popover-foreground: oklch(0.92 0.004 95);
-  --primary: oklch(0.76 0.1 176);
-  --primary-foreground: oklch(0.16 0.012 190);
-  --secondary: oklch(0.262 0.008 190);
-  --secondary-foreground: oklch(0.92 0.004 95);
-  --muted: oklch(0.252 0.008 190);
-  --muted-foreground: oklch(0.66 0.01 190);
-  --accent: oklch(0.272 0.014 178);
-  --accent-foreground: oklch(0.92 0.004 95);
-  --destructive: oklch(0.66 0.17 25);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 13%);
-  --ring: oklch(0.76 0.1 176 / 50%);
-  --chart-1: oklch(0.72 0.1 176);
-  --chart-2: oklch(0.74 0.12 75);
-  --chart-3: oklch(0.65 0.13 300);
-  --chart-4: oklch(0.68 0.15 15);
-  --chart-5: oklch(0.62 0.025 250);
-  --sidebar: oklch(0.16 0.008 190);
-  --sidebar-foreground: oklch(0.92 0.004 95);
-  --sidebar-primary: oklch(0.76 0.1 176);
-  --sidebar-primary-foreground: oklch(0.16 0.012 190);
-  --sidebar-accent: oklch(0.24 0.01 190);
-  --sidebar-accent-foreground: oklch(0.92 0.004 95);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.76 0.1 176 / 50%);
+  --background: #1a1917;
+  --foreground: #e8e4dd;
+  --card: #242220;
+  --card-foreground: #e8e4dd;
+  --popover: #242220;
+  --popover-foreground: #e8e4dd;
+  --primary: #d4784f;
+  --primary-foreground: #ffffff;
+  --secondary: #2b2926;
+  --secondary-foreground: #e8e4dd;
+  --muted: #2b2926;
+  --muted-foreground: #9b9590;
+  --accent: #2b2926;
+  --accent-foreground: #e8e4dd;
+  --destructive: #ef4444;
+  --border: #3d3832;
+  --border-strong: #4a443c;
+  --input: #3d3832;
+  --ring: #d4784f;
+  --chart-1: #d4784f;
+  --chart-2: #3db5b5;
+  --chart-3: #9b7ed8;
+  --chart-4: #d9a24e;
+  --chart-5: #9b9590;
+  --sidebar: #242220;
+  --sidebar-foreground: #e8e4dd;
+  --sidebar-primary: #d4784f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2b2926;
+  --sidebar-accent-foreground: #e8e4dd;
+  --sidebar-border: #34302b;
+  --sidebar-ring: #d4784f;
+  --primary-wash: #33261f;
 }
 
 @layer base {
@@ -132,11 +143,46 @@
     font-feature-settings: "ss01";
   }
   ::selection {
-    background: color-mix(in oklch, var(--primary) 24%, transparent);
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+  html {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+  /* Claude 式键盘焦点环 — 2px 信号色 + 4px 柔光晕 (仅 focus-visible) */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--primary),
+      0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent);
+    border-radius: inherit;
+    transition: box-shadow 0.15s ease;
+  }
+  /* 鼠标点击不出焦点环 */
+  button:focus:not(:focus-visible),
+  a:focus:not(:focus-visible),
+  input:focus:not(:focus-visible),
+  select:focus:not(:focus-visible),
+  textarea:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+  }
+  /* 按压反馈 — 轻微下压 */
+  button:active:not(:disabled) {
+    transform: scale(0.97);
+    transition: transform 0.1s ease;
   }
 }
 
-/* ============ BENCH 设计工具类 ============ */
+/* ============ WARM BENCH 设计工具类 ============ */
 
 /* 仪器面板标签 — 分组标题 / 字段标签 / 表头 */
 .label-tech {
@@ -159,32 +205,53 @@
   font-family: var(--font-instrument-serif), Georgia, serif;
 }
 
+/* Claude 式卡片阴影 — 轻盈双层投影 + 悬停微抬升 */
+.card-shadow {
+  box-shadow: 0 1px 3px rgba(26, 26, 26, 0.04), 0 1px 2px rgba(26, 26, 26, 0.02);
+  transition: box-shadow 0.25s ease, transform 0.2s ease;
+}
+.card-shadow:hover {
+  box-shadow: 0 6px 16px rgba(26, 26, 26, 0.08), 0 2px 4px rgba(26, 26, 26, 0.03);
+}
+.dark .card-shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+.dark .card-shadow:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32), 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* 赤陶品牌块 — 侧栏 logo / 关键图标容器 (135° 微渐变 + 暖阴影) */
+.brand-tile {
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 82%, #8a3d22));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
 /* 双级坐标纸 — minor 28px + major 140px, 仅用于 masthead 区域 */
 .grid-bg {
   background-image:
-    linear-gradient(to right, color-mix(in oklch, var(--foreground) 7%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklch, var(--foreground) 7%, transparent) 1px, transparent 1px),
-    linear-gradient(to right, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px);
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 3.5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 3.5%, transparent) 1px, transparent 1px);
   background-size: 140px 140px, 140px 140px, 28px 28px, 28px 28px;
 }
 
 /* 水平刻度尺 — 7px 小刻度(4px 高) / 35px 大刻度(8px 高), 锚定元素底边 */
 .ruler-x {
   background-image:
-    repeating-linear-gradient(to right, color-mix(in oklch, var(--foreground) 25%, transparent) 0 1px, transparent 1px 35px),
-    repeating-linear-gradient(to right, color-mix(in oklch, var(--foreground) 25%, transparent) 0 1px, transparent 1px 7px);
+    repeating-linear-gradient(to right, color-mix(in srgb, var(--foreground) 22%, transparent) 0 1px, transparent 1px 35px),
+    repeating-linear-gradient(to right, color-mix(in srgb, var(--foreground) 22%, transparent) 0 1px, transparent 1px 7px);
   background-size: 100% 8px, 100% 4px;
   background-position: left bottom;
   background-repeat: no-repeat;
 }
 
-/* 内凹屏幕 — 图表画布区 (深一档中性底 + 内阴影压边) */
+/* 内凹屏幕 — 图表画布区 (暖沙底 + 内阴影压边) */
 .screen-inset {
   box-shadow:
-    inset 0 1px 3px color-mix(in oklch, var(--foreground) 7%, transparent),
-    inset 0 0 0 1px color-mix(in oklch, var(--foreground) 4%, transparent);
-  background: color-mix(in oklch, var(--card) 60%, var(--background));
+    inset 0 1px 3px color-mix(in srgb, var(--foreground) 5%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--foreground) 4%, transparent);
+  background: color-mix(in srgb, var(--muted) 45%, var(--background));
 }
 
 /* 仪器铭牌角标 — 面板四角小标注 (FIG.01 / CH-01) */
@@ -194,7 +261,7 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
+  color: color-mix(in srgb, var(--muted-foreground) 62%, transparent);
 }
 
 /* 状态点 — LED 指示灯 (同色 25% 描边 + 15% 光环, 无发光无模糊) */
@@ -206,32 +273,32 @@
   background: var(--primary);
   flex-shrink: 0;
   box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--primary) 25%, transparent),
-    0 0 0 3px color-mix(in oklch, var(--primary) 15%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--primary) 25%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 .status-dot[data-tone="amber"] {
-  background: oklch(0.66 0.125 75);
+  background: var(--chart-4);
   box-shadow:
-    0 0 0 1px oklch(0.66 0.125 75 / 25%),
-    0 0 0 3px oklch(0.66 0.125 75 / 15%);
+    0 0 0 1px color-mix(in srgb, var(--chart-4) 25%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--chart-4) 15%, transparent);
 }
 .status-dot[data-tone="red"] {
   background: var(--destructive);
   box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--destructive) 25%, transparent),
-    0 0 0 3px color-mix(in oklch, var(--destructive) 15%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--destructive) 25%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--destructive) 15%, transparent);
 }
 .status-dot[data-tone="muted"] {
   background: var(--muted-foreground);
   box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--muted-foreground) 25%, transparent),
-    0 0 0 3px color-mix(in oklch, var(--muted-foreground) 15%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--muted-foreground) 25%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--muted-foreground) 15%, transparent);
 }
 
 /* 自定义滚动条 — 更细更淡 */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 20%, transparent) transparent;
 }
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
@@ -241,11 +308,11 @@
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: color-mix(in oklch, var(--foreground) 22%, transparent);
+  background: color-mix(in srgb, var(--foreground) 20%, transparent);
   border-radius: 999px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklch, var(--foreground) 38%, transparent);
+  background: color-mix(in srgb, var(--foreground) 36%, transparent);
 }
 
 /* Markdown 排版 */
@@ -264,13 +331,13 @@
   word-break: break-all;
 }
 
-/* 比对着色 — 信号色体系 */
+/* 比对着色 — 方法语义色体系 (青绿=匹配, 琥珀=保守替换) */
 .aln-match {
-  color: var(--chart-1);
+  color: var(--chart-2);
   font-weight: 700;
 }
 .aln-positive {
-  color: var(--chart-2);
+  color: var(--chart-4);
   font-weight: 600;
 }
 .aln-gap {
@@ -303,6 +370,27 @@
   animation: fade-in-up 0.25s ease-out both;
 }
 
+/* 列表交错入场 — 顶部 KPI 卡片等 */
+@keyframes stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.stagger-list > * {
+  animation: stagger-in 0.3s ease-out both;
+}
+.stagger-list > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-list > *:nth-child(2) { animation-delay: 45ms; }
+.stagger-list > *:nth-child(3) { animation-delay: 90ms; }
+.stagger-list > *:nth-child(4) { animation-delay: 135ms; }
+.stagger-list > *:nth-child(5) { animation-delay: 180ms; }
+.stagger-list > *:nth-child(6) { animation-delay: 225ms; }
+
 /* 表格默认密度 (紧凑仪器表格) */
 table.bench {
   width: 100%;
@@ -323,7 +411,7 @@ table.bench thead th {
 }
 table.bench tbody td {
   padding: 0.4375rem 0.625rem;
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 55%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   vertical-align: middle;
 }
 table.bench tbody tr:last-child td {
@@ -333,5 +421,5 @@ table.bench tbody tr {
   transition: background-color 0.12s;
 }
 table.bench tbody tr:hover {
-  background: color-mix(in oklch, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
 }

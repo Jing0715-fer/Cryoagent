@@ -199,10 +199,10 @@ function methodShort(method: string | null): string {
 
 function methodTone(method: string | null): string {
   const m = (method || '').toUpperCase();
-  if (m.includes('X-RAY')) return 'border-chart-1/45 text-chart-1';
-  if (m.includes('ELECTRON MICROSCOPY')) return 'border-chart-3/45 text-chart-3';
-  if (m.includes('NMR')) return 'border-chart-2/45 text-chart-2';
-  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'border-chart-4/45 text-chart-4';
+  if (m.includes('X-RAY')) return 'border-chart-3/45 text-chart-3';
+  if (m.includes('ELECTRON MICROSCOPY')) return 'border-chart-2/45 text-chart-2';
+  if (m.includes('NMR')) return 'border-chart-4/45 text-chart-4';
+  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'border-chart-5/45 text-chart-5';
   return 'border-border text-muted-foreground';
 }
 

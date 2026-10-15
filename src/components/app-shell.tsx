@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * CryoAgent Pro — 应用外壳 · BENCH 设计系统
- * 仪器面板式侧边栏 + 面包屑顶栏 + mono 状态条页脚 + 命令面板
+ * CryoAgent Pro — 应用外壳 · WARM BENCH 设计系统
+ * Claude 式暖纸侧边栏 (赤陶品牌块 + 乳白导航) + 面包屑顶栏 + 状态条页脚 + 命令面板
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -179,33 +179,46 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
   /* ============ 侧边栏 (桌面展开态) ============ */
   const sidebar = (
     <div className="flex h-full flex-col bg-sidebar">
-      {/* 品牌区 — 衬线 wordmark + 仪器铭牌 */}
-      <div className="border-b border-sidebar-border px-4 pb-3.5 pt-4">
-        <div className="flex items-baseline justify-between">
-          <span className="flex items-baseline gap-2">
-            <img src="/logo.svg" alt="" aria-hidden="true" className="h-4 w-4 shrink-0" />
-            <span className="font-display text-[22px] leading-none tracking-tight text-sidebar-foreground">
-              CryoAgent
-            </span>
-          </span>
-          <span className="label-tech rounded-[3px] border border-sidebar-primary/45 px-1 py-px !text-[9px] !tracking-[0.14em] text-sidebar-primary">
-            PRO
-          </span>
-        </div>
-        <div className="label-tech mt-2 !text-[9px] !tracking-[0.18em]">
-          Cryo-EM Intelligence Workbench
+      {/* 品牌区 — 赤陶渐变块 + 编辑性 wordmark */}
+      <div className="border-b border-sidebar-border px-4 pb-4 pt-4">
+        <div className="flex items-center gap-3">
+          <div className="brand-tile flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]">
+            <svg viewBox="0 0 32 32" className="h-5 w-5" fill="none" aria-hidden="true">
+              <g stroke="#ffffff" strokeOpacity={0.85} strokeWidth={1.4}>
+                <path d="M16 16 L10 10 M16 16 L22 10 M16 16 L10 22 M16 16 L22 22 M10 10 L22 10 M10 22 L22 22 M10 10 L10 22 M22 10 L22 22" />
+              </g>
+              <circle cx="10" cy="10" r="2.1" fill="#ffffff" />
+              <circle cx="22" cy="10" r="2.1" fill="#ffffff" />
+              <circle cx="10" cy="22" r="2.1" fill="#ffffff" />
+              <circle cx="22" cy="22" r="2.1" fill="#ffffff" />
+              <circle cx="16" cy="16" r="3.6" fill="#ffffff" />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-display text-[21px] leading-none tracking-tight text-sidebar-foreground">
+                CryoAgent
+              </span>
+              <span className="label-tech rounded-[4px] border border-sidebar-primary/40 bg-primary-wash px-1 py-px !text-[9px] !tracking-[0.12em] text-sidebar-primary">
+                PRO
+              </span>
+            </div>
+            <div className="label-tech mt-1.5 !text-[9px] !tracking-[0.16em]">
+              Cryo-EM Intelligence Workbench
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 导航 — 面板分组 + 左侧信号条 */}
-      <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-4 custom-scrollbar" aria-label="主导航">
+      {/* 导航 — 暖调分组 + 赤陶激活态 */}
+      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4 custom-scrollbar" aria-label="主导航">
         {grouped.map(({ group, items }) => (
           <div key={group}>
             <div className="mb-1.5 flex items-center gap-2 px-2.5">
               <span className="label-tech shrink-0 !text-[9px]">{group}</span>
               <span className="flex-1 border-t border-sidebar-border" aria-hidden />
             </div>
-            <div className="space-y-px">
+            <div className="space-y-0.5">
               {items.map((item) => {
                 const active = activeView === item.id || parentView === item.id;
                 return (
@@ -214,22 +227,21 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
                     onClick={() => navigate(item.id)}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'group relative flex w-full items-center gap-2.5 rounded-[5px] px-2.5 py-[7px] text-[13px] transition-colors',
+                      'group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] transition-colors',
                       active
-                        ? 'bg-sidebar-accent font-medium text-sidebar-primary'
-                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
+                        ? 'bg-primary-wash font-medium text-sidebar-primary'
+                        : 'text-sidebar-foreground/72 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground'
                     )}
                     type="button"
                   >
-                    {active && <span className="absolute inset-y-[5px] left-0 w-[2px] rounded-full bg-sidebar-primary" aria-hidden />}
                     <item.icon className="h-[15px] w-[15px] shrink-0" strokeWidth={active ? 2 : 1.75} />
                     <span className="truncate">{item.label}</span>
                     <span
                       className={cn(
                         'ml-auto shrink-0 font-mono text-[9px] font-medium uppercase tracking-[0.1em] transition-colors',
                         active
-                          ? 'text-sidebar-primary/75'
-                          : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/80'
+                          ? 'text-sidebar-primary/80'
+                          : 'text-sidebar-foreground/38 group-hover:text-sidebar-foreground/75'
                       )}
                       aria-hidden
                     >
@@ -272,8 +284,13 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
             sidebar
           ) : (
             <div className="flex h-full flex-col items-center bg-sidebar py-4">
-              <div className="mb-3 flex h-7 w-7 items-center justify-center" title="CryoAgent Pro">
-                <img src="/logo.svg" alt="CryoAgent Pro" className="h-7 w-7" />
+              <div className="brand-tile mb-4 flex h-9 w-9 items-center justify-center rounded-[10px]" title="CryoAgent Pro">
+                <svg viewBox="0 0 32 32" className="h-5 w-5" fill="none" aria-hidden="true">
+                  <g stroke="#ffffff" strokeOpacity={0.85} strokeWidth={1.4}>
+                    <path d="M16 16 L10 10 M16 16 L22 10 M16 16 L10 22 M16 16 L22 22 M10 10 L22 10 M10 22 L22 22 M10 10 L10 22 M22 10 L22 22" />
+                  </g>
+                  <circle cx="16" cy="16" r="3.6" fill="#ffffff" />
+                </svg>
               </div>
               <nav className="flex flex-1 flex-col items-center gap-1" aria-label="主导航">
                 {NAV_ITEMS.map((item) => {
@@ -285,14 +302,13 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
                       title={item.label}
                       aria-current={active ? 'page' : undefined}
                       className={cn(
-                        'relative flex h-8 w-8 items-center justify-center rounded-[5px] transition-colors',
+                        'relative flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
                         active
-                          ? 'bg-sidebar-accent text-sidebar-primary'
-                          : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
+                          ? 'bg-primary-wash text-sidebar-primary'
+                          : 'text-sidebar-foreground/58 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground'
                       )}
                       type="button"
                     >
-                      {active && <span className="absolute inset-y-1 left-0 w-[2px] rounded-full bg-sidebar-primary" aria-hidden />}
                       <item.icon className="h-[15px] w-[15px]" strokeWidth={active ? 2 : 1.75} />
                     </button>
                   );
@@ -332,7 +348,7 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
 
             {/* 面包屑 — 中文标题 + chevron + 拉丁短码 */}
             <nav className="flex min-w-0 items-center gap-1.5 pl-1" aria-label="当前视图">
-              <h1 className="truncate text-[13.5px] font-medium tracking-tight">{crumb.label}</h1>
+              <h1 className="truncate text-[13.5px] font-semibold tracking-tight">{crumb.label}</h1>
               <ChevronRight className="hidden h-2.5 w-2.5 shrink-0 text-muted-foreground/50 sm:block" strokeWidth={2} aria-hidden />
               <span className="label-tech hidden !text-[10px] sm:inline">{crumb.slug}</span>
             </nav>
@@ -341,12 +357,12 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
               {/* 命令面板触发 */}
               <button
                 onClick={() => setCommandOpen(true)}
-                className="hidden h-8 items-center gap-2 rounded-[5px] border bg-card px-2.5 text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground sm:flex"
+                className="hidden h-8 items-center gap-2 rounded-lg border bg-card px-2.5 text-muted-foreground transition-colors hover:border-primary/45 hover:text-foreground sm:flex"
                 type="button"
               >
                 <Search className="h-3.5 w-3.5" strokeWidth={1.75} />
                 <span className="label-tech !text-[9px]">SEARCH</span>
-                <kbd className="rounded-[3px] border bg-muted px-1 py-px font-mono text-[9px] text-muted-foreground">⌘K</kbd>
+                <kbd className="rounded-[4px] border bg-muted px-1 py-px font-mono text-[9px] text-muted-foreground">⌘K</kbd>
               </button>
               <Button variant="ghost" size="icon" className="h-8 w-8 sm:hidden" onClick={() => setCommandOpen(true)} aria-label="搜索">
                 <Search className="h-4 w-4" />
@@ -370,7 +386,7 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-8 gap-2 px-1.5">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary text-[11px] font-semibold uppercase text-primary-foreground">
+                    <div className="brand-tile flex h-6 w-6 items-center justify-center rounded-[6px] text-[11px] font-semibold uppercase text-primary-foreground">
                       {user ? (user.displayName || user.username).slice(0, 1) : '·'}
                     </div>
                     <span className="hidden text-xs font-medium md:inline">{user ? user.displayName || user.username : '游客'}</span>
@@ -459,7 +475,7 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
         </CommandList>
       </CommandDialog>
 
-      {/* 登录/注册 — 平面仪器面板 */}
+      {/* 登录/注册 — 暖纸面板 */}
       {loginOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/25 p-4 backdrop-blur-[2px]"
@@ -469,12 +485,19 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
           aria-label={loginMode === 'login' ? '登录' : '注册'}
         >
           <div
-            className="w-full max-w-[340px] rounded-lg border bg-card p-5 shadow-xl"
+            className="card-shadow w-full max-w-[340px] rounded-xl border bg-card p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-baseline justify-between border-b pb-3">
-              <span className="font-display text-lg tracking-tight">CryoAgent</span>
-              <span className="label-tech !text-[9px]">{loginMode === 'login' ? 'SIGN IN' : 'SIGN UP'}</span>
+            <div className="flex items-center gap-3 border-b pb-3.5">
+              <div className="brand-tile flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px]">
+                <svg viewBox="0 0 32 32" className="h-4.5 w-4.5" fill="none" aria-hidden="true">
+                  <circle cx="16" cy="16" r="3.6" fill="#ffffff" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-display text-lg leading-none tracking-tight">CryoAgent</div>
+                <div className="label-tech mt-1 !text-[9px]">{loginMode === 'login' ? 'SIGN IN' : 'SIGN UP'}</div>
+              </div>
             </div>
             <p className="label-tech mt-3 !text-[9px] normal-case !tracking-normal">
               {needSetup && loginMode === 'register' ? '首个注册用户将成为管理员' : '登录后同步问答历史与阅读笔记'}
