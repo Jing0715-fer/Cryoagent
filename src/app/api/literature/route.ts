@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q') || '';
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1);
     const pageSize = Math.min(50, Math.max(5, parseInt(searchParams.get('pageSize') || '12')));
     const sort = searchParams.get('sort') || 'recent';
     const favorite = searchParams.get('favorite');

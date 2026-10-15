@@ -1,23 +1,22 @@
 'use client';
 
 /**
- * CryoAgent Pro — 智能问答 (RAG 流式 + Agent 工具调用)
- * 对应原版 qa.html 的完整聊天界面
+ * CryoAgent Pro — 智能问答 · QA Console (BENCH 设计系统)
+ * RAG 流式检索 + Agent 工具调用 · 对话记录式排版 (无气泡) · 仪器模式切换
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore, streamSse, api } from '@/lib/store';
 import { MarkdownView } from '@/components/markdown-view';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
-  Send, Square, Plus, BookOpen, Cpu, Sparkles, FileText, Trash2, History,
-  Wrench, Clock, ChevronDown, ChevronUp, Zap, MessageSquare, Copy, Check,
-  RefreshCw, PanelRightOpen, PanelRightClose, CircleAlert,
+  Send, Square, Plus, BookOpen, Cpu, Sparkles, History,
+  Wrench, ChevronDown, ChevronUp, Copy, Check,
+  RefreshCw, PanelRightOpen, PanelRightClose, CircleAlert, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -63,14 +62,55 @@ interface SkillInfo {
 }
 
 const WELCOME_PROMPTS = [
-  { text: 'SARS-CoV-2 spike 蛋白与 ACE2 的结合亲和力如何？', icon: '🔗' },
-  { text: 'Cryo-EM 达到原子分辨率需要哪些条件？', icon: '🔬' },
-  { text: '比较 6M0J 和 6VXX 两个结构', icon: '⚖️' },
-  { text: 'AlphaFold 的预测精度达到了什么水平？', icon: '🧬' },
+  { code: 'PPI', text: 'SARS-CoV-2 spike 蛋白与 ACE2 的结合亲和力如何？' },
+  { code: 'RES', text: 'Cryo-EM 达到原子分辨率需要哪些条件？' },
+  { code: 'CMP', text: '比较 6M0J 和 6VXX 两个结构' },
+  { code: 'AF2', text: 'AlphaFold 的预测精度达到了什么水平？' },
 ];
 
 let msgId = 0;
 const nextId = () => `msg-${++msgId}-${Date.now()}`;
+
+/* ============ BENCH 局部工具 (与 dashboard-view 同构) ============ */
+
+const TAG_TONES = {
+  muted: 'border-border text-muted-foreground',
+  agent: 'border-chart-2/50 text-chart-2',
+  skill: 'border-chart-3/50 text-chart-3',
+  error: 'border-destructive/50 text-destructive',
+  primary: 'border-primary/50 text-primary',
+} as const;
+
+function Tag({ tone = 'muted', className, ...props }: React.HTMLAttributes<HTMLSpanElement> & { tone?: keyof typeof TAG_TONES }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 rounded-[3px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide',
+        TAG_TONES[tone],
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="label-tech flex h-full min-h-[88px] items-center justify-center px-4 py-8 text-center !text-[10px] normal-case !tracking-[0.06em]">
+      {text}
+    </div>
+  );
+}
+
+function PanelHead({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 border-b px-4 py-2.5">
+      <span className="label-tech !text-[10px] text-foreground/75">{title}</span>
+      {hint && <span className="label-tech ml-auto !text-[9px]">{hint}</span>}
+      {action}
+    </div>
+  );
+}
 
 export function QaView() {
   const viewParams = useAppStore((s) => s.viewParams);
@@ -85,6 +125,7 @@ export function QaView() {
   const [showSources, setShowSources] = useState(true);
   const [historySessions, setHistorySessions] = useState<{ sessionId: string; question: string; count: number; lastAt: string; mode: string }[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const abortRef = useRef<AbortController | null>(null);
@@ -117,7 +158,7 @@ export function QaView() {
         toast.success(`已激活技能: ${skill.name}`, { description: skill.description });
       }
     }
-     
+
   }, [viewParams.skillId]);
 
   // 自动滚动
@@ -195,7 +236,7 @@ export function QaView() {
           onError: (message) => {
             setMessages((prev) =>
               prev.map((msg) =>
-                msg.id === assistantId ? { ...msg, streaming: false, error: true, content: msg.content || `⚠️ ${message}` } : msg
+                msg.id === assistantId ? { ...msg, streaming: false, error: true, content: msg.content || `ERROR · ${message}` } : msg
               )
             );
             toast.error(message);
@@ -221,7 +262,7 @@ export function QaView() {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Agent 执行失败';
         setMessages((prev) =>
-          prev.map((msg) => (msg.id === assistantId ? { ...msg, streaming: false, error: true, content: `⚠️ ${message}` } : msg))
+          prev.map((msg) => (msg.id === assistantId ? { ...msg, streaming: false, error: true, content: `ERROR · ${message}` } : msg))
         );
         toast.error(message);
       }
@@ -287,103 +328,122 @@ export function QaView() {
   };
 
   const activeSkillInfo = skills.find((s) => s.id === activeSkill);
+  const lastWithSources = [...messages].reverse().find((m) => m.sources && m.sources.length > 0);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* 聊天区域 */}
-      <div className="flex min-h-0 flex-1">
-        {/* 主聊天 */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* 顶部工具条 */}
-          <div className="flex items-center gap-2 border-b px-4 py-2">
-            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={newSession}>
-              <Plus className="h-3.5 w-3.5" />新对话
-            </Button>
-            <div className="flex rounded-lg border p-0.5">
-              <button
-                type="button"
-                onClick={() => setMode('rag')}
-                className={cn(
-                  'flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-all',
-                  mode === 'rag' ? 'bg-teal-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <BookOpen className="h-3 w-3" />RAG 问答
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('agent')}
-                className={cn(
-                  'flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-all',
-                  mode === 'agent' ? 'bg-amber-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Cpu className="h-3 w-3" />Agent 模式
-              </button>
+    <div className="flex h-full min-h-0 flex-col animate-fade-in-up">
+      {/* ===== Masthead — 坐标纸 + 控制台铭牌 ===== */}
+      <div className="grid-bg shrink-0 border-b">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-4 md:px-6 md:py-5">
+          <div>
+            <div className="label-tech !text-[10px]">QA Console · 智能问答</div>
+            <h1 className="mt-1.5 text-[24px] font-semibold leading-none tracking-tight md:text-[28px]">
+              智能问答 <span className="font-display italic text-primary">Q&amp;A</span>
+            </h1>
+            <p className="mt-2 max-w-lg text-xs leading-relaxed text-muted-foreground">
+              基于本地文献库的混合检索问答 · RAG 回答附可溯源引用；AGENT 模式自动调用结构 / 序列 / 文献工具多步推理
+            </p>
+          </div>
+          <div className="label-tech space-y-1.5 text-right !text-[10px]">
+            <div className="flex items-center justify-end gap-2">
+              <span className="status-dot" data-tone={busy ? 'amber' : undefined} aria-hidden />
+              {busy ? 'GENERATING' : 'READY'}
             </div>
-            {activeSkillInfo && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="outline" className="max-w-[180px] gap-1 truncate border-rose-500/40 text-rose-600 dark:text-rose-400">
-                    <Sparkles className="h-3 w-3" />
-                    {activeSkillInfo.name}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs text-xs">{activeSkillInfo.description}</TooltipContent>
-              </Tooltip>
-            )}
+            <div className="text-muted-foreground/60">HYBRID BM25+VEC · SSE STREAM</div>
+            <div className="num text-muted-foreground/60">SESSION {sessionId.slice(-8).toUpperCase()}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        {/* ===== 主对话列 ===== */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* 工具条 */}
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-card px-4 py-2 md:px-6">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 gap-1.5 text-xs md:h-8"
+              onClick={newSession}
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />新对话
+            </Button>
+            <span className="label-tech hidden !text-[9px] md:inline">
+              {messages.length > 0 ? `${messages.length} MSG · ${historySessions.length} SESSIONS` : 'SESSION EMPTY'}
+            </span>
             <div className="ml-auto flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowSources(!showSources)} title="切换来源面板">
-                {showSources ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-11 w-11 md:h-8 md:w-8"
+                onClick={() => setShowSources(!showSources)}
+                aria-pressed={showSources}
+                aria-label="切换检索来源侧栏"
+                title="切换来源侧栏"
+              >
+                {showSources ? <PanelRightClose className="h-4 w-4" strokeWidth={1.75} /> : <PanelRightOpen className="h-4 w-4" strokeWidth={1.75} />}
               </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowHistory(true)} title="历史会话">
-                <History className="h-4 w-4" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-11 w-11 md:h-8 md:w-8"
+                onClick={() => setShowHistory(true)}
+                aria-label="打开历史会话"
+                title="历史会话"
+              >
+                <History className="h-4 w-4" strokeWidth={1.75} />
               </Button>
             </div>
           </div>
 
-          {/* 消息列表 */}
+          {/* 消息区 — 对话记录式排版 */}
           <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center px-6 py-10">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-xl shadow-teal-500/20">
-                  <MessageSquare className="h-7 w-7" />
+              <div className="flex h-full flex-col items-center justify-center px-4 py-10">
+                <div className="label-tech !text-[10px]">
+                  NO SESSION — {mode === 'rag' ? 'RAG 检索模式 · 回答附引用来源' : 'AGENT 工具模式 · 多步推理可审计'}
                 </div>
-                <h2 className="mt-4 text-lg font-semibold">今天想探索什么？</h2>
-                <p className="mt-1 max-w-md text-center text-sm text-muted-foreground">
-                  {mode === 'rag'
-                    ? '基于文献知识库的 RAG 智能问答 — 回答附带引用来源'
-                    : 'Agent 模式 — AI 将自动调用结构/序列/文献工具多步推理'}
+                <h2 className="mt-3 text-lg font-semibold tracking-tight">向文献知识库提问</h2>
+                <p className="mt-1.5 max-w-md text-center text-xs leading-relaxed text-muted-foreground">
+                  回答由本地知识库检索生成并标注引用片段 · 支持多轮上下文追问
                 </p>
-                <div className="mt-6 grid w-full max-w-2xl gap-2.5 sm:grid-cols-2">
-                  {WELCOME_PROMPTS.map((p) => (
-                    <button
-                      key={p.text}
-                      onClick={() => void sendQuestion(p.text)}
-                      className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 text-left text-sm transition-all hover:border-teal-500/50 hover:shadow-md"
-                      type="button"
-                    >
-                      <span className="text-lg">{p.icon}</span>
-                      <span className="flex-1 text-muted-foreground group-hover:text-foreground">{p.text}</span>
-                    </button>
-                  ))}
+
+                {/* 预设问题 — hairline 密集行 */}
+                <div className="mt-6 w-full max-w-2xl overflow-hidden rounded-lg border bg-card">
+                  <div className="border-b px-4 py-2.5">
+                    <span className="label-tech !text-[10px] text-foreground/75">Preset Queries · 预设问题</span>
+                  </div>
+                  <div className="divide-y">
+                    {WELCOME_PROMPTS.map((p) => (
+                      <button
+                        key={p.text}
+                        onClick={() => void sendQuestion(p.text)}
+                        className="group flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/50"
+                        type="button"
+                      >
+                        <span className="num w-8 shrink-0 text-[10px] text-muted-foreground/60">{p.code}</span>
+                        <span className="min-w-0 flex-1 truncate text-[13px]">{p.text}</span>
+                        <span className="label-tech !text-[9px] text-primary opacity-0 transition-opacity group-hover:opacity-100">RUN</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {/* 技能快捷入口 */}
+
+                {/* 技能快捷挂载 */}
                 {skills.length > 0 && (
-                  <div className="mt-6 w-full max-w-2xl">
-                    <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                      <Sparkles className="h-3 w-3" />专家技能快捷启动
-                    </div>
+                  <div className="mt-5 w-full max-w-2xl">
+                    <div className="label-tech mb-2 !text-[9px]">Skills · 专家技能挂载 (点击启用 / 取消)</div>
                     <div className="flex flex-wrap gap-1.5">
                       {skills.slice(0, 8).map((s) => (
                         <button
                           key={s.id}
                           onClick={() => setActiveSkill(activeSkill === s.id ? null : s.id)}
+                          aria-pressed={activeSkill === s.id}
                           className={cn(
-                            'rounded-full border px-2.5 py-1 text-[11px] transition-all',
+                            'min-h-9 rounded-[3px] border px-2 py-1.5 font-mono text-[10px] transition-colors',
                             activeSkill === s.id
-                              ? 'border-rose-500/50 bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                              : 'text-muted-foreground hover:border-teal-500/40 hover:text-foreground'
+                              ? 'border-chart-3/60 bg-chart-3/10 text-chart-3'
+                              : 'text-muted-foreground hover:border-foreground/25 hover:text-foreground'
                           )}
                           type="button"
                         >
@@ -395,7 +455,7 @@ export function QaView() {
                 )}
               </div>
             ) : (
-              <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
+              <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
                 {messages.map((msg) => (
                   <MessageBubble
                     key={msg.id}
@@ -411,10 +471,64 @@ export function QaView() {
             )}
           </div>
 
-          {/* 输入区 */}
-          <div className="border-t bg-background/95 px-4 py-3 backdrop-blur">
-            <div className="mx-auto max-w-3xl">
-              <div className="relative rounded-xl border bg-card shadow-sm transition-colors focus-within:border-teal-500/60">
+          {/* ===== 输入区 — 仪器面板 ===== */}
+          <div className="shrink-0 border-t bg-card">
+            <div className="mx-auto max-w-3xl px-4 py-3">
+              {/* 模式切换 + 状态行 */}
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <div className="flex rounded-[5px] border bg-background p-0.5" role="group" aria-label="问答模式">
+                  <button
+                    type="button"
+                    onClick={() => setMode('rag')}
+                    aria-pressed={mode === 'rag'}
+                    className={cn(
+                      'flex h-11 items-center gap-1.5 rounded-[4px] px-3 text-[11px] font-medium transition-colors md:h-8',
+                      mode === 'rag' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <BookOpen className="h-3.5 w-3.5" strokeWidth={1.75} />RAG 检索
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('agent')}
+                    aria-pressed={mode === 'agent'}
+                    className={cn(
+                      'flex h-11 items-center gap-1.5 rounded-[4px] px-3 text-[11px] font-medium transition-colors md:h-8',
+                      mode === 'agent' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Cpu className="h-3.5 w-3.5" strokeWidth={1.75} />AGENT 工具
+                  </button>
+                </div>
+
+                {activeSkillInfo && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSkill(null)}
+                        aria-label={`取消技能 ${activeSkillInfo.name}`}
+                        className="flex min-h-11 items-center gap-1.5 rounded-[3px] border border-chart-3/50 bg-chart-3/5 px-2 font-mono text-[10px] text-chart-3 transition-colors hover:border-chart-3 md:min-h-8 md:py-1"
+                      >
+                        <Sparkles className="h-3 w-3" strokeWidth={1.75} />
+                        {activeSkillInfo.name}
+                        <X className="h-3 w-3" strokeWidth={1.75} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">{activeSkillInfo.description}</TooltipContent>
+                  </Tooltip>
+                )}
+
+                {busy && (
+                  <span className="label-tech ml-auto flex items-center gap-1.5 !text-[9px] text-chart-2">
+                    <RefreshCw className="h-3 w-3 animate-spin" strokeWidth={1.75} />
+                    {mode === 'agent' ? 'AGENT 推理中 · 可能需要 1-2 分钟' : '检索并生成中'}
+                  </span>
+                )}
+              </div>
+
+              {/* textarea + 发送/中止 */}
+              <div className="flex items-end gap-2 rounded-[5px] border bg-background transition-colors focus-within:border-primary/50">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -426,144 +540,169 @@ export function QaView() {
                     }
                   }}
                   rows={2}
-                  placeholder={mode === 'agent' ? 'Agent 模式: 例如 "比较 6M0J 和 6VXX 的结构"...' : '输入问题, Enter 发送 (Shift+Enter 换行)...'}
-                  className="max-h-40 w-full resize-none rounded-xl bg-transparent px-4 pb-10 pt-3 text-sm outline-none placeholder:text-muted-foreground/60"
+                  aria-label="问题输入框"
+                  placeholder={mode === 'agent' ? 'AGENT 模式 · 例如 "比较 6M0J 和 6VXX 的结构"...' : '输入问题 · Enter 发送 · Shift+Enter 换行'}
+                  className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-3.5 py-2.5 text-sm outline-none placeholder:text-muted-foreground/60"
                   disabled={busy}
                 />
-                <div className="absolute bottom-2 left-3 flex items-center gap-2">
-                  {activeSkillInfo && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveSkill(null)}
-                      className="flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-600 dark:text-rose-400 hover:bg-rose-500/20"
-                    >
-                      <Sparkles className="h-2.5 w-2.5" />
-                      {activeSkillInfo.name} ✕
-                    </button>
-                  )}
-                  {busy && (
-                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <RefreshCw className="h-3 w-3 animate-spin" />
-                      {mode === 'agent' ? 'Agent 推理中 (可能需要 1-2 分钟)...' : '生成中...'}
-                    </span>
-                  )}
-                </div>
-                <div className="absolute bottom-2 right-2.5 flex gap-1.5">
+                <div className="flex shrink-0 gap-1.5 p-1.5">
                   {busy ? (
-                    <Button size="icon" variant="destructive" className="h-7 w-7 rounded-lg" onClick={stopStreaming}>
-                      <Square className="h-3.5 w-3.5" />
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      className="h-11 w-11 rounded-[5px] md:h-9 md:w-9"
+                      onClick={stopStreaming}
+                      aria-label="中止生成"
+                    >
+                      <Square className="h-3.5 w-3.5" strokeWidth={1.75} />
                     </Button>
                   ) : (
                     <Button
                       size="icon"
-                      className="h-7 w-7 rounded-lg bg-teal-600 hover:bg-teal-700"
+                      className="h-11 w-11 rounded-[5px] md:h-9 md:w-9"
                       onClick={() => void sendQuestion()}
                       disabled={!input.trim()}
+                      aria-label="发送问题"
                     >
-                      <Send className="h-3.5 w-3.5" />
+                      <Send className="h-3.5 w-3.5" strokeWidth={1.75} />
                     </Button>
                   )}
                 </div>
               </div>
-              <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
-                {mode === 'rag' ? 'AI 可能出错, 请核实重要信息 · 回答基于本地文献库' : 'Agent 将调用 11 个专业工具进行多步推理'}
-              </p>
+
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="label-tech !text-[9px] normal-case !tracking-normal text-muted-foreground/70">
+                  {mode === 'rag'
+                    ? '回答基于本地文献库 · AI 可能出错, 请核实关键信息'
+                    : 'AGENT 将调用 11 个专业工具多步推理 · 工具调用全程可审计'}
+                </p>
+                <span className="label-tech hidden !text-[9px] text-muted-foreground/50 sm:inline">
+                  {historySessions.length} SESSIONS LOGGED
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* 右侧来源面板 */}
+        {/* ===== 右侧侧栏 — 会话历史 + 检索来源 ===== */}
         {showSources && (
-          <aside className="hidden w-[300px] shrink-0 border-l bg-card/30 lg:block">
-            <div className="flex h-full flex-col">
-              <div className="border-b px-4 py-3">
-                <h3 className="flex items-center gap-1.5 text-xs font-semibold">
-                  <FileText className="h-3.5 w-3.5 text-teal-600" />
-                  检索来源
-                </h3>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">最新回答引用的文献片段</p>
+          <aside className="hidden w-[300px] shrink-0 flex-col border-l bg-card lg:flex">
+            {/* 会话历史 (可折叠) */}
+            <section className={cn('flex min-h-0 flex-col border-b', sessionsOpen ? 'flex-[1.1]' : 'shrink-0')}>
+              <div className="flex items-center gap-2 border-b px-4 py-2.5">
+                <span className="label-tech !text-[10px] text-foreground/75">Session Log · 会话历史</span>
+                <button
+                  type="button"
+                  onClick={() => setSessionsOpen(!sessionsOpen)}
+                  className="ml-auto flex h-8 w-8 items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                  aria-label={sessionsOpen ? '折叠会话历史' : '展开会话历史'}
+                  aria-expanded={sessionsOpen}
+                >
+                  {sessionsOpen ? <ChevronUp className="h-3.5 w-3.5" strokeWidth={1.75} /> : <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                </button>
               </div>
-              <ScrollArea className="flex-1">
-                <div className="space-y-2 p-3">
-                  {(() => {
-                    const lastWithSources = [...messages].reverse().find((m) => m.sources && m.sources.length > 0);
-                    if (!lastWithSources?.sources) {
-                      return (
-                        <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-xs text-muted-foreground">
-                          <BookOpen className="h-8 w-8 opacity-30" />
-                          提问后将显示相关文献片段
-                        </div>
-                      );
-                    }
-                    return lastWithSources.sources.map((src) => (
-                      <button
-                        key={`${src.literatureId}-${src.chunkIndex}`}
-                        onClick={() => navigate('literature-detail', { id: src.literatureId })}
-                        className="w-full rounded-lg border bg-card p-3 text-left transition-all hover:border-teal-500/50 hover:shadow-sm"
-                        type="button"
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-teal-600/10 text-[10px] font-bold text-teal-700 dark:text-teal-400">
-                            {src.index}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-[11px] font-medium">{src.title}</div>
-                            <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-                              <span>{src.section}</span>
-                              <span>·</span>
-                              <span>块 #{src.chunkIndex + 1}</span>
-                              <span className="ml-auto font-mono text-teal-600 dark:text-teal-400">{src.score.toFixed(3)}</span>
-                            </div>
-                            <p className="mt-1.5 line-clamp-3 text-[10px] leading-4 text-muted-foreground">{src.snippet}</p>
+              {sessionsOpen && (
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+                  {historySessions.length === 0 ? (
+                    <Empty text="NO SESSIONS — 发起第一次提问后记录于此" />
+                  ) : (
+                    <div className="divide-y">
+                      {historySessions.map((s) => (
+                        <button
+                          key={s.sessionId}
+                          onClick={() => void loadSession(s.sessionId)}
+                          className={cn(
+                            'flex min-h-11 w-full flex-col gap-1 px-4 py-2.5 text-left transition-colors hover:bg-accent/50',
+                            s.sessionId === sessionId && 'bg-accent/40'
+                          )}
+                          type="button"
+                          aria-label={`加载会话 ${s.question}`}
+                        >
+                          <div className="flex w-full items-center gap-2">
+                            <Tag tone={s.mode === 'agent' ? 'agent' : 'muted'}>{s.mode === 'agent' ? 'AGENT' : 'RAG'}</Tag>
+                            <span className="num ml-auto text-[10px] text-muted-foreground">{s.count} 轮</span>
                           </div>
-                        </div>
-                      </button>
-                    ));
-                  })()}
+                          <span className="w-full truncate text-xs">{s.question}</span>
+                          <span className="num text-[10px] text-muted-foreground/70">
+                            {new Date(s.lastAt).toLocaleDateString('zh-CN')}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </ScrollArea>
-            </div>
+              )}
+            </section>
+
+            {/* 检索来源 */}
+            <section className="flex min-h-0 flex-1 flex-col">
+              <PanelHead title="Sources · 检索来源" hint="LATEST ANSWER" />
+              <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+                {!lastWithSources?.sources ? (
+                  <Empty text="NO SOURCES — 提问后显示 RAG 检索片段" />
+                ) : (
+                  lastWithSources.sources.map((src) => (
+                    <button
+                      key={`${src.literatureId}-${src.chunkIndex}`}
+                      onClick={() => navigate('literature-detail', { id: src.literatureId })}
+                      className="block w-full border-b px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-accent/50"
+                      type="button"
+                      aria-label={`查看文献 ${src.title}`}
+                    >
+                      <div className="flex items-baseline gap-2">
+                        <span className="num text-[10px] text-primary">[{src.index}]</span>
+                        <span className="num ml-auto text-[10px] text-muted-foreground">{src.score.toFixed(3)}</span>
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] font-medium">{src.title}</div>
+                      <div className="label-tech mt-0.5 !text-[9px] normal-case !tracking-normal">
+                        {src.section} · CHUNK #{src.chunkIndex + 1}
+                      </div>
+                      <p className="mt-1 line-clamp-3 text-[10px] leading-4 text-muted-foreground">{src.snippet}</p>
+                    </button>
+                  ))
+                )}
+              </div>
+            </section>
           </aside>
         )}
       </div>
 
-      {/* 历史会话抽屉 */}
+      {/* 历史会话抽屉 (移动端 / 全屏入口) */}
       <Dialog open={showHistory} onOpenChange={setShowHistory}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <History className="h-4 w-4 text-teal-600" />历史会话
+              <History className="h-4 w-4" strokeWidth={1.75} />历史会话
             </DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
-            <div className="space-y-1.5">
-              {historySessions.length === 0 ? (
-                <div className="py-10 text-center text-xs text-muted-foreground">暂无历史会话</div>
-              ) : (
-                historySessions.map((s) => (
+            {historySessions.length === 0 ? (
+              <Empty text="NO SESSIONS — 暂无历史会话记录" />
+            ) : (
+              <div className="divide-y overflow-hidden rounded-lg border">
+                {historySessions.map((s) => (
                   <button
                     key={s.sessionId}
                     onClick={() => void loadSession(s.sessionId)}
                     className={cn(
-                      'flex w-full items-center gap-2.5 rounded-lg border p-2.5 text-left transition-all hover:border-teal-500/50 hover:shadow-sm',
-                      s.sessionId === sessionId && 'border-teal-500/50 bg-teal-500/5'
+                      'flex min-h-11 w-full flex-col gap-1 px-3.5 py-2.5 text-left transition-colors hover:bg-accent/50',
+                      s.sessionId === sessionId && 'bg-accent/40'
                     )}
                     type="button"
+                    aria-label={`加载会话 ${s.question}`}
                   >
-                    <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-medium">{s.question}</div>
-                      <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{s.count} 轮对话</span>
-                        <span>·</span>
-                        <span>{new Date(s.lastAt).toLocaleDateString('zh-CN')}</span>
-                        {s.mode === 'agent' && <Badge className="h-4 px-1 text-[8px]">AGENT</Badge>}
-                      </div>
+                    <div className="flex w-full items-center gap-2">
+                      <Tag tone={s.mode === 'agent' ? 'agent' : 'muted'}>{s.mode === 'agent' ? 'AGENT' : 'RAG'}</Tag>
+                      <span className="num ml-auto text-[10px] text-muted-foreground">{s.count} 轮对话</span>
+                      <span className="num text-[10px] text-muted-foreground/70">
+                        {new Date(s.lastAt).toLocaleDateString('zh-CN')}
+                      </span>
                     </div>
+                    <span className="w-full truncate text-xs">{s.question}</span>
                   </button>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </ScrollArea>
         </DialogContent>
       </Dialog>
@@ -571,7 +710,7 @@ export function QaView() {
   );
 }
 
-/** 消息气泡 */
+/** 消息行 — 对话记录式 (用户: 左信号条块 / AI: 无底色 + mono 元信息头) */
 function MessageBubble({
   msg,
   copied,
@@ -589,8 +728,9 @@ function MessageBubble({
 }) {
   if (msg.role === 'user') {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-teal-600 px-4 py-2.5 text-sm text-white shadow-sm">
+      <div className="flex flex-col items-end">
+        <div className="label-tech mb-1 !text-[9px]">USER · 提问</div>
+        <div className="max-w-[85%] border-l-2 border-primary bg-accent/40 py-2.5 pl-4 pr-3.5 text-sm leading-relaxed">
           {msg.content}
         </div>
       </div>
@@ -601,134 +741,144 @@ function MessageBubble({
 
   return (
     <div className="group">
-      <div className="flex items-start gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-md shadow-teal-500/20">
-          {msg.mode === 'agent' ? <Cpu className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
-        </div>
-        <div className="min-w-0 flex-1">
-          {/* 头部 */}
-          <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-            <span className="font-medium text-foreground">CryoAgent</span>
-            {msg.skillName && (
-              <Badge variant="outline" className="h-4 gap-1 border-rose-500/40 px-1.5 text-[9px] text-rose-600 dark:text-rose-400">
-                <Sparkles className="h-2.5 w-2.5" />
-                {msg.skillName}
-              </Badge>
-            )}
-            {msg.mode === 'agent' && <Badge variant="outline" className="h-4 px-1.5 text-[9px] text-amber-600 dark:text-amber-400">AGENT</Badge>}
-            {msg.latencyMs != null && (
-              <span className="flex items-center gap-0.5">
-                <Clock className="h-2.5 w-2.5" />
-                {(msg.latencyMs / 1000).toFixed(1)}s
-              </span>
-            )}
-            {msg.tokensUsed != null && <span>· {msg.tokensUsed} tokens</span>}
-          </div>
+      {/* mono 元信息行 */}
+      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+        <Tag tone={msg.mode === 'agent' ? 'agent' : 'muted'}>{msg.mode === 'agent' ? 'AGENT' : 'RAG'}</Tag>
+        {msg.skillName && <Tag tone="skill">{msg.skillName}</Tag>}
+        {msg.streaming && (
+          <span className="label-tech flex items-center gap-1.5 !text-[9px] text-chart-2">
+            <span className="status-dot" data-tone="amber" aria-hidden />
+            STREAMING
+          </span>
+        )}
+        {msg.latencyMs != null && (
+          <span className="num text-[10px] text-muted-foreground">{(msg.latencyMs / 1000).toFixed(1)}s</span>
+        )}
+        {msg.tokensUsed != null && (
+          <span className="num text-[10px] text-muted-foreground">{msg.tokensUsed} tok</span>
+        )}
+        {msg.sources && msg.sources.length > 0 && !msg.streaming && (
+          <span className="num text-[10px] text-muted-foreground">[{msg.sources.length} refs]</span>
+        )}
+        <span className="label-tech ml-auto !text-[9px]">CRYOAGENT</span>
+      </div>
 
-          {/* 工具调用展示 */}
-          {msg.toolCalls && msg.toolCalls.length > 0 && (
-            <div className="mb-2 overflow-hidden rounded-lg border border-amber-500/30 bg-amber-500/5">
-              <button
-                type="button"
-                onClick={onToggleTool}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
-              >
-                <Wrench className="h-3.5 w-3.5" />
-                调用了 {msg.toolCalls.length} 个工具
-                <span className="flex gap-1">
-                  {msg.toolCalls.map((tc, i) => (
-                    <span key={i} className="rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px]">{tc.tool}</span>
-                  ))}
+      {/* 工具调用 — 可折叠审计面板 */}
+      {msg.toolCalls && msg.toolCalls.length > 0 && (
+        <div className="mb-2 overflow-hidden rounded-lg border border-chart-2/40">
+          <button
+            type="button"
+            onClick={onToggleTool}
+            aria-expanded={toolsExpanded}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-accent/50"
+          >
+            <Wrench className="h-3.5 w-3.5 shrink-0 text-chart-2" strokeWidth={1.75} />
+            <span className="label-tech !text-[10px] text-foreground/75">TOOL CALLS · {msg.toolCalls.length}</span>
+            <span className="flex min-w-0 gap-1 overflow-hidden">
+              {msg.toolCalls.map((tc, i) => (
+                <span key={i} className="num shrink-0 rounded-[3px] border border-border px-1 py-px text-[9px] text-muted-foreground">
+                  {tc.tool}
                 </span>
-                {toolsExpanded ? <ChevronUp className="ml-auto h-3 w-3" /> : <ChevronDown className="ml-auto h-3 w-3" />}
-              </button>
-              {toolsExpanded && (
-                <div className="space-y-1.5 border-t border-amber-500/20 p-2.5">
-                  {msg.toolCalls.map((tc, i) => (
-                    <div key={i} className="rounded-md bg-background/80 p-2 text-[10px]">
-                      <div className="flex items-center gap-1.5">
-                        <Zap className={cn('h-3 w-3', tc.ok ? 'text-emerald-500' : 'text-red-500')} />
-                        <span className="font-mono font-semibold text-foreground">{tc.tool}</span>
-                        <span className="ml-auto font-mono text-muted-foreground">{tc.latencyMs}ms</span>
-                      </div>
-                      <div className="mt-1 font-mono text-[9px] text-muted-foreground">
-                        参数: {JSON.stringify(tc.params).slice(0, 120)}
-                      </div>
-                      <div className="mt-1 whitespace-pre-wrap break-all font-mono text-[9px] text-muted-foreground">
-                        结果: {tc.resultSummary.slice(0, 300)}
-                      </div>
-                    </div>
-                  ))}
+              ))}
+            </span>
+            {toolsExpanded ? (
+              <ChevronUp className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            ) : (
+              <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            )}
+          </button>
+          {toolsExpanded && (
+            <div className="divide-y border-t bg-card">
+              {msg.toolCalls.map((tc, i) => (
+                <div key={i} className="px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="status-dot" data-tone={tc.ok ? undefined : 'red'} aria-hidden />
+                    <span className="font-mono text-[11px] font-semibold">{tc.tool}</span>
+                    <span className="num ml-auto text-[10px] text-muted-foreground">{tc.latencyMs}ms</span>
+                  </div>
+                  <div className="mt-1 break-all font-mono text-[9px] leading-relaxed text-muted-foreground">
+                    params: {JSON.stringify(tc.params).slice(0, 120)}
+                  </div>
+                  <div className="mt-0.5 break-all font-mono text-[9px] leading-relaxed text-muted-foreground">
+                    result: {tc.resultSummary.slice(0, 300)}
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
           )}
+        </div>
+      )}
 
-          {/* 内容 */}
-          <div
-            className={cn(
-              'rounded-2xl rounded-tl-md border bg-card px-4 py-3 shadow-sm',
-              msg.error && 'border-red-500/40 bg-red-500/5'
-            )}
+      {/* 正文 — 无底色, 流式带光标 */}
+      {msg.streaming && !msg.content ? (
+        <div className="flex items-center gap-2 py-2">
+          <span className="status-dot" data-tone="amber" aria-hidden />
+          <span className="label-tech !text-[10px]">
+            {msg.mode === 'agent' ? 'AGENT 推理中 · 调用外部工具' : '检索文献并生成回答'}
+          </span>
+        </div>
+      ) : (
+        <div className={cn(msg.error && 'rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3')}>
+          {msg.error && (
+            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-destructive">
+              <CircleAlert className="h-3.5 w-3.5" strokeWidth={1.75} />回答生成失败
+            </div>
+          )}
+          <MarkdownView content={msg.content} />
+          {msg.streaming && <span className="typing-cursor" aria-hidden />}
+        </div>
+      )}
+
+      {/* 复制 — 悬停出现 */}
+      {!msg.streaming && msg.content && (
+        <div className="mt-1 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={onCopy}
+            className="label-tech flex h-8 items-center gap-1 rounded-[4px] px-2 !text-[9px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
           >
-            {msg.streaming && !msg.content ? (
-              <div className="flex items-center gap-2 py-1">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-teal-500" />
-                <span className="h-2 w-2 animate-pulse rounded-full bg-teal-500 [animation-delay:150ms]" />
-                <span className="h-2 w-2 animate-pulse rounded-full bg-teal-500 [animation-delay:300ms]" />
-                <span className="ml-2 text-xs text-muted-foreground">
-                  {msg.mode === 'agent' ? 'Agent 正在思考并调用工具...' : '正在检索文献并生成回答...'}
-                </span>
-              </div>
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-primary" strokeWidth={1.75} />COPIED
+              </>
             ) : (
               <>
-                {msg.error && <CircleAlert className="mb-1 h-4 w-4 text-red-500" />}
-                <MarkdownView content={msg.content} />
-                {msg.streaming && <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-teal-500 align-middle" />}
+                <Copy className="h-3 w-3" strokeWidth={1.75} />COPY
               </>
             )}
-          </div>
-
-          {/* 操作按钮 */}
-          {!msg.streaming && msg.content && (
-            <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-[10px] text-muted-foreground" onClick={onCopy}>
-                {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                {copied ? '已复制' : '复制'}
-              </Button>
-            </div>
-          )}
-
-          {/* 来源引用 */}
-          {msg.sources && msg.sources.length > 0 && !msg.streaming && (
-            <div className="mt-2.5">
-              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-                <FileText className="h-3 w-3" />
-                引用来源 ({msg.sources.length})
-              </div>
-              <div className="space-y-1">
-                {msg.sources.map((src) => (
-                  <button
-                    key={`${src.literatureId}-${src.chunkIndex}`}
-                    onClick={() => onSourceClick(src.literatureId)}
-                    className="flex w-full items-start gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-left transition-colors hover:border-teal-500/40 hover:bg-muted"
-                    type="button"
-                  >
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-teal-600/15 text-[9px] font-bold text-teal-700 dark:text-teal-400">
-                      {src.index}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[10px] font-medium">{src.title}</div>
-                      <div className="truncate text-[9px] text-muted-foreground">{src.snippet}</div>
-                    </div>
-                    <Trash2 className="hidden h-3 w-3" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* 引用来源 — hairline 密集列表, 悬停展开片段 */}
+      {msg.sources && msg.sources.length > 0 && !msg.streaming && (
+        <div className="mt-2.5">
+          <div className="label-tech border-t py-1.5 !text-[9px]">Citations · 引用来源 ({msg.sources.length})</div>
+          <div className="divide-y border-t">
+            {msg.sources.map((src) => (
+              <button
+                key={`${src.literatureId}-${src.chunkIndex}`}
+                onClick={() => onSourceClick(src.literatureId)}
+                className="group/src flex w-full items-baseline gap-2.5 px-1 py-2 text-left transition-colors hover:bg-accent/50"
+                type="button"
+                aria-label={`查看引用文献 ${src.title}`}
+              >
+                <span className="num shrink-0 text-[10px] text-primary">[{src.index}]</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[11px] font-medium">{src.title}</span>
+                  <span className="label-tech mt-0.5 block !text-[9px] normal-case !tracking-normal">
+                    {src.section} · CHUNK #{src.chunkIndex + 1}
+                  </span>
+                  <span className="mt-0.5 hidden text-[10px] leading-4 text-muted-foreground/85 group-hover/src:block line-clamp-2">
+                    {src.snippet}
+                  </span>
+                </span>
+                <span className="num shrink-0 text-[10px] text-muted-foreground">{src.score.toFixed(3)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

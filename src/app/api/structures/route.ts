@@ -8,8 +8,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q') || '';
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
-    const pageSize = Math.min(60, parseInt(searchParams.get('pageSize') || '24'));
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1);
+    const pageSize = Math.min(60, parseInt(searchParams.get('pageSize') || '24') || 24);
     const method = searchParams.get('method');
 
     const where: Record<string, unknown> = {};

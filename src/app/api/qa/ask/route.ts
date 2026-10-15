@@ -53,8 +53,15 @@ export async function POST(request: Request) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
+        let closed = false;
         const send = (event: string, data: unknown) => {
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          // 客户端断开后 enqueue 会抛错, 需吞掉避免未处理 rejection
+          if (closed) return;
+          try {
+            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          } catch {
+            closed = true;
+          }
         };
 
         send('meta', {
@@ -118,7 +125,11 @@ export async function POST(request: Request) {
         } catch (err) {
           send('error', { message: err instanceof Error ? err.message : 'AI 调用失败' });
         } finally {
-          controller.close();
+          try {
+            controller.close();
+          } catch {
+            /* 已关闭 */
+          }
         }
       },
     });

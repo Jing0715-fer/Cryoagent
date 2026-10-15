@@ -47,8 +47,17 @@ export async function POST(request: Request) {
     if (!seq1 || !seq2) {
       return NextResponse.json({ error: '需要两条序列 (或 PDB ID)' }, { status: 400 });
     }
-    if (seq1.length > 8000 || seq2.length > 8000) {
-      return NextResponse.json({ error: '序列过长 (最大 8000 残基), 请截断后重试' }, { status: 400 });
+    // S2 修复: 限制 DP 矩阵规模，防止 OOM (6 个 (n+1)*(m+1) 矩阵)
+    const MAX_LEN = 4000;
+    const MAX_CELLS = 4_000_000; // ≈ 2000×2000, 覆盖几乎所有真实蛋白序列
+    if (seq1.length > MAX_LEN || seq2.length > MAX_LEN) {
+      return NextResponse.json({ error: `序列过长 (单条最大 ${MAX_LEN} 残基), 请截断后重试` }, { status: 400 });
+    }
+    if ((seq1.length + 1) * (seq2.length + 1) > MAX_CELLS) {
+      return NextResponse.json(
+        { error: `比对矩阵过大 (${seq1.length}×${seq2.length} 超过 2000×2000), 建议截断至更短片段` },
+        { status: 400 }
+      );
     }
 
     const algorithm = body.algorithm === 'smith-waterman' ? 'smith-waterman' : 'needleman-wunsch';
@@ -96,7 +105,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20') || 20, 100);
     const tasks = await db.alignmentTask.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,

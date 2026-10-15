@@ -1,29 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 30 30" style="enable-background:new 0 0 30 30;" xml:space="preserve">
-<defs>
-  <style type="text/css">
-    .st194{fill:#2D2D2D;stroke:#FFFFFF;stroke-width:0.6317;stroke-miterlimit:10;}
-    .st23{fill:#FFFFFF;}
-
-    .z-breathe {
-      animation: breathe 2.5s ease-in-out infinite;
-    }
-
-    @keyframes breathe {
-      0%, 100% { opacity: 0.7; }
-      50% { opacity: 1; }
-    }
-  </style>
-</defs>
-
-<g>
-  <path class="st194" d="M24.51,28.51H5.49c-2.21,0-4-1.79-4-4V5.49c0-2.21,1.79-4,4-4h19.03c2.21,0,4,1.79,4,4v19.03
-    C28.51,26.72,26.72,28.51,24.51,28.51z"/>
-  <g class="z-breathe">
-    <path class="st23" d="M15.47,7.1l-1.3,1.85c-0.2,0.29-0.54,0.47-0.9,0.47h-7.1V7.09C6.16,7.1,15.47,7.1,15.47,7.1z"/>
-    <polygon class="st23" points="24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1"/>
-    <path class="st23" d="M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- CryoAgent Pro — 晶格图谱标记 -->
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7" stroke="#1F1D1A" stroke-opacity="0.22" stroke-width="1.5"/>
+  <g stroke="#1F1D1A" stroke-opacity="0.45" stroke-width="1">
+    <path d="M16 16 L10 10 M16 16 L22 10 M16 16 L10 22 M16 16 L22 22 M10 10 L22 10 M10 22 L22 22 M10 10 L10 22 M22 10 L22 22"/>
   </g>
-</g>
+  <circle cx="10" cy="10" r="2" fill="#1F1D1A" fill-opacity="0.8"/>
+  <circle cx="22" cy="10" r="2" fill="#1F1D1A" fill-opacity="0.8"/>
+  <circle cx="10" cy="22" r="2" fill="#1F1D1A" fill-opacity="0.8"/>
+  <circle cx="22" cy="22" r="2" fill="#1F1D1A" fill-opacity="0.8"/>
+  <circle cx="16" cy="16" r="3.4" fill="#0E8C7D"/>
 </svg>

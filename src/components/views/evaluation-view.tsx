@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * CryoAgent Pro — 评估中心
- * 检索评估 (Precision/Recall/F1/MRR) / Ground Truth 管理 / 监控统计
+ * CryoAgent Pro — 评估中心 (BENCH 设计系统)
+ * 检索质量基准 (Precision / Recall / F1 / MRR / HitRate) · Ground Truth 标注 · 搜索监控
+ * 结构: grid-bg masthead + mono 页签 + KPI hairline 分隔条 + 密集数据行 + table.bench
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -12,21 +13,15 @@ import {
   Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import {
-  Activity, BarChart3, CheckCircle2, ClipboardCheck, Clock, Database, Gauge, ListChecks,
-  Loader2, Play, Plus, Search, Trash2, TrendingUp, XCircle,
-} from 'lucide-react';
+import { Activity, Database, Gauge, Loader2, Play, Plus, Trash2 } from 'lucide-react';
 
 // ============ 类型定义 (API 契约) ============
 
@@ -94,6 +89,23 @@ interface EvalPostResponse {
 // ============ 工具 ============
 
 const MODE_LABELS: Record<string, string> = { bm25: 'BM25', vector: '向量', hybrid: '混合' };
+const MODE_TAGS: Record<string, string> = { bm25: 'BM25', vector: 'VEC', hybrid: 'HYB' };
+
+const AXIS = {
+  fontSize: 9,
+  fontFamily: 'var(--font-plex-mono), monospace',
+  fill: 'currentColor',
+  opacity: 0.55,
+};
+const TOOLTIP_STYLE = {
+  fontSize: 11,
+  fontFamily: 'var(--font-plex-mono), monospace',
+  borderRadius: 4,
+  border: '1px solid var(--border)',
+  background: 'var(--popover)',
+  color: 'var(--popover-foreground)',
+  padding: '4px 8px',
+};
 
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
@@ -107,20 +119,38 @@ function formatTime(iso: string): string {
   }
 }
 
-function MetricBar({ label, value, color }: { label: string; value: number | null; color: string }) {
-  const pct = value != null ? Math.min(100, value) : 0;
+// ============ BENCH 基础组件 ============
+
+/** 面板骨架 — 统一 hairline 分区容器 */
+function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <section className={cn('rounded-lg border bg-card', className)}>{children}</section>;
+}
+
+function PanelHead({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
   return (
-    <Card className="p-3 transition-colors hover:border-teal-500/40 md:p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] text-muted-foreground">{label}</span>
-        <span className={cn('text-sm font-bold tabular-nums', value != null ? 'text-foreground' : 'text-muted-foreground/60')}>
-          {value != null ? `${value.toFixed(2)}%` : '无 GT'}
-        </span>
-      </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
-      </div>
-    </Card>
+    <div className="flex items-center gap-3 border-b px-4 py-2.5">
+      <span className="label-tech !text-[10px] text-foreground/75">{title}</span>
+      {hint && <span className="label-tech ml-auto !text-[9px]">{hint}</span>}
+      {action}
+    </div>
+  );
+}
+
+/** 精确空态 — mono 指引而非占位插画 */
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="label-tech flex h-full min-h-[88px] items-center justify-center px-4 py-8 text-center !text-[10px] normal-case !tracking-[0.06em]">
+      {text}
+    </div>
+  );
+}
+
+/** mono 短码 tag — outline 语义色 */
+function MiniTag({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={cn('inline-flex shrink-0 items-center rounded-[3px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide', className)}>
+      {children}
+    </span>
   );
 }
 
@@ -154,7 +184,7 @@ function RetrievalEvalTab({
       setResult(d);
       onRunCompleted();
       if (!d.hasGroundTruth) {
-        toast.warning('未找到该查询的 Ground Truth, 指标为空 · 可在 GT 页签添加或开启自动记录');
+        toast.warning('未找到该查询的 Ground Truth, 指标为空 · 可在标注页签添加或开启自动记录');
       } else {
         toast.success(`评估完成 · F1 ${d.metrics.f1?.toFixed(2) ?? '—'}% · ${d.latencyMs}ms`);
       }
@@ -185,32 +215,38 @@ function RetrievalEvalTab({
   );
   const maxScore = Math.max(...(effectiveResult?.retrieved ?? []).map((h) => h.score), 0.0001);
 
+  const metrics = effectiveResult
+    ? [
+        { label: 'Precision · 查准率', sub: '检索命中中的相关占比', value: effectiveResult.metrics.precision },
+        { label: 'Recall · 查全率', sub: '相关内容被召回的占比', value: effectiveResult.metrics.recall },
+        { label: 'F1 · 调和均值', sub: 'P 与 R 的调和平均', value: effectiveResult.metrics.f1 },
+        { label: 'MRR · 倒数排名', sub: '首个相关结果的排名倒数', value: effectiveResult.metrics.mrr },
+        { label: 'HitRate · 命中率', sub: '至少命中一个相关结果', value: effectiveResult.metrics.hitRate },
+      ]
+    : [];
+
   return (
     <div className="space-y-4">
-      {/* 评估表单 */}
-      <Card className="p-4 md:p-6">
-        <CardHeader className="mb-4 p-0">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Gauge className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            运行检索评估
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 p-0">
+      {/* ===== 运行控制台 ===== */}
+      <Panel>
+        <PanelHead title="运行控制台 · EVAL RUN" hint={runs.length ? `${runs.length} 条历史` : 'POST /api/evaluation'} />
+        <div className="p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-            <div className="flex-1 space-y-1.5">
-              <Label htmlFor="eval-query" className="text-xs text-muted-foreground">评估查询</Label>
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Label htmlFor="eval-query" className="label-tech">评估查询 · QUERY</Label>
               <Input
                 id="eval-query"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && runEval()}
                 placeholder="例如: spike 蛋白的冷冻电镜结构研究"
+                className="h-9"
               />
             </div>
-            <div className="w-full space-y-1.5 lg:w-40">
-              <Label className="text-xs text-muted-foreground">检索模式</Label>
+            <div className="w-full space-y-1.5 lg:w-44">
+              <Label className="label-tech" htmlFor="eval-mode">检索模式 · MODE</Label>
               <Select value={mode} onValueChange={setMode}>
-                <SelectTrigger aria-label="检索模式"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="eval-mode" aria-label="检索模式" className="h-9 w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="hybrid">混合 (RRF)</SelectItem>
                   <SelectItem value="bm25">BM25</SelectItem>
@@ -218,201 +254,185 @@ function RetrievalEvalTab({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2 pb-2">
+            <div className="flex items-center gap-2.5 pb-1.5">
               <Switch id="auto-gt" checked={autoGt} onCheckedChange={setAutoGt} />
-              <Label htmlFor="auto-gt" className="cursor-pointer text-xs text-muted-foreground">
-                自动记录 Ground Truth
-                <span className="ml-1 text-[10px] opacity-70">(top-5)</span>
+              <Label htmlFor="auto-gt" className="label-tech cursor-pointer normal-case !tracking-normal">
+                自动记录 GT (TOP-5)
               </Label>
             </div>
-            <Button onClick={runEval} disabled={running} className="gap-2 lg:mb-0">
-              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            <Button onClick={runEval} disabled={running} className="h-9 shrink-0">
+              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" strokeWidth={1.75} />}
               运行评估
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
-      {/* 最新结果 */}
-      {running && <Skeleton className="h-56 w-full rounded-xl" />}
+      {/* ===== 最新结果 ===== */}
+      {running && <Skeleton className="h-56 w-full rounded-lg" />}
       {effectiveResult && !running && (
         <div className="space-y-4">
-          {/* 指标 */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <MetricBar label="Precision" value={effectiveResult.metrics.precision} color="#0d9488" />
-            <MetricBar label="Recall" value={effectiveResult.metrics.recall} color="#65a30d" />
-            <MetricBar label="F1 分数" value={effectiveResult.metrics.f1} color="#059669" />
-            <MetricBar label="MRR" value={effectiveResult.metrics.mrr} color="#d97706" />
-            <MetricBar label="命中率" value={effectiveResult.metrics.hitRate} color="#ea580c" />
-            <Card className="p-3 md:p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground">检索延迟</span>
-                <span className="flex items-center gap-1 text-sm font-bold tabular-nums">
-                  <Clock className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
-                  {effectiveResult.latencyMs}ms
-                </span>
+          {/* KPI 条 — hairline 分隔, mono 大数字 */}
+          <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-3 lg:grid-cols-6 [&>*:nth-child(2)]:border-l-0 md:[&>*]:border-l md:[&>*:first-child]:border-l-0 lg:[&>*:nth-child(2)]:border-l">
+            {metrics.map((m) => (
+              <div key={m.label} className="min-w-0 px-4 py-3">
+                <div className="label-tech !text-[9px]">{m.label}</div>
+                <div className={cn('num mt-1 text-[22px] font-medium leading-none tracking-tight', m.value == null && 'text-muted-foreground/50')}>
+                  {m.value != null ? m.value.toFixed(2) : '—'}
+                  {m.value != null && <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">%</span>}
+                </div>
+                <div className="mt-2 h-[3px] w-full overflow-hidden rounded-full bg-muted" aria-hidden>
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-500"
+                    style={{ width: `${m.value != null ? Math.min(100, m.value) : 0}%` }}
+                  />
+                </div>
+                <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">
+                  {m.value != null ? m.sub : 'NO GROUND TRUTH'}
+                </div>
               </div>
-              <div className="mt-2 text-[10px] text-muted-foreground/70">
-                {MODE_LABELS[effectiveResult.mode] ?? effectiveResult.mode} · {effectiveResult.retrieved.length} 条结果
-                {effectiveResult.hasGroundTruth ? '' : ' · 无 GT'}
+            ))}
+            <div className="min-w-0 px-4 py-3">
+              <div className="label-tech !text-[9px]">Latency · 延迟</div>
+              <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">
+                {effectiveResult.latencyMs}
+                <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">ms</span>
               </div>
-            </Card>
+              <div className="label-tech mt-2 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">
+                {MODE_LABELS[effectiveResult.mode] ?? effectiveResult.mode} 检索 · {effectiveResult.retrieved.length} 条结果
+              </div>
+              <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">
+                {effectiveResult.hasGroundTruth ? 'GT MATCHED' : '无 GT 标注'}
+              </div>
+            </div>
           </div>
 
-          {/* 检索结果列表 */}
-          <Card className="p-4 md:p-6">
-            <CardHeader className="mb-3 p-0">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <ListChecks className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                检索结果 ({effectiveResult.retrieved.length})
-                <span className="ml-2 font-normal text-[11px] text-muted-foreground">查询: {effectiveResult.query}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="max-h-96 space-y-2 overflow-y-auto custom-scrollbar pr-1">
-                {effectiveResult.retrieved.map((h) => (
-                  <div key={h.id} className={cn('rounded-lg border p-3 transition-colors', h.relevant ? 'border-emerald-500/40 bg-emerald-500/5' : 'hover:border-teal-500/30')}>
-                    <div className="flex items-start gap-2.5">
-                      <span className={cn(
-                        'flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold',
-                        h.rank <= 3 ? 'bg-teal-600 text-white' : 'bg-muted text-muted-foreground'
-                      )}>
-                        {h.rank}
+          {/* ===== 检索结果 — 密集列表行 ===== */}
+          <Panel>
+            <PanelHead
+              title={`检索结果 · ${effectiveResult.retrieved.length} 条`}
+              hint={`Q: ${truncate(effectiveResult.query, 20)}`}
+            />
+            <div className="max-h-96 overflow-y-auto custom-scrollbar">
+              {effectiveResult.retrieved.length > 0 ? (
+                <div className="divide-y">
+                  {effectiveResult.retrieved.map((h) => (
+                    <div key={h.id} className="flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50">
+                      <span
+                        className={cn(
+                          'num w-6 shrink-0 pt-px text-[12px] font-semibold',
+                          h.rank <= 3 ? 'text-primary' : 'text-muted-foreground/60'
+                        )}
+                      >
+                        {String(h.rank).padStart(2, '0')}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="truncate text-xs font-medium">{truncate(h.title, 44)}</span>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="min-w-0 truncate text-xs font-medium">{truncate(h.title, 44)}</span>
                           {h.relevant ? (
-                            <Badge className="gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300">
-                              <CheckCircle2 className="h-3 w-3" />相关
-                            </Badge>
+                            <MiniTag className="border-primary/50 text-primary">相关</MiniTag>
                           ) : (
-                            <Badge variant="secondary" className="gap-1 text-muted-foreground">
-                              <XCircle className="h-3 w-3" />无关
-                            </Badge>
+                            <MiniTag className="border-border text-muted-foreground/70">无关</MiniTag>
                           )}
                         </div>
-                        {h.section && <p className="mt-0.5 text-[10px] text-muted-foreground">{h.section}</p>}
+                        {h.section && <p className="label-tech mt-0.5 !text-[9px] normal-case !tracking-normal">{h.section}</p>}
                         {h.snippet && <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{h.snippet}</p>}
                         <div className="mt-1.5 flex items-center gap-2">
-                          <div className="h-1.5 max-w-[220px] flex-1 overflow-hidden rounded-full bg-muted">
-                            <div className="h-full rounded-full bg-teal-500" style={{ width: `${Math.max(3, (h.score / maxScore) * 100)}%` }} />
+                          <div className="h-[3px] max-w-[220px] flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+                            <div
+                              className="h-full rounded-full bg-primary"
+                              style={{ width: `${Math.max(3, (h.score / maxScore) * 100)}%` }}
+                            />
                           </div>
-                          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">{h.score.toFixed(4)}</span>
+                          <span className="num shrink-0 text-[10px] text-muted-foreground/70">{h.score.toFixed(4)}</span>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+              ) : (
+                <Empty text="NO HITS — 该查询未召回任何分块" />
+              )}
+            </div>
+          </Panel>
         </div>
       )}
 
-      {/* F1 对比图 */}
+      {/* ===== F1 走势 ===== */}
       {f1Data.length > 0 && (
-        <Card className="p-4 md:p-6">
-          <CardHeader className="mb-3 p-0">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <BarChart3 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              F1 走势对比 (最近 {f1Data.length} 次评估)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="h-[220px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={f1Data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" vertical={false} />
-                  <XAxis dataKey="label" fontSize={10} stroke="#a1a1aa" interval={0} angle={-20} textAnchor="end" height={44} />
-                  <YAxis unit="%" domain={[0, 100]} fontSize={11} stroke="#a1a1aa" />
-                  <Tooltip formatter={(value) => [`${Number(value).toFixed(2)}%`, 'F1']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <ReferenceLine y={0} stroke="#d4d4d8" />
-                  <Bar dataKey="f1" radius={[4, 4, 0, 0]}>
-                    {f1Data.map((d, i) => (
-                      <Cell key={i} fill={d.hasGt ? '#0d9488' : '#d4d4d8'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">灰色柱表示该次运行无 Ground Truth (F1 为空)。</p>
-          </CardContent>
-        </Card>
+        <Panel>
+          <PanelHead title="F1 走势" hint={`最近 ${f1Data.length} 次运行`} />
+          <div className="p-3">
+            <ResponsiveContainer width="100%" height={210}>
+              <BarChart data={f1Data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="2 5" stroke="currentColor" vertical={false} opacity={0.08} />
+                <XAxis dataKey="label" tick={AXIS} angle={-20} textAnchor="end" height={44} interval={0} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={{ opacity: 0.2 }} />
+                <YAxis unit="%" domain={[0, 100]} tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={false} width={34} />
+                <Tooltip formatter={(value) => [`${Number(value).toFixed(2)}%`, 'F1']} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--accent)', opacity: 0.5 }} />
+                <ReferenceLine y={0} stroke="currentColor" opacity={0.2} />
+                <Bar dataKey="f1" barSize={14}>
+                  {f1Data.map((d, i) => (
+                    <Cell key={i} fill={d.hasGt ? 'var(--chart-1)' : 'var(--chart-5)'} fillOpacity={d.hasGt ? 1 : 0.45} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <p className="label-tech mt-1 !text-[9px] normal-case !tracking-normal">灰柱 = 该次运行无 Ground Truth (F1 为空)</p>
+          </div>
+        </Panel>
       )}
 
-      {/* 历史记录表 */}
-      <Card className="p-4 md:p-6">
-        <CardHeader className="mb-3 p-0">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <ClipboardCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            评估历史 ({runs.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {runs.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
-              暂无评估记录, 运行一次检索评估后此处将显示历史
-            </p>
-          ) : (
-            <div className="max-h-96 overflow-y-auto custom-scrollbar rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="h-9 text-[11px]">查询</TableHead>
-                    <TableHead className="h-9 text-[11px]">模式</TableHead>
-                    <TableHead className="h-9 text-right text-[11px]">Precision</TableHead>
-                    <TableHead className="h-9 text-right text-[11px]">Recall</TableHead>
-                    <TableHead className="h-9 text-right text-[11px]">F1</TableHead>
-                    <TableHead className="h-9 text-right text-[11px]">结果数</TableHead>
-                    <TableHead className="h-9 text-[11px]">时间</TableHead>
-                    <TableHead className="h-9 w-10" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((r) => (
-                    <TableRow key={r.id} className="group">
-                      <TableCell className="max-w-[240px] truncate py-2 text-xs" title={r.query}>{r.query}</TableCell>
-                      <TableCell className="py-2">
-                        <Badge variant="secondary" className="text-[10px]">{MODE_LABELS[r.mode] ?? r.mode}</Badge>
-                      </TableCell>
-                      <TableCell className="py-2 text-right text-xs tabular-nums">
-                        <span className={r.precision != null ? 'text-teal-600 dark:text-teal-400' : 'text-muted-foreground/50'}>
-                          {r.precision != null ? `${r.precision.toFixed(2)}%` : '—'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-2 text-right text-xs tabular-nums">
-                        <span className={r.recall != null ? 'text-lime-600 dark:text-lime-400' : 'text-muted-foreground/50'}>
-                          {r.recall != null ? `${r.recall.toFixed(2)}%` : '—'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-2 text-right text-xs font-semibold tabular-nums">
-                        <span className={r.f1 != null ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/50'}>
-                          {r.f1 != null ? `${r.f1.toFixed(2)}%` : '—'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-2 text-right text-xs tabular-nums text-muted-foreground">{r.resultCount}</TableCell>
-                      <TableCell className="py-2 whitespace-nowrap text-[11px] text-muted-foreground">{formatTime(r.createdAt)}</TableCell>
-                      <TableCell className="py-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground opacity-0 transition-opacity hover:text-rose-600 group-hover:opacity-100"
-                          onClick={() => deleteRun(r.id)}
-                          disabled={deleting === r.id}
-                          aria-label="删除评估记录"
-                        >
-                          {deleting === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* ===== 评估历史 ===== */}
+      <Panel>
+        <PanelHead title="评估历史" hint={`${runs.length} 条记录`} />
+        {runs.length === 0 ? (
+          <Empty text="NO RUNS — 运行一次检索评估后此处显示历史" />
+        ) : (
+          <div className="max-h-96 overflow-auto custom-scrollbar">
+            <table className="bench">
+              <thead>
+                <tr>
+                  <th>查询</th>
+                  <th>模式</th>
+                  <th className="text-right">Precision</th>
+                  <th className="text-right">Recall</th>
+                  <th className="text-right">F1</th>
+                  <th className="text-right">结果数</th>
+                  <th>时间</th>
+                  <th className="w-10" aria-label="操作" />
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <tr key={r.id} className="group">
+                    <td className="max-w-[240px] truncate" title={r.query}>{r.query}</td>
+                    <td>
+                      <MiniTag className="border-border text-muted-foreground">{MODE_TAGS[r.mode] ?? r.mode}</MiniTag>
+                    </td>
+                    <td className="num text-right">{r.precision != null ? `${r.precision.toFixed(2)}%` : '—'}</td>
+                    <td className="num text-right">{r.recall != null ? `${r.recall.toFixed(2)}%` : '—'}</td>
+                    <td className="num text-right font-semibold">{r.f1 != null ? `${r.f1.toFixed(2)}%` : '—'}</td>
+                    <td className="num text-right text-muted-foreground">{r.resultCount}</td>
+                    <td className="num whitespace-nowrap text-muted-foreground">{formatTime(r.createdAt)}</td>
+                    <td>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="relative h-8 w-8 text-muted-foreground transition-colors hover:text-destructive after:absolute after:-inset-2 md:opacity-0 md:group-hover:opacity-100"
+                        onClick={() => deleteRun(r.id)}
+                        disabled={deleting === r.id}
+                        aria-label="删除评估记录"
+                      >
+                        {deleting === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }
@@ -467,95 +487,81 @@ function GroundTruthTab({
 
   return (
     <div className="space-y-4">
-      {/* 添加表单 */}
-      <Card className="p-4 md:p-6">
-        <CardHeader className="mb-4 p-0">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Plus className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            添加 Ground Truth
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 p-0">
+      {/* ===== 标注录入 ===== */}
+      <Panel>
+        <PanelHead title="标注录入 · GROUND TRUTH" hint="PUT /api/evaluation" />
+        <div className="space-y-4 p-4">
           <div className="space-y-1.5">
-            <Label htmlFor="gt-query" className="text-xs text-muted-foreground">查询语句</Label>
-            <Input id="gt-query" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="例如: 冷冻电镜分辨率极限" />
+            <Label htmlFor="gt-query" className="label-tech">查询语句 · QUERY</Label>
+            <Input id="gt-query" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="例如: 冷冻电镜分辨率极限" className="h-9" />
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="gt-ids" className="text-xs text-muted-foreground">相关 Chunk IDs (逗号分隔)</Label>
+              <Label htmlFor="gt-ids" className="label-tech">相关 Chunk IDs · 逗号分隔</Label>
               <Input
                 id="gt-ids"
                 value={chunkIds}
                 onChange={(e) => setChunkIds(e.target.value)}
                 placeholder="例如: chunk-abc123, chunk-def456"
-                className="font-mono text-xs"
+                className="h-9 font-mono text-xs"
               />
-              <p className="text-[10px] text-muted-foreground">可在文献详情的分块列表中获取 chunk ID</p>
+              <p className="label-tech !text-[9px] normal-case !tracking-normal">可在文献详情的分块列表中获取 chunk ID</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="gt-notes" className="text-xs text-muted-foreground">备注 (可选)</Label>
-              <Input id="gt-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="例如: 人工标注 top-3" />
+              <Label htmlFor="gt-notes" className="label-tech">备注 · NOTES (可选)</Label>
+              <Input id="gt-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="例如: 人工标注 top-3" className="h-9" />
             </div>
           </div>
-          <Button onClick={saveGt} disabled={saving} className="gap-2">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          <Button onClick={saveGt} disabled={saving} className="h-9">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" strokeWidth={1.75} />}
             保存 Ground Truth
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
 
-      {/* GT 列表 */}
-      <Card className="p-4 md:p-6">
-        <CardHeader className="mb-3 p-0">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Database className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            Ground Truth 列表 ({groundTruths.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {groundTruths.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
-              暂无 Ground Truth, 添加后即可计算 Precision / Recall / F1
-            </p>
-          ) : (
-            <div className="max-h-[480px] space-y-2 overflow-y-auto custom-scrollbar pr-1">
+      {/* ===== 标注集 — 密集列表 ===== */}
+      <Panel>
+        <PanelHead title="标注集" hint={`${groundTruths.length} 条 GT`} />
+        {groundTruths.length === 0 ? (
+          <Empty text="NO GROUND TRUTH — 添加标注后即可计算 Precision / Recall / F1" />
+        ) : (
+          <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
+            <div className="divide-y">
               {groundTruths.map((g) => (
-                <div key={g.id} className="group rounded-lg border p-3 transition-colors hover:border-teal-500/40">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium">{g.query}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <Badge variant="secondary" className="gap-1 text-[10px] tabular-nums">
-                          <ListChecks className="h-3 w-3" />{g.relevantChunkIds.length} 个相关分块
-                        </Badge>
-                        {g.notes && <span className="text-[10px] text-muted-foreground">{g.notes}</span>}
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {g.relevantChunkIds.slice(0, 6).map((id) => (
-                          <span key={id} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{id}</span>
-                        ))}
-                        {g.relevantChunkIds.length > 6 && (
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">+{g.relevantChunkIds.length - 6}</span>
-                        )}
-                      </div>
+                <div key={g.id} className="group flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium">{g.query}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <MiniTag className="border-primary/50 text-primary">
+                        <span className="num">{g.relevantChunkIds.length}</span> 相关分块
+                      </MiniTag>
+                      {g.notes && <span className="text-[10px] text-muted-foreground">{g.notes}</span>}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-rose-600 group-hover:opacity-100"
-                      onClick={() => deleteGt(g.id)}
-                      disabled={deleting === g.id}
-                      aria-label="删除 Ground Truth"
-                    >
-                      {deleting === g.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    </Button>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {g.relevantChunkIds.slice(0, 6).map((id) => (
+                        <span key={id} className="rounded-[3px] border bg-muted/50 px-1.5 py-px font-mono text-[9px] text-muted-foreground">{id}</span>
+                      ))}
+                      {g.relevantChunkIds.length > 6 && (
+                        <span className="num rounded-[3px] border px-1.5 py-px text-[9px] text-muted-foreground/70">+{g.relevantChunkIds.length - 6}</span>
+                      )}
+                    </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="relative h-8 w-8 shrink-0 text-muted-foreground transition-colors hover:text-destructive after:absolute after:-inset-2 md:opacity-0 md:group-hover:opacity-100"
+                    onClick={() => deleteGt(g.id)}
+                    disabled={deleting === g.id}
+                    aria-label="删除 Ground Truth"
+                  >
+                    {deleting === g.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                  </Button>
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }
@@ -573,114 +579,85 @@ function MonitorTab({ monitor, runs }: { monitor: Monitor | null; runs: EvalRun[
   );
 
   if (!monitor) {
-    return <Skeleton className="h-64 w-full rounded-xl" />;
+    return <Skeleton className="h-64 w-full rounded-lg" />;
   }
 
   return (
     <div className="space-y-4">
-      {/* 指标卡 */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card className="p-4 transition-colors hover:border-teal-500/40">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
-              <Search className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <div className="text-xl font-bold tabular-nums">{monitor.totalSearches}</div>
-              <div className="text-[11px] text-muted-foreground">总搜索次数</div>
-            </div>
+      {/* KPI 条 — hairline 分隔 */}
+      <div className="grid grid-cols-1 divide-y divide-border rounded-lg border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="min-w-0 px-4 py-3">
+          <div className="label-tech !text-[9px]">累计搜索</div>
+          <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">{monitor.totalSearches}</div>
+          <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">SEARCH LOG TOTAL</div>
+        </div>
+        <div className="min-w-0 px-4 py-3">
+          <div className="label-tech !text-[9px]">平均检索延迟</div>
+          <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">
+            {monitor.avgLatency != null ? monitor.avgLatency : '—'}
+            {monitor.avgLatency != null && <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">ms</span>}
           </div>
-        </Card>
-        <Card className="p-4 transition-colors hover:border-teal-500/40">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Clock className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <div className="text-xl font-bold tabular-nums">
-                {monitor.avgLatency != null ? `${monitor.avgLatency}ms` : '—'}
-              </div>
-              <div className="text-[11px] text-muted-foreground">平均检索延迟</div>
-            </div>
+          <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">全量搜索日志均值</div>
+        </div>
+        <div className="min-w-0 px-4 py-3">
+          <div className="label-tech flex items-center gap-1.5 !text-[9px]">
+            零结果率
+            {monitor.zeroResultRate > 20 && <span className="status-dot" data-tone="amber" aria-hidden />}
           </div>
-        </Card>
-        <Card className="p-4 transition-colors hover:border-teal-500/40">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <TrendingUp className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <div className={cn('text-xl font-bold tabular-nums', monitor.zeroResultRate > 20 ? 'text-amber-600 dark:text-amber-400' : '')}>
-                {monitor.zeroResultRate}%
-              </div>
-              <div className="text-[11px] text-muted-foreground">零结果率</div>
-            </div>
+          <div className={cn('num mt-1 text-[22px] font-medium leading-none tracking-tight', monitor.zeroResultRate > 20 && 'text-chart-2')}>
+            {monitor.zeroResultRate}
+            <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">%</span>
           </div>
-        </Card>
+          <div className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal text-muted-foreground/70">
+            {monitor.zeroResultRate > 20 ? '偏高 — 建议扩充语料或调整分块' : '空召回占比正常'}
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* 热门查询 */}
-        <Card className="p-4 md:p-6">
-          <CardHeader className="mb-3 p-0">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <TrendingUp className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              热门查询 Top 10
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
+        <Panel>
+          <PanelHead title="热门查询 · Top 10" hint="BY 搜索日志" />
+          <div className="p-3">
             {popularData.length > 0 ? (
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={popularData} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" horizontal={false} />
-                    <XAxis type="number" allowDecimals={false} fontSize={11} stroke="#a1a1aa" />
-                    <YAxis type="category" dataKey="query" width={130} fontSize={11} stroke="#a1a1aa" />
-                    <Tooltip formatter={(value) => [`${value} 次`, '搜索次数']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="#0d9488" barSize={14} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={popularData} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="2 5" stroke="currentColor" horizontal={false} opacity={0.08} />
+                  <XAxis type="number" allowDecimals={false} tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={{ opacity: 0.2 }} />
+                  <YAxis type="category" dataKey="query" width={110} tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={false} />
+                  <Tooltip formatter={(value) => [`${value} 次`, '搜索次数']} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--accent)', opacity: 0.5 }} />
+                  <Bar dataKey="count" fill="var(--chart-1)" barSize={10} />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
-              <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
-                暂无搜索日志, 使用智能问答或检索后将在此统计
-              </p>
+              <Empty text="NO LOGS — 使用智能问答或检索后将在此统计" />
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
 
         {/* 延迟走势 */}
-        <Card className="p-4 md:p-6">
-          <CardHeader className="mb-3 p-0">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Activity className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              评估检索延迟走势
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
+        <Panel>
+          <PanelHead title="评估延迟走势" hint={`${latencyData.length} 次运行`} />
+          <div className="p-3">
             {latencyData.length > 0 ? (
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={latencyData} margin={{ top: 8, right: 24, bottom: 4, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" vertical={false} />
-                    <XAxis dataKey="idx" fontSize={11} stroke="#a1a1aa" />
-                    <YAxis unit="ms" fontSize={11} stroke="#a1a1aa" />
-                    <Tooltip
-                      formatter={(value) => [`${value} ms`, '延迟']}
-                      labelFormatter={(label) => `第 ${label} 次评估`}
-                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    />
-                    <Line type="monotone" dataKey="latency" stroke="#0d9488" strokeWidth={2} dot={{ r: 2.5, fill: '#0d9488' }} name="延迟" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={latencyData} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="2 5" stroke="currentColor" vertical={false} opacity={0.08} />
+                  <XAxis dataKey="idx" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={{ opacity: 0.2 }} />
+                  <YAxis unit="ms" tick={AXIS} stroke="currentColor" opacity={0.3} tickLine={false} axisLine={false} width={44} />
+                  <Tooltip
+                    formatter={(value) => [`${value} ms`, '延迟']}
+                    labelFormatter={(label) => `第 ${label} 次评估`}
+                    contentStyle={TOOLTIP_STYLE}
+                  />
+                  <Line type="monotone" dataKey="latency" name="延迟" stroke="var(--chart-1)" strokeWidth={1.75} dot={{ r: 2.5, fill: 'var(--chart-1)', strokeWidth: 0 }} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
             ) : (
-              <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
-                暂无评估记录, 运行检索评估后将显示延迟走势
-              </p>
+              <Empty text="NO RUNS — 运行检索评估后将显示延迟走势" />
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
       </div>
     </div>
   );
@@ -726,54 +703,81 @@ export function EvaluationView() {
 
   const handleGtChanged = () => { void loadAll(); };
 
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:space-y-6 md:p-6">
-      {/* 页头 */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-500/20">
-          <ClipboardCheck className="h-5 w-5" />
-        </div>
+  /* ===== Masthead — 坐标纸 + 编辑性标题 ===== */
+  const masthead = (
+    <div className="grid-bg border-b">
+      <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
         <div>
-          <h2 className="text-lg font-bold tracking-tight">评估中心</h2>
-          <p className="text-xs text-muted-foreground">RAG 检索质量评估 · Ground Truth 标注 · 搜索监控统计</p>
+          <div className="label-tech !text-[10px]">Benchmark · 评估中心</div>
+          <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+            评估中心
+            <span className="font-display ml-2.5 align-middle text-[20px] font-normal italic tracking-normal text-muted-foreground/60 md:text-[24px]">
+              Benchmark
+            </span>
+          </h1>
+          <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
+            RAG 检索质量基准 — Precision / Recall / F1 / MRR 测量 · Ground Truth 标注 · 检索服务监控
+          </p>
         </div>
-        {data && (
-          <div className="ml-auto hidden gap-3 text-[11px] text-muted-foreground sm:flex">
-            <span>{data.runs.length} 次评估</span>
-            <span>{data.groundTruths.length} 条 GT</span>
-            <span>{data.monitor.totalSearches} 次搜索</span>
+        <div className="label-tech space-y-1.5 text-right !text-[10px]">
+          <div className="flex items-center justify-end gap-2">
+            <span className="status-dot" data-tone={data ? (data.groundTruths.length > 0 ? undefined : 'amber') : 'muted'} aria-hidden />
+            {data ? (data.groundTruths.length > 0 ? 'GT SET READY' : 'NO GROUND TRUTH') : 'LOADING'}
+          </div>
+          <div className="text-muted-foreground/60">
+            {data ? `${data.runs.length} RUNS · ${data.groundTruths.length} GT · ${data.monitor.totalSearches} SEARCHES` : 'BM25 + VEC · RRF FUSION'}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="animate-fade-in-up">
+      {masthead}
+
+      <div className="space-y-4 p-4 md:p-6">
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+            <div className="label-tech !text-destructive">EVAL DATA LOAD FAILED</div>
+            <p className="mt-1 text-sm text-destructive">{error}</p>
           </div>
         )}
+
+        {loading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-full max-w-md rounded-lg" />
+            <Skeleton className="h-36 w-full rounded-lg" />
+            <Skeleton className="h-56 w-full rounded-lg" />
+          </div>
+        ) : (
+          <Tabs defaultValue="retrieval" className="space-y-4">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-lg border bg-card p-1 sm:w-auto">
+              <TabsTrigger value="retrieval" className="h-7 gap-1.5 px-3 text-xs data-[state=active]:!bg-accent data-[state=active]:!shadow-none dark:data-[state=active]:!bg-accent dark:data-[state=active]:!border-transparent">
+                <Gauge className="h-3.5 w-3.5" strokeWidth={1.75} />检索评估
+              </TabsTrigger>
+              <TabsTrigger value="gt" className="h-7 gap-1.5 px-3 text-xs data-[state=active]:!bg-accent data-[state=active]:!shadow-none dark:data-[state=active]:!bg-accent dark:data-[state=active]:!border-transparent">
+                <Database className="h-3.5 w-3.5" strokeWidth={1.75} />Ground Truth
+              </TabsTrigger>
+              <TabsTrigger value="monitor" className="h-7 gap-1.5 px-3 text-xs data-[state=active]:!bg-accent data-[state=active]:!shadow-none dark:data-[state=active]:!bg-accent dark:data-[state=active]:!border-transparent">
+                <Activity className="h-3.5 w-3.5" strokeWidth={1.75} />监控统计
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="retrieval">
+              <RetrievalEvalTab runs={data?.runs ?? []} onDeleted={handleRunDeleted} onRunCompleted={handleGtChanged} />
+            </TabsContent>
+
+            <TabsContent value="gt">
+              <GroundTruthTab groundTruths={data?.groundTruths ?? []} onChanged={handleGtChanged} />
+            </TabsContent>
+
+            <TabsContent value="monitor">
+              <MonitorTab monitor={data?.monitor ?? null} runs={data?.runs ?? []} />
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
-
-      {error && <Card className="border-rose-500/40 bg-rose-500/5 p-4 text-sm text-rose-600 dark:text-rose-400">{error}</Card>}
-
-      {loading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-28 w-full rounded-xl" />
-          <Skeleton className="h-56 w-full rounded-xl" />
-        </div>
-      ) : (
-        <Tabs defaultValue="retrieval" className="space-y-4">
-          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 sm:w-auto">
-            <TabsTrigger value="retrieval" className="gap-1.5"><Gauge className="h-3.5 w-3.5" />检索评估</TabsTrigger>
-            <TabsTrigger value="gt" className="gap-1.5"><Database className="h-3.5 w-3.5" />Ground Truth</TabsTrigger>
-            <TabsTrigger value="monitor" className="gap-1.5"><Activity className="h-3.5 w-3.5" />监控统计</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="retrieval">
-            <RetrievalEvalTab runs={data?.runs ?? []} onDeleted={handleRunDeleted} onRunCompleted={handleGtChanged} />
-          </TabsContent>
-
-          <TabsContent value="gt">
-            <GroundTruthTab groundTruths={data?.groundTruths ?? []} onChanged={handleGtChanged} />
-          </TabsContent>
-
-          <TabsContent value="monitor">
-            <MonitorTab monitor={data?.monitor ?? null} runs={data?.runs ?? []} />
-          </TabsContent>
-        </Tabs>
-      )}
     </div>
   );
 }

@@ -3,6 +3,8 @@
 /**
  * 自定义 SVG 力导向图 (知识图谱可视化, 替代原 ECharts graph)
  * 简易力模拟: 斥力 + 弹簧引力 + 中心引力, 支持拖拽/缩放/点击
+ * BENCH 设计系统: 节点分类编码走 --chart-1..3, 选中/悬停走 --primary,
+ * 背景/文字跟随主题令牌, 配色全部读取 CSS 变量 (硬编码色已移除)
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -22,11 +24,12 @@ export interface GraphEdge {
   type?: string;
 }
 
-const TYPE_COLORS: Record<string, { fill: string; stroke: string; text: string }> = {
-  structure: { fill: '#0d9488', stroke: '#14b8a6', text: '#0f766e' },
-  literature: { fill: '#d97706', stroke: '#f59e0b', text: '#b45309' },
-  uniprot: { fill: '#059669', stroke: '#10b981', text: '#047857' },
-  center: { fill: '#0f766e', stroke: '#2dd4bf', text: '#134e4a' },
+/** 节点分类 → 设计令牌 (chart 色系仅用于分类编码) */
+const TYPE_TOKENS: Record<string, string> = {
+  structure: 'var(--chart-1)',
+  literature: 'var(--chart-2)',
+  uniprot: 'var(--chart-3)',
+  center: 'var(--chart-1)',
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -35,6 +38,8 @@ const TYPE_LABELS: Record<string, string> = {
   uniprot: '蛋白质',
   center: '中心',
 };
+
+const MONO_FONT = 'var(--font-plex-mono), ui-monospace, monospace';
 
 interface SimNode extends GraphNode {
   x: number;
@@ -144,7 +149,7 @@ export function ForceGraph({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-     
+
   }, [simNodes.length, edges, centerId]);
 
   const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
@@ -200,10 +205,15 @@ export function ForceGraph({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/40 dark:from-zinc-900 dark:to-zinc-900/60" style={{ height }}>
+    <div
+      className="relative overflow-hidden rounded-md border bg-background"
+      style={{ height }}
+    >
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`知识图谱力导向图 · ${simNodes.length} 节点 ${edges.length} 边 · 支持拖拽平移与滚轮缩放`}
         className="h-full w-full cursor-grab active:cursor-grabbing"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -213,18 +223,18 @@ export function ForceGraph({
           panRef.current = { active: true, lastX: e.clientX, lastY: e.clientY };
         }}
       >
-        <defs>
-          <filter id="glow">
-            <feDropShadow dx="0" dy="0" stdDeviation="3" floodOpacity="0.3" />
-          </filter>
-        </defs>
         <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k}) translate(${(1 - transform.k) * width / 2},${(1 - transform.k) * height / 2})`}>
-          {/* 边 */}
+          {/* 边 — 令牌化配色: maps_to 走 chart-3 虚线, 常规边走 foreground 混合, 激活边走 primary */}
           {edges.map((e, i) => {
             const a = nodeMap.get(e.source);
             const b = nodeMap.get(e.target);
             if (!a || !b) return null;
             const isActive = selected === e.source || selected === e.target || hovered === e.source || hovered === e.target;
+            const stroke = isActive
+              ? 'var(--primary)'
+              : e.type === 'maps_to'
+                ? 'color-mix(in oklch, var(--chart-3) 55%, transparent)'
+                : 'color-mix(in oklch, var(--foreground) 26%, transparent)';
             return (
               <g key={`e-${i}`}>
                 <line
@@ -232,45 +242,49 @@ export function ForceGraph({
                   y1={a.y}
                   x2={b.x}
                   y2={b.y}
-                  stroke={e.type === 'maps_to' ? 'rgba(16,185,129,0.4)' : 'rgba(120,120,120,0.35)'}
-                  strokeWidth={isActive ? 2.2 : Math.max(0.8, (e.weight || 1) * 0.55)}
+                  style={{ stroke }}
+                  strokeWidth={isActive ? 2 : Math.max(0.8, (e.weight || 1) * 0.55)}
                   strokeDasharray={e.type === 'maps_to' ? '4 3' : undefined}
                 />
               </g>
             );
           })}
-          {/* 节点 */}
+          {/* 节点 — 分类编码 chart-1..3, 选中/悬停高亮 primary */}
           {simNodes.map((n) => {
-            const colors = TYPE_COLORS[n.id === centerId ? 'center' : n.type] || TYPE_COLORS.structure;
+            const token = TYPE_TOKENS[n.id === centerId ? 'center' : n.type] || TYPE_TOKENS.structure;
             const r = radius(n);
             const isSelected = selected === n.id;
+            const isHovered = hovered === n.id;
+            const isCenter = n.id === centerId || n.type === 'center';
             const isDim = selected && !isSelected && !edges.some(
               (e) => (e.source === selected && e.target === n.id) || (e.target === selected && e.source === n.id)
             );
+            const stroke = isSelected || isHovered || isCenter ? 'var(--primary)' : token;
             return (
               <g
                 key={n.id}
                 transform={`translate(${n.x},${n.y})`}
                 className="cursor-pointer"
-                opacity={isDim ? 0.35 : 1}
+                opacity={isDim ? 0.3 : 1}
                 onMouseDown={(e) => handleNodeMouseDown(e, n.id)}
                 onMouseEnter={() => setHovered(n.id)}
                 onMouseLeave={() => setHovered(null)}
               >
                 <circle
                   r={r}
-                  fill={colors.fill}
-                  stroke={colors.stroke}
-                  strokeWidth={isSelected ? 3 : 1.5}
-                  filter={isSelected ? 'url(#glow)' : undefined}
+                  style={{ fill: token, stroke }}
+                  strokeWidth={isSelected ? 2.5 : isHovered || isCenter ? 1.8 : 1.25}
                   className="transition-all"
                 />
                 <text
-                  y={r + 14}
+                  y={r + 13}
                   textAnchor="middle"
-                  className="pointer-events-none select-none fill-current text-[11px] font-medium"
-                  fill="currentColor"
-                  style={{ fontSize: 11 }}
+                  className="pointer-events-none select-none"
+                  style={{
+                    fill: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)',
+                    fontFamily: MONO_FONT,
+                    fontSize: 10,
+                  }}
                 >
                   {n.label.length > 22 ? `${n.label.slice(0, 21)}…` : n.label}
                 </text>
@@ -280,39 +294,49 @@ export function ForceGraph({
         </g>
       </svg>
 
-      {/* 图例 */}
-      <div className="absolute left-3 top-3 flex flex-col gap-1.5 rounded-lg border bg-background/80 px-3 py-2 text-[11px] backdrop-blur">
-        {['structure', 'literature', 'uniprot'].map((t) => (
-          <div key={t} className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: TYPE_COLORS[t].fill }} />
-            <span className="text-muted-foreground">{TYPE_LABELS[t]}</span>
-          </div>
-        ))}
+      {/* 图例 — 仪器面板角标 */}
+      <div className="absolute left-2.5 top-2.5 rounded-[5px] border bg-card/95 px-2.5 py-2">
+        <div className="label-tech mb-1.5 !text-[9px]">Legend</div>
+        <div className="space-y-1">
+          {(['structure', 'literature', 'uniprot'] as const).map((t) => (
+            <div key={t} className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full" style={{ background: TYPE_TOKENS[t] }} aria-hidden />
+              <span className="label-tech !text-[9px] normal-case !tracking-[0.06em]">{TYPE_LABELS[t]}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* 节点信息 */}
+      {/* 节点信息 — mono 键值铭牌 */}
       {selectedNode && (
-        <div className="absolute bottom-3 right-3 max-w-[280px] rounded-lg border bg-background/95 p-3 text-xs shadow-lg backdrop-blur">
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <span className="font-mono font-semibold">{selectedNode.label}</span>
-            <span className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: `${TYPE_COLORS[selectedNode.type]?.fill}22`, color: TYPE_COLORS[selectedNode.type]?.text }}>
-              {TYPE_LABELS[selectedNode.type]}
+        <div className="absolute bottom-2.5 right-2.5 w-[240px] max-w-[calc(100%-20px)] rounded-md border bg-card p-2.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2 border-b pb-1.5">
+            <span className="num truncate text-[11px] font-semibold">{selectedNode.label}</span>
+            <span className="shrink-0 rounded-[3px] border border-border px-1 py-px font-mono text-[9px] text-muted-foreground">
+              {TYPE_LABELS[selectedNode.type] ?? selectedNode.type.toUpperCase()}
             </span>
           </div>
-          {selectedNode.extra?.title != null && <p className="text-muted-foreground">{String(selectedNode.extra.title).slice(0, 80)}</p>}
-          {selectedNode.extra?.method != null && <p className="mt-1 text-muted-foreground">方法: {String(selectedNode.extra.method)}</p>}
-          {selectedNode.extra?.year != null && <p className="text-muted-foreground">年份: {String(selectedNode.extra.year)}</p>}
+          {selectedNode.extra?.title != null && (
+            <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">{String(selectedNode.extra.title).slice(0, 80)}</p>
+          )}
+          {selectedNode.extra?.method != null && (
+            <p className="label-tech mt-1.5 !text-[9px] normal-case !tracking-normal">方法 · {String(selectedNode.extra.method)}</p>
+          )}
+          {selectedNode.extra?.year != null && (
+            <p className="label-tech mt-1 !text-[9px] normal-case !tracking-normal">年份 · {String(selectedNode.extra.year)}</p>
+          )}
         </div>
       )}
 
-      {/* 缩放控制 */}
-      <div className="absolute bottom-3 left-3 flex gap-1">
+      {/* 视图控制 */}
+      <div className="absolute bottom-2.5 left-2.5">
         <button
-          className="rounded border bg-background/80 px-2 py-1 text-xs backdrop-blur hover:bg-accent"
+          className="label-tech h-8 rounded-[5px] border bg-card px-2.5 transition-colors hover:bg-accent !text-[9px]"
           onClick={() => setTransform({ k: 1, x: 0, y: 0 })}
           type="button"
+          aria-label="重置视图缩放与平移"
         >
-          重置视图
+          RESET VIEW
         </button>
       </div>
     </div>

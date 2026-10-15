@@ -120,23 +120,18 @@ export async function fetchStructureDetail(pdbIdRaw: string): Promise<StructureD
   const entry = await cachedFetch<RcsbEntry>(`entry:${pdbId}`, `https://data.rcsb.org/rest/v1/core/entry/${pdbId}`);
   if (!entry) return null;
 
-  // 实体信息
-  const entities = await cachedFetch<RcsbEntity[]>(
-    `entities:${pdbId}`,
-    `https://data.rcsb.org/rest/v1/core/polymer_entity/${pdbId}/1`,
-    10000
-  );
-  // 获取所有实体: 尝试 1..N
-  const allEntities: RcsbEntity[] = [];
+  // 获取所有实体: 尝试 1..N (并行, 失败返回 null 不阻塞其他实体)
   const entityCount = entry.rcsb_entry_info?.polymer_entity_count || 1;
-  for (let i = 1; i <= Math.min(entityCount, 10); i++) {
-    const e = await cachedFetch<RcsbEntity>(
-      `entity:${pdbId}:${i}`,
-      `https://data.rcsb.org/rest/v1/core/polymer_entity/${pdbId}/${i}`
-    );
-    if (e) allEntities.push(e);
-  }
-  void entities;
+  const allEntities: RcsbEntity[] = (
+    await Promise.all(
+      Array.from({ length: Math.min(entityCount, 10) }, (_, i) =>
+        cachedFetch<RcsbEntity>(
+          `entity:${pdbId}:${i + 1}`,
+          `https://data.rcsb.org/rest/v1/core/polymer_entity/${pdbId}/${i + 1}`
+        )
+      )
+    )
+  ).filter((e): e is RcsbEntity => e !== null);
 
   // 配体信息
   const ligands = await cachedFetch<{ rcsb_ligand_container_identifiers?: { id?: string } }[]>(
@@ -159,15 +154,17 @@ export async function fetchStructureDetail(pdbIdRaw: string): Promise<StructureD
       }
     }
   }
-  // 蛋白名称: 取前 8 个 UniProt 查询
+  // 蛋白名称: 取前 8 个 UniProt 查询 (并行)
   const uidList = [...uniprotMap.keys()].slice(0, 8);
-  for (const uid of uidList) {
-    const uni = await fetchUniprotEntry(uid);
-    if (uni) {
-      uniprotMap.get(uid)!.proteinName =
-        uni.proteinDescription?.recommendedName?.fullName?.value?.slice(0, 60) || '';
-    }
-  }
+  await Promise.all(
+    uidList.map(async (uid) => {
+      const uni = await fetchUniprotEntry(uid);
+      if (uni) {
+        uniprotMap.get(uid)!.proteinName =
+          uni.proteinDescription?.recommendedName?.fullName?.value?.slice(0, 60) || '';
+      }
+    })
+  );
 
   // 序列
   const sequences = allEntities.map((e) => {

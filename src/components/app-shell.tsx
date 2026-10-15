@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * CryoAgent Pro — 应用外壳 (侧边栏 + 顶栏 + 命令面板 + 粘性页脚)
+ * CryoAgent Pro — 应用外壳 · BENCH 设计系统
+ * 仪器面板式侧边栏 + 面包屑顶栏 + mono 状态条页脚 + 命令面板
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -19,8 +20,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   LayoutDashboard, MessageSquare, BookOpen, Boxes, Network, GitCompareArrows, FlaskConical, Sparkles,
-  ClipboardCheck, Settings, BookMarked, Menu, Search, Sun, Moon, Monitor, LogOut, LogIn, UserPlus, ChevronLeft,
-  Activity, Command as CommandIcon, Atom,
+  ClipboardCheck, Settings, BookMarked, Menu, Search, Sun, Moon, Monitor, LogOut, LogIn, UserPlus, PanelLeft,
+  Command as CommandIcon, type LucideIcon,
 } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -28,22 +29,23 @@ import { toast } from 'sonner';
 export interface NavItem {
   id: ViewId;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  slug: string; // 仪器面板式拉丁短码 (面包屑/命令面板用)
+  icon: LucideIcon;
   group: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: '仪表盘', icon: LayoutDashboard, group: '总览' },
-  { id: 'qa', label: '智能问答', icon: MessageSquare, group: 'AI 分析' },
-  { id: 'skills', label: '技能中心', icon: Sparkles, group: 'AI 分析' },
-  { id: 'literature', label: '文献管理', icon: BookOpen, group: '知识库' },
-  { id: 'structures', label: '结构浏览器', icon: Boxes, group: '知识库' },
-  { id: 'kg', label: '知识图谱', icon: Network, group: '知识库' },
-  { id: 'alignment', label: '序列比对', icon: GitCompareArrows, group: '分析工具' },
-  { id: 'sequence-analyzer', label: '序列理化分析', icon: FlaskConical, group: '分析工具' },
-  { id: 'evaluation', label: '评估中心', icon: ClipboardCheck, group: '系统' },
-  { id: 'settings', label: '系统设置', icon: Settings, group: '系统' },
-  { id: 'api-docs', label: '接口文档', icon: BookMarked, group: '系统' },
+  { id: 'dashboard', label: '平台总览', slug: 'bench', icon: LayoutDashboard, group: '总览' },
+  { id: 'qa', label: '智能问答', slug: 'qa', icon: MessageSquare, group: 'AI 分析' },
+  { id: 'skills', label: '技能中心', slug: 'skills', icon: Sparkles, group: 'AI 分析' },
+  { id: 'literature', label: '文献管理', slug: 'library', icon: BookOpen, group: '知识库' },
+  { id: 'structures', label: '结构浏览器', slug: 'pdb', icon: Boxes, group: '知识库' },
+  { id: 'kg', label: '知识图谱', slug: 'graph', icon: Network, group: '知识库' },
+  { id: 'alignment', label: '序列比对', slug: 'align', icon: GitCompareArrows, group: '分析工具' },
+  { id: 'sequence-analyzer', label: '序列理化分析', slug: 'seq', icon: FlaskConical, group: '分析工具' },
+  { id: 'evaluation', label: '评估中心', slug: 'bench', icon: ClipboardCheck, group: '系统' },
+  { id: 'settings', label: '系统设置', slug: 'config', icon: Settings, group: '系统' },
+  { id: 'api-docs', label: '接口文档', slug: 'api', icon: BookMarked, group: '系统' },
 ];
 
 const GROUP_ORDER = ['总览', 'AI 分析', '知识库', '分析工具', '系统'];
@@ -54,6 +56,17 @@ interface UserInfo {
   displayName: string | null;
   role: string;
 }
+
+/** 详情视图 → 所属导航项 (保持父项高亮) */
+const PARENT_OF: Partial<Record<ViewId, ViewId>> = {
+  'literature-detail': 'literature',
+  'structure-detail': 'structures',
+};
+
+const TITLE_OF_DETAIL: Partial<Record<ViewId, { label: string; slug: string }>> = {
+  'literature-detail': { label: '文献详情', slug: 'library/item' },
+  'structure-detail': { label: '结构详情', slug: 'pdb/item' },
+};
 
 export function AppShell({ children, activeView }: { children: React.ReactNode; activeView: ViewId }) {
   const { navigate, sidebarOpen, setSidebarOpen, commandOpen, setCommandOpen } = useAppStore();
@@ -135,43 +148,53 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
     setCommandOpen(false);
   };
 
+  // 面包屑: 详情视图显示专属标题, 其余取导航项
+  const parentView = PARENT_OF[activeView];
   const activeItem = NAV_ITEMS.find((n) => n.id === activeView);
+  const crumb = activeItem
+    ? { label: activeItem.label, slug: activeItem.slug }
+    : TITLE_OF_DETAIL[activeView] || { label: '平台总览', slug: 'bench' };
+
+  /* ============ 侧边栏 (桌面展开态) ============ */
   const sidebar = (
-    <div className="flex h-full flex-col">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-500/20">
-          <Atom className="h-5 w-5" />
+    <div className="flex h-full flex-col bg-sidebar">
+      {/* 品牌区 — 衬线 wordmark + 仪器铭牌 */}
+      <div className="border-b border-sidebar-border px-4 pb-3.5 pt-4">
+        <div className="flex items-baseline justify-between">
+          <span className="font-display text-[22px] leading-none tracking-tight text-sidebar-foreground">
+            CryoAgent
+          </span>
+          <span className="label-tech !text-[9px] text-sidebar-primary">PRO</span>
         </div>
-        <div className="leading-tight">
-          <div className="text-[15px] font-bold tracking-tight">CryoAgent <span className="text-teal-600 dark:text-teal-400">Pro</span></div>
-          <div className="text-[10px] text-muted-foreground">蛋白质结构智能分析平台 v2.0</div>
+        <div className="label-tech mt-2 !text-[9px] !tracking-[0.18em]">
+          Cryo-EM Intelligence Workbench
         </div>
       </div>
 
-      {/* 导航 */}
-      <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 pb-4 custom-scrollbar">
+      {/* 导航 — 面板分组 + 左侧信号条 */}
+      <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-4 custom-scrollbar" aria-label="主导航">
         {grouped.map(({ group, items }) => (
           <div key={group}>
-            <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">{group}</div>
-            <div className="space-y-0.5">
+            <div className="label-tech mb-1.5 px-2.5 !text-[9px]">{group}</div>
+            <div className="space-y-px">
               {items.map((item) => {
-                const active = activeView === item.id || (activeView === 'literature-detail' && item.id === 'literature') || (activeView === 'structure-detail' && item.id === 'structures');
+                const active = activeView === item.id || parentView === item.id;
                 return (
                   <button
                     key={item.id}
                     onClick={() => navigate(item.id)}
+                    aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-all',
+                      'group relative flex w-full items-center gap-2.5 rounded-[5px] px-2.5 py-[7px] text-[13px] transition-colors',
                       active
-                        ? 'bg-teal-600/10 font-medium text-teal-700 dark:bg-teal-500/10 dark:text-teal-300'
-                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                        ? 'bg-sidebar-accent font-medium text-sidebar-primary'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
                     )}
                     type="button"
                   >
-                    <item.icon className={cn('h-4 w-4 shrink-0', active && 'text-teal-600 dark:text-teal-400')} />
+                    {active && <span className="absolute inset-y-[5px] left-0 w-[2px] rounded-full bg-sidebar-primary" aria-hidden />}
+                    <item.icon className="h-[15px] w-[15px] shrink-0" strokeWidth={active ? 2 : 1.75} />
                     <span className="truncate">{item.label}</span>
-                    {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-teal-500" />}
                   </button>
                 );
               })}
@@ -180,15 +203,12 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
         ))}
       </nav>
 
-      {/* 底部状态 */}
-      <div className="border-t px-3 py-3">
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-          </span>
-          <span>系统在线</span>
-          <span className="ml-auto font-mono">Next.js 16</span>
+      {/* 底部铭牌 — 系统状态 */}
+      <div className="border-t border-sidebar-border px-4 py-2.5">
+        <div className="label-tech flex items-center gap-2 !text-[9px]">
+          <span className="status-dot" aria-hidden />
+          <span className="text-sidebar-foreground/80">SYS ONLINE</span>
+          <span className="ml-auto text-sidebar-foreground/45">NEXT·16</span>
         </div>
       </div>
     </div>
@@ -197,98 +217,116 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
       <div className="flex flex-1 overflow-hidden">
-        {/* 桌面侧边栏 */}
+        {/* 桌面侧边栏 — 展开 / 收缩导轨 */}
         <aside
           className={cn(
-            'hidden shrink-0 border-r bg-card/50 backdrop-blur transition-all duration-300 md:block',
-            sidebarOpen ? 'w-[230px]' : 'w-0 md:w-[64px] overflow-hidden'
+            'hidden shrink-0 border-r border-sidebar-border transition-[width] duration-200 md:block',
+            sidebarOpen ? 'w-[216px]' : 'w-[56px]'
           )}
         >
-          {sidebarOpen ? sidebar : (
-            <div className="flex h-full flex-col items-center gap-1 py-4">
-              <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 text-white">
-                <Atom className="h-4 w-4" />
+          {sidebarOpen ? (
+            sidebar
+          ) : (
+            <div className="flex h-full flex-col items-center bg-sidebar py-4">
+              <div className="mb-3 flex h-7 w-7 items-center justify-center" title="CryoAgent Pro">
+                <img src="/logo.svg" alt="CryoAgent Pro" className="h-7 w-7" />
               </div>
-              {NAV_ITEMS.map((item) => {
-                const active = activeView === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => navigate(item.id)}
-                    title={item.label}
-                    className={cn(
-                      'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-                      active ? 'bg-teal-600/10 text-teal-600 dark:text-teal-400' : 'text-muted-foreground hover:bg-accent'
-                    )}
-                    type="button"
-                  >
-                    <item.icon className="h-4 w-4" />
-                  </button>
-                );
-              })}
+              <nav className="flex flex-1 flex-col items-center gap-1" aria-label="主导航">
+                {NAV_ITEMS.map((item) => {
+                  const active = activeView === item.id || parentView === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => navigate(item.id)}
+                      title={item.label}
+                      aria-current={active ? 'page' : undefined}
+                      className={cn(
+                        'relative flex h-8 w-8 items-center justify-center rounded-[5px] transition-colors',
+                        active
+                          ? 'bg-sidebar-accent text-sidebar-primary'
+                          : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
+                      )}
+                      type="button"
+                    >
+                      {active && <span className="absolute inset-y-1 left-0 w-[2px] rounded-full bg-sidebar-primary" aria-hidden />}
+                      <item.icon className="h-[15px] w-[15px]" strokeWidth={active ? 2 : 1.75} />
+                    </button>
+                  );
+                })}
+              </nav>
+              <div className="status-dot mt-2" title="SYS ONLINE" />
             </div>
           )}
         </aside>
 
         {/* 主区域 */}
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* 顶栏 */}
-          <header className="flex h-[52px] shrink-0 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur md:px-5">
+          {/* 顶栏 — 面包屑 + 全局动作 */}
+          <header className="flex h-12 shrink-0 items-center gap-1.5 border-b bg-background px-2.5 md:px-4">
             {/* 移动端菜单 */}
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden">
-                  <Menu className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden" aria-label="打开导航">
+                  <Menu className="h-[18px] w-[18px]" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[240px] p-0">
+              <SheetContent side="left" className="w-[232px] border-sidebar-border p-0 [&>button:last-child]:hidden">
                 {sidebar}
               </SheetContent>
             </Sheet>
 
-            {/* 折叠 */}
-            <Button variant="ghost" size="icon" className="hidden md:flex" onClick={() => setSidebarOpen(!sidebarOpen)}>
-              <ChevronLeft className={cn('h-4 w-4 transition-transform', !sidebarOpen && 'rotate-180')} />
+            {/* 侧栏折叠 */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden h-8 w-8 text-muted-foreground md:flex"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label={sidebarOpen ? '收起侧栏' : '展开侧栏'}
+            >
+              <PanelLeft className="h-4 w-4" />
             </Button>
 
-            <h1 className="flex items-center gap-2 text-sm font-semibold">
-              {activeItem && <activeItem.icon className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
-              {activeView === 'literature-detail' ? '文献详情' : activeView === 'structure-detail' ? '结构详情' : activeItem?.label}
-            </h1>
+            {/* 面包屑 — 中文标题 + 拉丁短码 */}
+            <nav className="flex min-w-0 items-center gap-2 pl-1" aria-label="当前视图">
+              <h1 className="truncate text-[13.5px] font-medium tracking-tight">{crumb.label}</h1>
+              <span className="label-tech hidden !text-[10px] sm:inline">/ {crumb.slug}</span>
+            </nav>
 
             <div className="ml-auto flex items-center gap-1.5">
               {/* 命令面板触发 */}
-              <Button
-                variant="outline"
-                size="sm"
+              <button
                 onClick={() => setCommandOpen(true)}
-                className="hidden h-8 gap-2 text-xs text-muted-foreground sm:flex"
+                className="hidden h-8 items-center gap-2 rounded-[5px] border bg-card px-2.5 text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground sm:flex"
+                type="button"
               >
-                <Search className="h-3.5 w-3.5" />
-                快速跳转
-                <kbd className="pointer-events-none ml-1 rounded border bg-muted px-1.5 font-mono text-[10px]">⌘K</kbd>
+                <Search className="h-3.5 w-3.5" strokeWidth={1.75} />
+                <span className="label-tech !text-[9px]">SEARCH</span>
+                <kbd className="rounded-[3px] border bg-muted px-1 py-px font-mono text-[9px] text-muted-foreground">⌘K</kbd>
+              </button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 sm:hidden" onClick={() => setCommandOpen(true)} aria-label="搜索">
+                <Search className="h-4 w-4" />
               </Button>
 
               {/* 主题切换 */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="切换主题">
                     {mounted && theme === 'dark' ? <Moon className="h-4 w-4" /> : mounted && theme === 'light' ? <Sun className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setTheme('light')}><Sun className="mr-2 h-4 w-4" />浅色</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTheme('dark')}><Moon className="mr-2 h-4 w-4" />深色</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setTheme('system')}><Monitor className="mr-2 h-4 w-4" />跟随系统</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme('light')}><Sun className="mr-2 h-3.5 w-3.5" />浅色</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme('dark')}><Moon className="mr-2 h-3.5 w-3.5" />深色</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme('system')}><Monitor className="mr-2 h-3.5 w-3.5" />跟随系统</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
               {/* 用户 */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 gap-2 px-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 text-[11px] font-bold text-white">
-                      {user ? (user.displayName || user.username).slice(0, 1).toUpperCase() : '?'}
+                  <Button variant="ghost" className="h-8 gap-2 px-1.5">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-primary text-[11px] font-semibold uppercase text-primary-foreground">
+                      {user ? (user.displayName || user.username).slice(0, 1) : '·'}
                     </div>
                     <span className="hidden text-xs font-medium md:inline">{user ? user.displayName || user.username : '游客'}</span>
                   </Button>
@@ -297,23 +335,23 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
                   {user ? (
                     <>
                       <DropdownMenuLabel className="font-normal">
-                        <div className="text-sm font-medium">{user.displayName || user.username}</div>
-                        <div className="text-xs text-muted-foreground">@{user.username} · {user.role}</div>
+                        <div className="text-[13px] font-medium">{user.displayName || user.username}</div>
+                        <div className="label-tech mt-0.5 !text-[9px] normal-case !tracking-normal">@{user.username} · {user.role}</div>
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => navigate('settings')}><Settings className="mr-2 h-4 w-4" />系统设置</DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleLogout} className="text-red-600"><LogOut className="mr-2 h-4 w-4" />退出登录</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('settings')}><Settings className="mr-2 h-3.5 w-3.5" />系统设置</DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleLogout} className="text-destructive"><LogOut className="mr-2 h-3.5 w-3.5" />退出登录</DropdownMenuItem>
                     </>
                   ) : (
                     <>
-                      <DropdownMenuLabel className="font-normal text-xs text-muted-foreground">
+                      <DropdownMenuLabel className="label-tech !text-[9px] normal-case !tracking-normal">
                         {needSetup ? '创建管理员账号开始使用' : '登录以同步你的数据'}
                       </DropdownMenuLabel>
                       <DropdownMenuItem onClick={() => { setLoginMode('login'); setLoginOpen(true); }}>
-                        <LogIn className="mr-2 h-4 w-4" />登录
+                        <LogIn className="mr-2 h-3.5 w-3.5" />登录
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { setLoginMode('register'); setLoginOpen(true); }}>
-                        <UserPlus className="mr-2 h-4 w-4" />注册
+                        <UserPlus className="mr-2 h-3.5 w-3.5" />注册
                       </DropdownMenuItem>
                     </>
                   )}
@@ -322,20 +360,24 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
             </div>
           </header>
 
-          {/* 内容 */}
+          {/* 内容 — 视图在 min-h 布局中渲染, 页脚粘底 */}
           <main className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="flex min-h-full flex-col">
               <div className="flex-1">{children}</div>
-              {/* 粘性页脚 */}
-              <footer className="mt-auto border-t bg-background/90 px-4 py-2.5 text-[11px] text-muted-foreground backdrop-blur md:px-6">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {/* 粘性状态条页脚 */}
+              <footer className="mt-auto border-t bg-background px-4 py-2 md:px-5">
+                <div className="label-tech flex flex-wrap items-center gap-x-5 gap-y-1 !text-[9px]">
                   <span className="flex items-center gap-1.5">
-                    <Activity className="h-3 w-3 text-teal-600 dark:text-teal-400" />
-                    CryoAgent Pro · 重构自 Flask 版
+                    <span className="status-dot" aria-hidden />
+                    CRYOAGENT PRO v2.1
                   </span>
-                  <span className="hidden sm:inline">BM25 + 向量混合检索 · 11 Agent 工具 · 14 技能</span>
-                  <Link href="#" onClick={(e) => { e.preventDefault(); setCommandOpen(true); }} className="ml-auto flex items-center gap-1 hover:text-foreground">
-                    <CommandIcon className="h-3 w-3" />K 快速跳转
+                  <span className="hidden text-muted-foreground/70 sm:inline">BM25+VEC 混合检索 · 11 AGENT TOOLS · 14 SKILLS</span>
+                  <Link
+                    href="#"
+                    onClick={(e) => { e.preventDefault(); setCommandOpen(true); }}
+                    className="ml-auto flex items-center gap-1.5 text-muted-foreground/70 transition-colors hover:text-foreground"
+                  >
+                    <CommandIcon className="h-3 w-3" />K NAVIGATE
                   </Link>
                 </div>
               </footer>
@@ -346,15 +388,16 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
 
       {/* 命令面板 */}
       <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
-        <CommandInput placeholder="搜索功能或输入命令..." />
+        <CommandInput placeholder="搜索功能或输入命令…" />
         <CommandList>
           <CommandEmpty>未找到匹配项</CommandEmpty>
           {grouped.map(({ group, items }) => (
             <CommandGroup key={group} heading={group}>
               {items.map((item) => (
                 <CommandItem key={item.id} onSelect={() => runCommand(item.id)}>
-                  <item.icon className="mr-2 h-4 w-4" />
+                  <item.icon className="mr-2 h-4 w-4" strokeWidth={1.75} />
                   {item.label}
+                  <span className="label-tech ml-auto !text-[9px]">{item.slug}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -367,47 +410,58 @@ export function AppShell({ children, activeView }: { children: React.ReactNode; 
         </CommandList>
       </CommandDialog>
 
-      {/* 登录/注册弹窗 */}
+      {/* 登录/注册 — 平面仪器面板 */}
       {loginOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setLoginOpen(false)}>
-          <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white">
-                <Atom className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold">{loginMode === 'login' ? '登录 CryoAgent Pro' : '创建账号'}</h2>
-                <p className="text-xs text-muted-foreground">
-                  {needSetup && loginMode === 'register' ? '首个注册用户将成为管理员' : '同步问答历史与阅读笔记'}
-                </p>
-              </div>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/25 p-4 backdrop-blur-[2px]"
+          onClick={() => setLoginOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={loginMode === 'login' ? '登录' : '注册'}
+        >
+          <div
+            className="w-full max-w-[340px] rounded-lg border bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-baseline justify-between border-b pb-3">
+              <span className="font-display text-lg tracking-tight">CryoAgent</span>
+              <span className="label-tech !text-[9px]">{loginMode === 'login' ? 'SIGN IN' : 'SIGN UP'}</span>
             </div>
-            <div className="space-y-3">
+            <p className="label-tech mt-3 !text-[9px] normal-case !tracking-normal">
+              {needSetup && loginMode === 'register' ? '首个注册用户将成为管理员' : '登录后同步问答历史与阅读笔记'}
+            </p>
+            <div className="mt-3 space-y-2.5">
               <div>
-                <label className="mb-1 block text-xs font-medium">用户名</label>
+                <label htmlFor="login-username" className="label-tech mb-1 block">用户名</label>
                 <Input
+                  id="login-username"
                   value={loginForm.username}
                   onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                   placeholder="至少 2 个字符"
+                  autoComplete="username"
                   autoFocus
+                  className="h-9"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium">密码</label>
+                <label htmlFor="login-password" className="label-tech mb-1 block">密码</label>
                 <Input
+                  id="login-password"
                   type="password"
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                   placeholder="至少 4 位"
+                  autoComplete={loginMode === 'login' ? 'current-password' : 'new-password'}
                   onKeyDown={(e) => e.key === 'Enter' && handleAuth(loginMode)}
+                  className="h-9"
                 />
               </div>
-              <Button className="w-full" disabled={loginBusy} onClick={() => handleAuth(loginMode)}>
-                {loginBusy ? '处理中...' : loginMode === 'login' ? '登录' : '注册并登录'}
+              <Button className="h-9 w-full font-medium" disabled={loginBusy} onClick={() => handleAuth(loginMode)}>
+                {loginBusy ? '处理中…' : loginMode === 'login' ? '登录' : '注册并登录'}
               </Button>
               <button
                 type="button"
-                className="w-full text-center text-xs text-muted-foreground hover:text-foreground"
+                className="label-tech w-full text-center !text-[10px] normal-case !tracking-normal transition-colors hover:text-foreground"
                 onClick={() => setLoginMode(loginMode === 'login' ? 'register' : 'login')}
               >
                 {loginMode === 'login' ? '没有账号? 切换到注册' : '已有账号? 切换到登录'}

@@ -97,9 +97,10 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   try {
     const { id } = await params;
     const lit = await db.literature.findUnique({ where: { id }, select: { filePath: true } });
+    if (!lit) return NextResponse.json({ error: '文献未找到' }, { status: 404 });
     await db.literature.delete({ where: { id } });
     invalidateRagIndex();
-    void lit?.filePath; // 文件保留以便恢复, 不物理删除
+    void lit.filePath; // 文件保留以便恢复, 不物理删除
     return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : '删除失败' }, { status: 500 });

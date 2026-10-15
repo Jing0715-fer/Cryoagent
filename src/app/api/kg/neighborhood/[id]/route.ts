@@ -7,8 +7,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id: rawId } = await params;
     const structureId = rawId.toUpperCase().trim();
     const { searchParams } = new URL(request.url);
-    const depth = Math.min(parseInt(searchParams.get('depth') || '1'), 2);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '30'), 60);
+    const depth = Math.min(parseInt(searchParams.get('depth') || '1') || 1, 2);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '30') || 30, 60);
 
     const center = await db.structure.findUnique({ where: { id: structureId } });
     const links = await db.structureLink.findMany({

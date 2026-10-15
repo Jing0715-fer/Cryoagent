@@ -1,27 +1,22 @@
 'use client';
 
 /**
- * CryoAgent Pro — 知识图谱视图
- * 全局图谱 (ForceGraph + 搜索) / 邻域查询 (深度 1-2) / 路径发现 (结构间关系链)
+ * CryoAgent Pro — 知识图谱视图 (BENCH 设计系统)
+ * masthead + KPI 条 + 图谱画布面板 + 侧栏密集列表 + 邻域/路径查询仪器面板
+ * 功能不变: 全局图谱 (ForceGraph + 搜索) / 邻域查询 (深度 1-2) / 路径发现 (结构间关系链)
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAppStore, api } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { ForceGraph, type GraphEdge, type GraphNode } from '@/components/force-graph';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import {
-  BookOpen, Boxes, ChevronRight, GitBranch, Layers, Link2, Loader2, Network,
-  Route, Search, TrendingUp, Waypoints,
-} from 'lucide-react';
+import { ChevronRight, GitBranch, Loader2, Network, Route, Search } from 'lucide-react';
 
 // ============ 类型定义 (API 契约) ============
 
@@ -67,15 +62,61 @@ interface KgNeighborhoodResponse {
   stats: { nodeCount: number; edgeCount: number };
 }
 
-// ============ 工具 ============
+// ============ BENCH 基础组件 ============
+
+function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <section className={cn('rounded-lg border bg-card', className)}>{children}</section>;
+}
+
+function PanelHead({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
+      <span className="label-tech !text-[10px] text-foreground/75">{title}</span>
+      {hint && <span className="label-tech ml-auto !text-[9px]">{hint}</span>}
+      {action && <div className={cn('flex items-center gap-1.5', !hint && 'ml-auto')}>{action}</div>}
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="label-tech flex h-full min-h-[120px] items-center justify-center px-4 py-12 text-center !text-[10px] normal-case !tracking-[0.06em]">
+      {text}
+    </div>
+  );
+}
+
+/** 实验方法短码标签 — 分类编码走 chart 色系 */
+function methodShort(method: string | null): string {
+  const m = (method || '').toUpperCase();
+  if (m.includes('X-RAY')) return 'X-RAY';
+  if (m.includes('ELECTRON MICROSCOPY')) return 'CRYO-EM';
+  if (m.includes('NMR')) return 'NMR';
+  return method ? method.slice(0, 10).toUpperCase() : '—';
+}
 
 function methodTone(method: string | null): string {
-  if (!method) return 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400';
-  if (method.includes('ELECTRON')) return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
-  if (method.includes('X-RAY')) return 'bg-teal-500/10 text-teal-700 dark:text-teal-300';
-  if (method.includes('NMR')) return 'bg-amber-500/10 text-amber-700 dark:text-amber-300';
-  return 'bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300';
+  const m = (method || '').toUpperCase();
+  if (m.includes('X-RAY')) return 'border-chart-1/45 text-chart-1';
+  if (m.includes('ELECTRON MICROSCOPY')) return 'border-chart-3/45 text-chart-3';
+  if (m.includes('NMR')) return 'border-chart-2/45 text-chart-2';
+  return 'border-border text-muted-foreground';
 }
+
+function MethodTag({ method }: { method: string | null }) {
+  return (
+    <span
+      className={cn(
+        'shrink-0 rounded-[3px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide',
+        methodTone(method)
+      )}
+    >
+      {methodShort(method)}
+    </span>
+  );
+}
+
+// ============ 工具 ============
 
 /** 节点点击 → 跳转详情 */
 function useGraphNodeNavigation() {
@@ -89,24 +130,6 @@ function useGraphNodeNavigation() {
       }
     },
     [navigate]
-  );
-}
-
-// ============ 统计卡片 ============
-
-function StatCard({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number }) {
-  return (
-    <Card className="p-4 transition-colors hover:border-teal-500/40">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
-          <Icon className="h-4.5 w-4.5" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-xl font-bold tabular-nums">{value.toLocaleString()}</div>
-          <div className="text-[11px] text-muted-foreground">{label}</div>
-        </div>
-      </div>
-    </Card>
   );
 }
 
@@ -224,408 +247,457 @@ export function KgView() {
   };
 
   const popular = statsData?.popularStructures ?? [];
+  const stats = statsData?.stats;
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:space-y-6 md:p-6">
-      {/* 页头 */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-500/20">
-          <Network className="h-5 w-5" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold tracking-tight">知识图谱</h2>
-          <p className="text-xs text-muted-foreground">结构 — 文献 — 蛋白质关联网络 · 点击节点查看详情</p>
+    <div className="animate-fade-in-up">
+      {/* ===== Masthead — 坐标纸 + 编辑性标题 ===== */}
+      <div className="grid-bg border-b">
+        <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
+          <div>
+            <div className="label-tech !text-[10px]">Knowledge Graph · 知识图谱</div>
+            <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+              知识图谱
+              <span className="font-display ml-2.5 font-normal italic text-foreground/60">Knowledge Graph</span>
+            </h1>
+            <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
+              结构 — 文献 — 蛋白质三元关联网络 · 力导向可视化 · 邻域展开 · 最短路径发现与序列相似度参考
+            </p>
+          </div>
+          <div className="label-tech space-y-1.5 text-right !text-[10px]">
+            <div className="flex items-center justify-end gap-2">
+              <span className="status-dot" aria-hidden />
+              {stats ? `NODES ${stats.nodeCount} · EDGES ${stats.edgeCount}` : 'SYNCING…'}
+            </div>
+            <div className="text-muted-foreground/60">FORCE-DIRECTED · SVG CANVAS</div>
+          </div>
         </div>
       </div>
 
-      {/* 统计卡片 */}
-      {loading ? (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[76px] rounded-xl" />)}
-        </div>
-      ) : error ? (
-        <Card className="border-rose-500/40 bg-rose-500/5 p-4 text-sm text-rose-600 dark:text-rose-400">{error}</Card>
-      ) : statsData && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <StatCard icon={Waypoints} label="节点数" value={statsData.stats.nodeCount} />
-          <StatCard icon={Boxes} label="结构节点" value={statsData.stats.structureCount} />
-          <StatCard icon={BookOpen} label="文献节点" value={statsData.stats.literatureCount} />
-          <StatCard icon={Link2} label="关联边数" value={statsData.stats.edgeCount} />
-        </div>
-      )}
-
-      <Tabs defaultValue="global" className="space-y-4">
-        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 sm:w-auto">
-          <TabsTrigger value="global" className="gap-1.5"><Network className="h-3.5 w-3.5" />全局图谱</TabsTrigger>
-          <TabsTrigger value="neighborhood" className="gap-1.5"><GitBranch className="h-3.5 w-3.5" />邻域查询</TabsTrigger>
-          <TabsTrigger value="path" className="gap-1.5"><Route className="h-3.5 w-3.5" />路径发现</TabsTrigger>
-        </TabsList>
-
-        {/* ============ 全局图谱 ============ */}
-        <TabsContent value="global" className="space-y-4">
-          {/* 搜索栏 */}
-          <Card className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && runSearch()}
-                  placeholder="搜索结构标题 / PDB ID / 文献关键词…"
-                  className="pl-9"
-                  aria-label="图谱搜索"
-                />
+      <div className="space-y-4 p-4 md:p-6">
+        {/* ===== KPI 条 — hairline 分隔, 无卡片 ===== */}
+        {loading ? (
+          <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="px-4 py-3">
+                <Skeleton className="h-2.5 w-14" />
+                <Skeleton className="mt-2 h-6 w-16" />
               </div>
-              <Button onClick={runSearch} disabled={searching} className="gap-2">
-                {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                搜索图谱
-              </Button>
-            </div>
-          </Card>
-
-          {/* 搜索结果 */}
-          {searchResults && (
-            <Card className="border-teal-500/30 p-4">
-              <CardHeader className="mb-2 p-0">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Search className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                  搜索结果 — “{searchResults.query}”
-                  <Badge variant="secondary" className="ml-auto font-normal">
-                    {searchResults.structures.length + searchResults.literature.length} 条
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 p-0">
-                {searchResults.structures.length > 0 && (
-                  <div>
-                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">结构</div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {searchResults.structures.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => navigate('structure-detail', { id: s.id })}
-                          className="group rounded-lg border p-3 text-left transition-all hover:border-teal-500/50 hover:bg-teal-500/5"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm font-bold text-teal-700 dark:text-teal-300">{s.id}</span>
-                            {s.method && <span className={cn('rounded px-1.5 py-0.5 text-[10px]', methodTone(s.method))}>{s.method.slice(0, 12)}</span>}
-                            <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <Layers className="h-3 w-3" />{s.literatureCount} 文献
-                            </span>
-                          </div>
-                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{s.title}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {searchResults.literature.length > 0 && (
-                  <div>
-                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">文献</div>
-                    <div className="max-h-64 space-y-1.5 overflow-y-auto custom-scrollbar pr-1">
-                      {searchResults.literature.map((l) => (
-                        <button
-                          key={l.id}
-                          type="button"
-                          onClick={() => navigate('literature-detail', { id: l.id })}
-                          className="flex w-full items-start gap-2 rounded-lg border p-2.5 text-left transition-all hover:border-amber-500/50 hover:bg-amber-500/5"
-                        >
-                          <BookOpen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-1 text-xs font-medium">{l.label}</p>
-                            <p className="mt-0.5 text-[11px] text-muted-foreground">
-                              {l.year ?? '—'} · {l.structureCount} 个关联结构
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="grid gap-4 lg:grid-cols-[1fr_290px]">
-            {/* 力导向图 */}
-            <Card className="p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Waypoints className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                  全局关联网络
-                </CardTitle>
-                {graph && (
-                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                    <span>{graph.stats.nodeCount} 节点</span>
-                    <span>{graph.stats.edgeCount} 边</span>
-                    <span className="hidden sm:inline">拖拽节点 · 滚轮缩放 · 点击跳转</span>
-                  </div>
-                )}
-              </div>
-              {loading ? (
-                <Skeleton className="h-[420px] w-full rounded-xl" />
-              ) : graph && graph.nodes.length > 0 ? (
-                <ForceGraph nodes={graph.nodes} edges={graph.edges} height={460} onNodeClick={handleNodeClick} />
-              ) : (
-                <div className="flex h-[420px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground">
-                  <Network className="h-8 w-8 opacity-30" />
-                  暂无图谱数据, 请先上传文献并关联结构
-                </div>
-              )}
-            </Card>
-
-            {/* 热门结构 */}
-            <Card className="flex flex-col p-4">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                热门结构
-                <span className="ml-auto text-[11px] font-normal text-muted-foreground">按文献关联数</span>
-              </CardTitle>
-              <div className="mt-3 max-h-[460px] flex-1 space-y-1.5 overflow-y-auto custom-scrollbar pr-1">
-                {loading && Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
-                {popular.map((s, i) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => navigate('structure-detail', { id: s.id })}
-                    className="flex w-full items-center gap-2.5 rounded-lg border p-2.5 text-left transition-all hover:border-teal-500/50 hover:bg-teal-500/5"
-                  >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-teal-500/10 text-[11px] font-bold text-teal-700 dark:text-teal-300">
-                      {i + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs font-bold">{s.id}</span>
-                        <span className="text-[10px] text-muted-foreground">{s.linkCount} 文献</span>
-                      </div>
-                      <p className="line-clamp-1 text-[11px] text-muted-foreground">{s.title}</p>
-                    </div>
-                  </button>
-                ))}
-                {!loading && popular.length === 0 && (
-                  <p className="py-8 text-center text-xs text-muted-foreground">暂无数据</p>
-                )}
-              </div>
-            </Card>
+            ))}
           </div>
-        </TabsContent>
-
-        {/* ============ 邻域查询 ============ */}
-        <TabsContent value="neighborhood" className="space-y-4">
-          <Card className="p-4">
-            <CardTitle className="mb-3 flex items-center gap-2 text-sm">
-              <GitBranch className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              结构邻域查询
-            </CardTitle>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="flex-1 space-y-1.5">
-                <Label htmlFor="nb-id" className="text-xs">PDB ID</Label>
-                <Input
-                  id="nb-id"
-                  value={nbId}
-                  onChange={(e) => setNbId(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => e.key === 'Enter' && runNeighborhood()}
-                  placeholder="例如 6M0J"
-                  className="font-mono"
-                />
+        ) : error ? (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+            <div className="label-tech !text-[10px] !text-destructive">GRAPH LOAD FAILED</div>
+            <p className="mt-1 text-xs text-destructive/90">{error}</p>
+          </div>
+        ) : stats ? (
+          <div className="grid grid-cols-2 divide-x divide-border rounded-lg border bg-card md:grid-cols-4">
+            {(
+              [
+                ['节点', 'NODES', stats.nodeCount],
+                ['结构节点', 'STRUCT', stats.structureCount],
+                ['文献节点', 'LIT', stats.literatureCount],
+                ['关联边', 'EDGES', stats.edgeCount],
+              ] as const
+            ).map(([label, code, value]) => (
+              <div key={code} className="min-w-0 px-4 py-3">
+                <div className="label-tech !text-[9px]">{label}</div>
+                <div className="num mt-1 text-[22px] font-medium leading-none tracking-tight">{value.toLocaleString()}</div>
+                <div className="label-tech mt-1.5 !text-[9px] text-muted-foreground/70">{code}</div>
               </div>
-              <div className="w-full space-y-1.5 sm:w-32">
-                <Label className="text-xs">展开深度</Label>
-                <Select value={nbDepth} onValueChange={setNbDepth}>
-                  <SelectTrigger aria-label="展开深度">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 — 直接关联</SelectItem>
-                    <SelectItem value="2">2 — 二级扩展</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={runNeighborhood} disabled={nbLoading} className="gap-2 sm:mb-0">
-                {nbLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitBranch className="h-4 w-4" />}
-                查询邻域
-              </Button>
-            </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              深度 1 显示该结构直接关联的文献与 UniProt; 深度 2 额外展开共享文献的其他结构。
-            </p>
-          </Card>
+            ))}
+          </div>
+        ) : null}
 
-          {nbLoading && <Skeleton className="h-[420px] w-full rounded-xl" />}
-          {nbError && (
-            <Card className="border-rose-500/40 bg-rose-500/5 p-4 text-sm text-rose-600 dark:text-rose-400">{nbError}</Card>
-          )}
-          {nbData && !nbLoading && (
-            <Card className="p-4">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <CardTitle className="font-mono text-sm font-bold">{nbData.center}</CardTitle>
-                <Badge variant="secondary">深度 {nbData.depth}</Badge>
-                <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
-                  <span>{nbData.stats.nodeCount} 节点</span>
-                  <span>{nbData.stats.edgeCount} 边</span>
+        <Tabs defaultValue="global" className="gap-4">
+          <TabsList className="h-9 w-full gap-0 rounded-[5px] border bg-card p-[3px] shadow-none sm:w-auto">
+            <TabsTrigger
+              value="global"
+              className="flex-1 gap-1.5 rounded-[4px] px-4 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
+            >
+              <Network className="h-3.5 w-3.5" strokeWidth={1.75} />
+              全局图谱
+            </TabsTrigger>
+            <TabsTrigger
+              value="neighborhood"
+              className="flex-1 gap-1.5 rounded-[4px] px-4 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
+            >
+              <GitBranch className="h-3.5 w-3.5" strokeWidth={1.75} />
+              邻域查询
+            </TabsTrigger>
+            <TabsTrigger
+              value="path"
+              className="flex-1 gap-1.5 rounded-[4px] px-4 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
+            >
+              <Route className="h-3.5 w-3.5" strokeWidth={1.75} />
+              路径发现
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ============ 全局图谱 ============ */}
+          <TabsContent value="global" className="space-y-4">
+            {/* 检索工具栏 */}
+            <Panel>
+              <PanelHead title="Query · 图谱检索" hint="STRUCTURE / LITERATURE" />
+              <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search
+                    className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                    strokeWidth={1.75}
+                  />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && void runSearch()}
+                    placeholder="搜索结构标题 / PDB ID / 文献关键词…"
+                    className="h-9 pl-8 text-xs"
+                    aria-label="图谱搜索"
+                  />
                 </div>
+                <Button onClick={() => void runSearch()} disabled={searching} className="h-9 gap-1.5 text-xs font-medium">
+                  {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} /> : <Search className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                  搜索图谱
+                </Button>
               </div>
-              {nbData.nodes.length > 1 ? (
-                <ForceGraph
-                  nodes={nbData.nodes}
-                  edges={nbData.edges}
-                  height={460}
-                  centerId={`struct:${nbData.center}`}
-                  onNodeClick={handleNodeClick}
+            </Panel>
+
+            {/* 搜索结果 */}
+            {searchResults && (
+              <Panel>
+                <PanelHead
+                  title="Results · 检索结果"
+                  hint={`QUERY “${searchResults.query}” · ${searchResults.structures.length + searchResults.literature.length} 条`}
                 />
-              ) : (
-                <div className="flex h-40 flex-col items-center justify-center gap-1 rounded-xl border border-dashed text-sm text-muted-foreground">
-                  <Boxes className="h-6 w-6 opacity-30" />
-                  {nbData.center} 暂无关联文献, 请先在文献中检测该结构
-                </div>
-              )}
-            </Card>
-          )}
-          {!nbData && !nbLoading && !nbError && (
-            <Card className="flex h-48 flex-col items-center justify-center gap-2 border-dashed p-4 text-sm text-muted-foreground">
-              <GitBranch className="h-8 w-8 opacity-30" />
-              输入 PDB ID 查询其知识图谱邻域
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* ============ 路径发现 ============ */}
-        <TabsContent value="path" className="space-y-4">
-          <Card className="p-4">
-            <CardTitle className="mb-3 flex items-center gap-2 text-sm">
-              <Route className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              结构间路径发现
-            </CardTitle>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="flex-1 space-y-1.5">
-                <Label htmlFor="path-src" className="text-xs">起点结构 (PDB)</Label>
-                <Input
-                  id="path-src"
-                  value={pathSource}
-                  onChange={(e) => setPathSource(e.target.value.toUpperCase())}
-                  placeholder="例如 6M0J"
-                  className="font-mono"
-                />
-              </div>
-              <div className="flex-1 space-y-1.5">
-                <Label htmlFor="path-dst" className="text-xs">终点结构 (PDB)</Label>
-                <Input
-                  id="path-dst"
-                  value={pathTarget}
-                  onChange={(e) => setPathTarget(e.target.value.toUpperCase())}
-                  placeholder="例如 7A5I"
-                  className="font-mono"
-                />
-              </div>
-              <Button onClick={runPath} disabled={pathLoading} className="gap-2">
-                {pathLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Route className="h-4 w-4" />}
-                发现路径
-              </Button>
-            </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              通过 BFS 在 图谱中寻找两个结构间的最短关联链, 并计算首条实体序列的相似度。
-            </p>
-          </Card>
-
-          {pathLoading && <Skeleton className="h-40 w-full rounded-xl" />}
-          {pathResult && !pathLoading && (
-            <Card className="p-4 md:p-6">
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="font-mono text-sm font-bold">{pathResult.source}</span>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                <span className="font-mono text-sm font-bold">{pathResult.target}</span>
-                {pathResult.connected ? (
-                  <Badge className="gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300">
-                    <Link2 className="h-3 w-3" />已连接
-                  </Badge>
-                ) : (
-                  <Badge variant="destructive" className="gap-1">
-                    <Link2 className="h-3 w-3" />未连通
-                  </Badge>
-                )}
-              </div>
-
-              {/* 路径面包屑 */}
-              {pathResult.path ? (
-                <div className="mb-4 flex flex-wrap items-center gap-1.5">
-                  {pathResult.path.map((nodeId, i) => {
-                    const isStruct = !nodeId.startsWith('lit:');
-                    const rawId = nodeId.replace(/^(struct:|lit:)/, '');
-                    const title = pathResult.titles[rawId];
-                    return (
-                      <span key={`${nodeId}-${i}`} className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(isStruct ? 'structure-detail' : 'literature-detail', { id: rawId })
-                          }
-                          className={cn(
-                            'max-w-[240px] truncate rounded-full border px-2.5 py-1 text-[11px] transition-colors',
-                            isStruct
-                              ? 'border-teal-500/40 bg-teal-500/10 font-mono text-teal-700 hover:bg-teal-500/20 dark:text-teal-300'
-                              : 'border-amber-500/40 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300'
-                          )}
-                          title={title || rawId}
-                        >
-                          {isStruct ? rawId : `📄 ${title ? title.slice(0, 18) : rawId.slice(0, 8)}`}
-                        </button>
-                        {i < pathResult.path!.length - 1 && (
-                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="mb-4 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-                  两个结构之间不存在 ≤ 2 跳的文献关联路径。
-                </p>
-              )}
-
-              {/* 指标 */}
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                <div className="rounded-lg border bg-muted/40 p-3">
-                  <div className="text-[11px] text-muted-foreground">路径长度</div>
-                  <div className="mt-1 text-lg font-bold tabular-nums">
-                    {pathResult.pathLength != null ? `${pathResult.pathLength} 节点` : '—'}
-                  </div>
-                </div>
-                <div className="rounded-lg border bg-muted/40 p-3">
-                  <div className="text-[11px] text-muted-foreground">首实体序列相似度</div>
-                  <div className="mt-1 text-lg font-bold tabular-nums">
-                    {pathResult.sequenceSimilarity != null ? `${pathResult.sequenceSimilarity}%` : '—'}
-                  </div>
-                  {pathResult.sequenceSimilarity != null && (
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn(
-                          'h-full rounded-full',
-                          pathResult.sequenceSimilarity >= 40 ? 'bg-emerald-500' : pathResult.sequenceSimilarity >= 20 ? 'bg-teal-500' : 'bg-amber-500'
-                        )}
-                        style={{ width: `${Math.min(100, pathResult.sequenceSimilarity)}%` }}
-                      />
+                <div>
+                  {searchResults.structures.length > 0 && (
+                    <div>
+                      <div className="label-tech border-b bg-muted/40 px-4 py-1.5 !text-[9px]">Structures · 结构</div>
+                      <div className="divide-y">
+                        {searchResults.structures.map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            aria-label={`查看结构 ${s.id}`}
+                            onClick={() => navigate('structure-detail', { id: s.id })}
+                            className="flex w-full items-baseline gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+                          >
+                            <span className="num text-[13px] font-semibold tracking-tight">{s.id}</span>
+                            <MethodTag method={s.method} />
+                            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{s.title}</span>
+                            <span className="num shrink-0 text-[10px] text-muted-foreground">LIT {s.literatureCount}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
+                  {searchResults.literature.length > 0 && (
+                    <div>
+                      <div className="label-tech border-b bg-muted/40 px-4 py-1.5 !text-[9px]">Literature · 文献</div>
+                      <div className="max-h-64 divide-y overflow-y-auto custom-scrollbar">
+                        {searchResults.literature.map((l) => (
+                          <button
+                            key={l.id}
+                            type="button"
+                            aria-label={`查看文献 ${l.label}`}
+                            onClick={() => navigate('literature-detail', { id: l.id })}
+                            className="flex w-full items-baseline gap-3 px-4 py-2 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+                          >
+                            <span className="num shrink-0 text-[10px] text-muted-foreground/60">{l.year ?? '—'}</span>
+                            <span className="min-w-0 flex-1 truncate text-xs">{l.label}</span>
+                            <span className="num shrink-0 text-[10px] text-muted-foreground">{l.structureCount} STRUCT</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {searchResults.structures.length === 0 && searchResults.literature.length === 0 && (
+                    <Empty text="NO MATCH — 未找到匹配的结构或文献, 尝试其他关键词" />
+                  )}
                 </div>
-                <div className="rounded-lg border bg-muted/40 p-3">
-                  <div className="text-[11px] text-muted-foreground">中间文献数</div>
-                  <div className="mt-1 text-lg font-bold tabular-nums">
-                    {pathResult.path ? pathResult.path.filter((n) => n.startsWith('lit:')).length : '—'}
+              </Panel>
+            )}
+
+            <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+              {/* 力导向图画布 */}
+              <Panel>
+                <PanelHead
+                  title="Global Graph · 全局关联网络"
+                  hint={graph ? `${graph.stats.nodeCount}N · ${graph.stats.edgeCount}E · 拖拽/缩放/点击` : undefined}
+                />
+                <div className="p-2">
+                  {loading ? (
+                    <Skeleton className="h-[460px] w-full rounded-md" />
+                  ) : graph && graph.nodes.length > 0 ? (
+                    <ForceGraph nodes={graph.nodes} edges={graph.edges} height={460} onNodeClick={handleNodeClick} />
+                  ) : (
+                    <Empty text="NO DATA — 请先上传文献并关联结构, 图谱节点随文献库自动生长" />
+                  )}
+                </div>
+              </Panel>
+
+              {/* 热门结构 */}
+              <Panel className="flex flex-col">
+                <PanelHead title="Top Structures · 热门结构" hint="BY 文献关联" />
+                <div className="max-h-[478px] flex-1 divide-y overflow-y-auto custom-scrollbar">
+                  {loading && Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="px-4 py-3">
+                      <Skeleton className="h-3.5 w-20" />
+                      <Skeleton className="mt-1.5 h-2.5 w-full" />
+                    </div>
+                  ))}
+                  {popular.map((s, i) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-label={`查看结构 ${s.id}`}
+                      onClick={() => navigate('structure-detail', { id: s.id })}
+                      className="flex w-full items-baseline gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+                    >
+                      <span className="num w-4 shrink-0 text-[10px] text-muted-foreground/60">{String(i + 1).padStart(2, '0')}</span>
+                      <span className="num text-[13px] font-semibold tracking-tight">{s.id}</span>
+                      <span className="ml-auto num shrink-0 text-[10px] text-muted-foreground">{s.linkCount} 篇</span>
+                      <span className="sr-only">{s.title}</span>
+                    </button>
+                  ))}
+                  {!loading && popular.length === 0 && <Empty text="NO DATA — 暂无文献关联结构" />}
+                </div>
+              </Panel>
+            </div>
+          </TabsContent>
+
+          {/* ============ 邻域查询 ============ */}
+          <TabsContent value="neighborhood" className="space-y-4">
+            <Panel>
+              <PanelHead title="Neighborhood · 邻域查询" hint="DEPTH 1–2" />
+              <div className="p-3">
+                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end">
+                  <div className="flex-1 space-y-1.5">
+                    <label htmlFor="nb-id" className="label-tech block !text-[10px]">PDB ID</label>
+                    <Input
+                      id="nb-id"
+                      value={nbId}
+                      onChange={(e) => setNbId(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => e.key === 'Enter' && void runNeighborhood()}
+                      placeholder="例如 6M0J"
+                      className="h-9 font-mono text-xs uppercase"
+                    />
+                  </div>
+                  <div className="w-full space-y-1.5 sm:w-[180px]">
+                    <label className="label-tech block !text-[10px]">展开深度</label>
+                    <Select value={nbDepth} onValueChange={setNbDepth}>
+                      <SelectTrigger className="h-9 rounded-[5px] text-xs" aria-label="展开深度">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 — 直接关联</SelectItem>
+                        <SelectItem value="2">2 — 二级扩展</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={() => void runNeighborhood()} disabled={nbLoading} className="h-9 gap-1.5 text-xs font-medium">
+                    {nbLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} /> : <GitBranch className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                    查询邻域
+                  </Button>
+                </div>
+                <p className="label-tech mt-2.5 !text-[9px] normal-case !tracking-normal">
+                  深度 1 显示该结构直接关联的文献与 UniProt · 深度 2 额外展开共享文献的其他结构
+                </p>
+              </div>
+            </Panel>
+
+            {nbLoading && (
+              <Panel>
+                <div className="p-2">
+                  <Skeleton className="h-[460px] w-full rounded-md" />
+                </div>
+              </Panel>
+            )}
+            {nbError && (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+                <div className="label-tech !text-[10px] !text-destructive">NEIGHBORHOOD QUERY FAILED</div>
+                <p className="mt-1 text-xs text-destructive/90">{nbError}</p>
+              </div>
+            )}
+            {nbData && !nbLoading && (
+              <Panel>
+                <PanelHead
+                  title={`NB · ${nbData.center}`}
+                  hint={`${nbData.stats.nodeCount}N · ${nbData.stats.edgeCount}E · DEPTH ${nbData.depth}`}
+                />
+                <div className="p-2">
+                  {nbData.nodes.length > 1 ? (
+                    <ForceGraph
+                      nodes={nbData.nodes}
+                      edges={nbData.edges}
+                      height={460}
+                      centerId={`struct:${nbData.center}`}
+                      onNodeClick={handleNodeClick}
+                    />
+                  ) : (
+                    <Empty text={`NO LINKS — ${nbData.center} 暂无关联文献, 请先在文献中检测该结构`} />
+                  )}
+                </div>
+              </Panel>
+            )}
+            {!nbData && !nbLoading && !nbError && (
+              <Panel>
+                <PanelHead title="Neighborhood · 邻域查询" hint="STANDBY" />
+                <Empty text="READY — 输入 PDB ID 查询其知识图谱邻域" />
+              </Panel>
+            )}
+          </TabsContent>
+
+          {/* ============ 路径发现 ============ */}
+          <TabsContent value="path" className="space-y-4">
+            <Panel>
+              <PanelHead title="Path Finder · 路径发现" hint="BFS ≤ 2 跳" />
+              <div className="p-3">
+                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end">
+                  <div className="flex-1 space-y-1.5">
+                    <label htmlFor="path-src" className="label-tech block !text-[10px]">起点结构 · PDB</label>
+                    <Input
+                      id="path-src"
+                      value={pathSource}
+                      onChange={(e) => setPathSource(e.target.value.toUpperCase())}
+                      placeholder="例如 6M0J"
+                      className="h-9 font-mono text-xs uppercase"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <label htmlFor="path-dst" className="label-tech block !text-[10px]">终点结构 · PDB</label>
+                    <Input
+                      id="path-dst"
+                      value={pathTarget}
+                      onChange={(e) => setPathTarget(e.target.value.toUpperCase())}
+                      placeholder="例如 7A5I"
+                      className="h-9 font-mono text-xs uppercase"
+                    />
+                  </div>
+                  <Button onClick={() => void runPath()} disabled={pathLoading} className="h-9 gap-1.5 text-xs font-medium">
+                    {pathLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} /> : <Route className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                    发现路径
+                  </Button>
+                </div>
+                <p className="label-tech mt-2.5 !text-[9px] normal-case !tracking-normal">
+                  通过 BFS 在图谱中寻找两个结构间的最短关联链, 并计算首条实体序列的相似度
+                </p>
+              </div>
+            </Panel>
+
+            {pathLoading && (
+              <Panel>
+                <div className="p-4">
+                  <Skeleton className="h-8 w-48" />
+                  <Skeleton className="mt-4 h-7 w-full" />
+                  <Skeleton className="mt-4 h-16 w-full" />
+                </div>
+              </Panel>
+            )}
+            {pathResult && !pathLoading && (
+              <Panel>
+                <PanelHead
+                  title="Path Result · 路径结果"
+                  hint={pathResult.connected ? `CONNECTED · ${pathResult.pathLength} NODES` : 'DISCONNECTED'}
+                />
+                <div className="space-y-4 p-4">
+                  {/* 端点行 */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="num text-[13px] font-semibold tracking-tight">{pathResult.source}</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" strokeWidth={1.75} />
+                    <span className="num text-[13px] font-semibold tracking-tight">{pathResult.target}</span>
+                    <span
+                      className={cn(
+                        'ml-1 rounded-[3px] border px-1.5 py-px font-mono text-[9px] font-medium',
+                        pathResult.connected ? 'border-chart-1/45 text-chart-1' : 'border-destructive/45 text-destructive'
+                      )}
+                    >
+                      {pathResult.connected ? 'CONNECTED' : 'DISCONNECTED'}
+                    </span>
+                  </div>
+
+                  {/* 路径链 — mono 节点标签, 无插画 */}
+                  {pathResult.path ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {pathResult.path.map((nodeId, i) => {
+                        const isStruct = !nodeId.startsWith('lit:');
+                        const rawId = nodeId.replace(/^(struct:|lit:)/, '');
+                        const title = pathResult.titles[rawId];
+                        return (
+                          <span key={`${nodeId}-${i}`} className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(isStruct ? 'structure-detail' : 'literature-detail', { id: rawId })
+                              }
+                              className={cn(
+                                'max-w-[240px] truncate rounded-[3px] border px-1.5 py-px font-mono text-[10px] transition-colors',
+                                isStruct
+                                  ? 'border-chart-1/40 text-chart-1 hover:bg-accent'
+                                  : 'border-chart-2/40 text-chart-2 hover:bg-accent'
+                              )}
+                              title={title || rawId}
+                            >
+                              {isStruct ? rawId : (title ? title.slice(0, 18) : rawId.slice(0, 8))}
+                            </button>
+                            {i < pathResult.path!.length - 1 && (
+                              <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/50" strokeWidth={1.75} />
+                            )}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Empty text="NO PATH — 两个结构之间不存在 ≤ 2 跳的文献关联路径" />
+                  )}
+
+                  {/* 指标条 — hairline 分隔 */}
+                  <div className="grid grid-cols-3 divide-x divide-border rounded-md border">
+                    <div className="px-3.5 py-2.5">
+                      <div className="label-tech !text-[9px]">路径长度</div>
+                      <div className="num mt-1 text-lg font-medium leading-none tracking-tight">
+                        {pathResult.pathLength != null ? pathResult.pathLength : '—'}
+                      </div>
+                    </div>
+                    <div className="px-3.5 py-2.5">
+                      <div className="label-tech !text-[9px]">首实体序列相似度</div>
+                      <div className="num mt-1 text-lg font-medium leading-none tracking-tight">
+                        {pathResult.sequenceSimilarity != null ? `${pathResult.sequenceSimilarity}%` : '—'}
+                      </div>
+                      {pathResult.sequenceSimilarity != null && (
+                        <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={cn(
+                              'h-full rounded-full',
+                              pathResult.sequenceSimilarity >= 40
+                                ? 'bg-chart-1'
+                                : pathResult.sequenceSimilarity >= 20
+                                  ? 'bg-chart-2'
+                                  : 'bg-chart-4'
+                            )}
+                            style={{ width: `${Math.min(100, pathResult.sequenceSimilarity)}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-3.5 py-2.5">
+                      <div className="label-tech !text-[9px]">中间文献</div>
+                      <div className="num mt-1 text-lg font-medium leading-none tracking-tight">
+                        {pathResult.path ? pathResult.path.filter((n) => n.startsWith('lit:')).length : '—'}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Card>
-          )}
-          {!pathResult && !pathLoading && (
-            <Card className="flex h-48 flex-col items-center justify-center gap-2 border-dashed p-4 text-sm text-muted-foreground">
-              <Route className="h-8 w-8 opacity-30" />
-              输入两个 PDB ID, 发现它们之间的关联路径
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+              </Panel>
+            )}
+            {!pathResult && !pathLoading && (
+              <Panel>
+                <PanelHead title="Path Finder · 路径发现" hint="STANDBY" />
+                <Empty text="READY — 输入两个 PDB ID, 发现它们之间的关联路径" />
+              </Panel>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

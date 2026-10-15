@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50') || 50, 200);
     const mode = searchParams.get('mode');
 
     if (sessionId) {

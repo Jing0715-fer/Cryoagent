@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20') || 20, 100);
     const logs = await db.searchLog.findMany({ orderBy: { createdAt: 'desc' }, take: limit });
     return NextResponse.json({ logs });
   } catch {

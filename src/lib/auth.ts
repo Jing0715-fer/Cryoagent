@@ -7,7 +7,16 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { cookies } from 'next/headers';
 import { db } from '@/lib/db';
 
-const SECRET = process.env.AUTH_SECRET || 'cryoagent-pro-nextjs-secret-2025';
+// S1 修复: 未显式配置 AUTH_SECRET 时，使用进程级随机密钥并警告 (避免硬编码密钥被伪造 session)
+// 注: 该回退下重启后旧 session 失效，生产环境务必设置 AUTH_SECRET
+const SECRET =
+  process.env.AUTH_SECRET ||
+  (() => {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[auth] AUTH_SECRET 未配置，已生成临时密钥 (重启后 session 失效)');
+    }
+    return randomBytes(32).toString('hex');
+  })();
 const COOKIE_NAME = 'cryoagent_session';
 const SESSION_TTL_DAYS = 7;
 
@@ -39,7 +48,10 @@ function parseSessionToken(token: string): string | null {
   const sessionId = token.slice(0, idx);
   const sig = token.slice(idx + 1);
   const expected = signSessionId(sessionId);
-  return sig === expected ? sessionId : null;
+  // M1 修复: 恒时比较，防时序侧信道
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b) ? sessionId : null;
 }
 
 export async function createSession(userId: string): Promise<string> {

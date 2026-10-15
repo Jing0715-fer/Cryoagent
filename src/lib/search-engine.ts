@@ -247,8 +247,9 @@ export function highlightSegments(text: string, query: string): { text: string; 
     `(${tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
     'gi'
   );
+  // split 含捕获组时: 奇数下标即为匹配片段 (避免带 g 标志的 regex.test 状态残留导致误判)
   const parts = text.split(pattern);
   return parts
-    .filter((p) => p.length > 0)
-    .map((p) => ({ text: p, hit: pattern.test(p) }));
+    .map((p, i) => ({ text: p, hit: i % 2 === 1 }))
+    .filter((p) => p.text.length > 0);
 }

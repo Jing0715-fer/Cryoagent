@@ -1,20 +1,18 @@
 'use client';
 
 /**
- * CryoAgent Pro — 接口文档
- * 全部 REST API 分组速查表 + 简单 GET 端点在线 "试一试"
+ * CryoAgent Pro — 接口文档 (BENCH 设计系统)
+ * 全部 REST 端点速查 — 左侧分组清单 + 右侧端点详情 (参数/响应 mono 代码块) + GET 在线调试
+ * 结构: grid-bg masthead + 端点索引过滤台 + master-detail + table.bench 参数表
  */
 
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import {
-  BookMarked, BookOpen, Boxes, Bot, ClipboardCheck, GitCompareArrows, KeyRound, Loader2,
+  BookOpen, Boxes, Bot, ClipboardCheck, GitCompareArrows, KeyRound, Loader2,
   Network, Play, Search, Sparkles, Dna, Terminal,
 } from 'lucide-react';
 
@@ -39,12 +37,13 @@ interface EndpointGroup {
   endpoints: EndpointDoc[];
 }
 
+/** 方法短码 tag — outline 语义色 (GET=chart-1 / POST=chart-2 / DELETE=destructive) */
 const METHOD_CLASSES: Record<HttpMethod, string> = {
-  GET: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  POST: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  PUT: 'border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300',
-  PATCH: 'border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300',
-  DELETE: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300',
+  GET: 'border-chart-1/50 text-chart-1',
+  POST: 'border-chart-2/50 text-chart-2',
+  PUT: 'border-chart-3/50 text-chart-3',
+  PATCH: 'border-chart-5/50 text-chart-5',
+  DELETE: 'border-destructive/50 text-destructive',
 };
 
 // ============ 端点清单 (与后端路由一一对应) ============
@@ -174,6 +173,27 @@ const ENDPOINT_GROUPS: EndpointGroup[] = [
 
 const TOTAL_ENDPOINTS = ENDPOINT_GROUPS.reduce((a, g) => a + g.endpoints.length, 0);
 const TRYABLE_COUNT = ENDPOINT_GROUPS.reduce((a, g) => a + g.endpoints.filter((e) => e.tryUrl).length, 0);
+const DEFAULT_KEY = `${ENDPOINT_GROUPS[0].endpoints[0].method}:${ENDPOINT_GROUPS[0].endpoints[0].path}`;
+
+// ============ BENCH 基础组件 ============
+
+/** mono 方法短码 tag — 定宽对齐, outline 语义色 */
+function MethodTag({ method, className }: { method: HttpMethod; className?: string }) {
+  return (
+    <span className={cn('inline-flex w-12 shrink-0 justify-center rounded-[3px] border px-1 py-px font-mono text-[9px] font-semibold tracking-wide', METHOD_CLASSES[method], className)}>
+      {method}
+    </span>
+  );
+}
+
+/** 精确空态 — mono 指引 */
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="label-tech flex h-full min-h-[88px] items-center justify-center px-4 py-8 text-center !text-[10px] normal-case !tracking-[0.06em]">
+      {text}
+    </div>
+  );
+}
 
 // ============ 主组件 ============
 
@@ -181,6 +201,7 @@ export function ApiDocsView() {
   const [search, setSearch] = useState('');
   const [trying, setTrying] = useState<Record<string, boolean>>({});
   const [results, setResults] = useState<Record<string, { ok: boolean; status: number; text: string }>>({});
+  const [selectedKey, setSelectedKey] = useState(DEFAULT_KEY);
 
   const groups = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -197,6 +218,17 @@ export function ApiDocsView() {
       ),
     })).filter((g) => g.endpoints.length > 0);
   }, [search]);
+
+  const selected = useMemo(() => {
+    for (const g of ENDPOINT_GROUPS) {
+      for (const e of g.endpoints) {
+        if (`${e.method}:${e.path}` === selectedKey) return e;
+      }
+    }
+    return ENDPOINT_GROUPS[0].endpoints[0];
+  }, [selectedKey]);
+
+  const visibleCount = useMemo(() => groups.reduce((a, g) => a + g.endpoints.length, 0), [groups]);
 
   const tryEndpoint = async (doc: EndpointDoc) => {
     if (!doc.tryUrl) return;
@@ -222,162 +254,195 @@ export function ApiDocsView() {
     }
   };
 
+  const selectedResult = selected.tryUrl ? results[selected.tryUrl] : undefined;
+  const selectedBusy = selected.tryUrl ? !!trying[selected.tryUrl] : false;
+
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:space-y-6 md:p-6">
-      {/* 页头 */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-500/20">
-          <BookMarked className="h-5 w-5" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold tracking-tight">接口文档</h2>
-          <p className="text-xs text-muted-foreground">
-            {TOTAL_ENDPOINTS} 个 REST 端点 · {TRYABLE_COUNT} 个支持在线调试 · 全部返回 JSON (除坐标文本)
-          </p>
+    <div className="animate-fade-in-up">
+      {/* ===== Masthead — 坐标纸 + 编辑性标题 ===== */}
+      <div className="grid-bg border-b">
+        <div className="flex flex-wrap items-end justify-between gap-4 px-4 py-6 md:px-6">
+          <div>
+            <div className="label-tech !text-[10px]">API Reference · 接口文档</div>
+            <h1 className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight md:text-[30px]">
+              接口文档
+              <span className="font-display ml-2.5 align-middle text-[20px] font-normal italic tracking-normal text-muted-foreground/60 md:text-[24px]">
+                Reference
+              </span>
+            </h1>
+            <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-muted-foreground">
+              平台 REST 端点速查 — 同源相对路径 · JSON 响应 (坐标文件除外) · GET 端点支持在线调试
+            </p>
+          </div>
+          <div className="label-tech space-y-1.5 text-right !text-[10px]">
+            <div className="flex items-center justify-end gap-2">
+              <span className="status-dot" aria-hidden />
+              <span className="num">{TOTAL_ENDPOINTS}</span> ENDPOINTS
+            </div>
+            <div className="text-muted-foreground/60">
+              <span className="num">{TRYABLE_COUNT}</span> TRYABLE · SAME-ORIGIN
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 搜索过滤 */}
-      <Card className="p-4">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="按路径 / 功能 / 参数搜索端点, 例如 alignment 或 kg…"
-            className="pl-9"
-            aria-label="端点搜索"
-          />
-        </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {ENDPOINT_GROUPS.map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              onClick={() => setSearch(g.label)}
-              className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-teal-500/40 hover:text-foreground"
-            >
-              <g.icon className="h-3 w-3" />
-              {g.label}
-              <span className="tabular-nums opacity-60">{g.endpoints.length}</span>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      {/* 分组表 */}
-      {groups.map((g) => (
-        <Card key={g.id} className="overflow-hidden p-4 md:p-6">
-          <CardHeader className="mb-3 p-0">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <g.icon className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              {g.label}
-              <Badge variant="secondary" className="font-normal tabular-nums">{g.endpoints.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto custom-scrollbar rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="h-9 w-20 text-[11px]">方法</TableHead>
-                    <TableHead className="h-9 min-w-[200px] text-[11px]">路径</TableHead>
-                    <TableHead className="h-9 min-w-[180px] text-[11px]">功能</TableHead>
-                    <TableHead className="h-9 min-w-[220px] text-[11px]">参数</TableHead>
-                    <TableHead className="h-9 min-w-[200px] text-[11px]">响应</TableHead>
-                    <TableHead className="h-9 w-20 text-[11px]">调试</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {g.endpoints.map((e) => {
-                    const result = e.tryUrl ? results[e.tryUrl] : undefined;
-                    const busy = e.tryUrl ? trying[e.tryUrl] : false;
-                    return (
-                      <TableRow key={`${e.method}-${e.path}`} className="group">
-                        <TableCell className="py-2.5">
-                          <span className={cn('inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-bold', METHOD_CLASSES[e.method])}>
-                            {e.method}
-                          </span>
-                        </TableCell>
-                        <TableCell className="py-2.5">
-                          <code className="break-all font-mono text-xs font-semibold">{e.path}</code>
-                        </TableCell>
-                        <TableCell className="py-2.5 text-xs text-muted-foreground">{e.summary}</TableCell>
-                        <TableCell className="py-2.5">
-                          <code className="break-all font-mono text-[11px] text-muted-foreground">{e.params}</code>
-                        </TableCell>
-                        <TableCell className="py-2.5">
-                          <code className="break-all font-mono text-[11px] text-muted-foreground">{e.response}</code>
-                        </TableCell>
-                        <TableCell className="py-2.5">
-                          {e.tryUrl ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 gap-1 px-2 text-[11px]"
-                              onClick={() => tryEndpoint(e)}
-                              disabled={busy}
-                              aria-label={`试一试 ${e.path}`}
-                            >
-                              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-                              试一试
-                            </Button>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground/40">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+      <div className="space-y-4 p-4 md:p-6">
+        {/* ===== 端点索引过滤台 ===== */}
+        <section className="rounded-lg border bg-card">
+          <div className="flex items-center gap-3 border-b px-4 py-2.5">
+            <span className="label-tech !text-[10px] text-foreground/75">端点索引 · Endpoint Index</span>
+            <span className="label-tech ml-auto !text-[9px]">
+              <span className="num">{visibleCount}</span> / <span className="num">{TOTAL_ENDPOINTS}</span> VISIBLE
+            </span>
+          </div>
+          <div className="p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="按路径 / 功能 / 参数检索, 例如 alignment 或 kg…"
+                className="h-9 pl-9 font-mono text-xs"
+                aria-label="端点搜索"
+              />
             </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {ENDPOINT_GROUPS.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setSearch(g.label)}
+                  className="flex h-8 items-center gap-1.5 rounded-[5px] border px-2.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                >
+                  <g.icon className="h-3 w-3" aria-hidden />
+                  {g.label}
+                  <span className="num opacity-60">{g.endpoints.length}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
 
-            {/* Try 结果 */}
-            {g.endpoints
-              .filter((e) => e.tryUrl && results[e.tryUrl!])
-              .map((e) => {
-                const r = results[e.tryUrl!];
-                return (
-                  <div key={`res-${e.method}-${e.path}`} className="mt-3 rounded-xl border">
-                    <div className="flex flex-wrap items-center gap-2 border-b bg-muted/40 px-3 py-2">
-                      <span className={cn('inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-bold', METHOD_CLASSES[e.method])}>
-                        {e.method}
-                      </span>
-                      <code className="font-mono text-xs">{e.tryUrl}</code>
-                      <span
-                        className={cn(
-                          'ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                          r.ok ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/10 text-red-700 dark:text-rose-300'
-                        )}
-                      >
-                        HTTP {r.status}
-                      </span>
-                    </div>
-                    <pre className="max-h-72 overflow-auto custom-scrollbar p-3 font-mono text-[11px] leading-relaxed">
-                      {r.text}
-                    </pre>
+        {/* ===== 主工作区: 端点清单 (左) + 端点详情 (右) ===== */}
+        <div className="grid gap-4 lg:grid-cols-5">
+          {/* 左: 分组清单 */}
+          <section className="rounded-lg border bg-card lg:col-span-2">
+            <div className="flex items-center gap-3 border-b px-4 py-2.5">
+              <span className="label-tech !text-[10px] text-foreground/75">端点清单 · Endpoints</span>
+              <span className="label-tech ml-auto !text-[9px]">{groups.length} 组</span>
+            </div>
+            <div className="max-h-[640px] overflow-y-auto custom-scrollbar">
+              {groups.map((g) => (
+                <div key={g.id}>
+                  <div className="label-tech border-b bg-muted/40 px-4 py-1.5 !text-[9px]">
+                    {g.label} · <span className="num">{g.endpoints.length}</span>
                   </div>
-                );
-              })}
-          </CardContent>
-        </Card>
-      ))}
+                  <div className="divide-y">
+                    {g.endpoints.map((e) => {
+                      const key = `${e.method}:${e.path}`;
+                      const active = key === selectedKey;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setSelectedKey(key)}
+                          aria-current={active ? 'true' : undefined}
+                          className={cn(
+                            'relative flex min-h-[44px] w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent/50',
+                            active && 'bg-accent'
+                          )}
+                        >
+                          {active && <span className="absolute inset-y-[9px] left-0 w-[2px] bg-primary" aria-hidden />}
+                          <MethodTag method={e.method} />
+                          <code className={cn('min-w-0 flex-1 truncate font-mono text-[11px]', active ? 'font-medium text-foreground' : 'text-foreground/80')}>
+                            {e.path}
+                          </code>
+                          {e.tryUrl && <span className="label-tech shrink-0 !text-[8px] text-primary/70">TRY</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {groups.length === 0 && <Empty text={`NO MATCH — 未找到匹配 "${search}" 的端点`} />}
+            </div>
+          </section>
 
-      {groups.length === 0 && (
-        <Card className="flex h-40 flex-col items-center justify-center gap-2 border-dashed p-4 text-sm text-muted-foreground">
-          <Search className="h-8 w-8 opacity-30" />
-          未找到匹配 “{search}” 的端点
-        </Card>
-      )}
+          {/* 右: 端点详情 */}
+          <section className="rounded-lg border bg-card lg:col-span-3">
+            <div className="flex flex-wrap items-center gap-3 border-b px-4 py-2.5">
+              <span className="label-tech !text-[10px] text-foreground/75">端点详情 · Detail</span>
+              {selected.tryUrl && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-8 gap-1.5 px-3 font-mono text-[10px] uppercase tracking-wider after:absolute after:-inset-1"
+                  onClick={() => tryEndpoint(selected)}
+                  disabled={selectedBusy}
+                  aria-label={`在线调试 ${selected.path}`}
+                >
+                  {selectedBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" strokeWidth={1.75} />}
+                  在线调试
+                </Button>
+              )}
+            </div>
+            <div className="border-b px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <MethodTag method={selected.method} />
+                <code className="num break-all text-[13px] font-semibold tracking-tight">{selected.path}</code>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{selected.summary}</p>
+            </div>
+            <div className="space-y-4 p-4">
+              <div>
+                <div className="label-tech !text-[9px]">请求参数 · PARAMS</div>
+                <pre className="mt-1.5 overflow-x-auto rounded-md bg-muted/60 p-3 font-mono text-[11px] leading-relaxed text-foreground/85 custom-scrollbar">
+                  {selected.params}
+                </pre>
+              </div>
+              <div>
+                <div className="label-tech !text-[9px]">响应 · RESPONSE</div>
+                <pre className="mt-1.5 overflow-x-auto rounded-md bg-muted/60 p-3 font-mono text-[11px] leading-relaxed text-foreground/85 custom-scrollbar">
+                  {selected.response}
+                </pre>
+              </div>
 
-      {/* 使用说明 */}
-      <Card className="p-4 text-[11px] leading-relaxed text-muted-foreground">
-        <p className="mb-1 font-semibold text-foreground">使用说明</p>
-        <p>· 所有请求均为同源相对路径, 无需额外鉴权头 (Session 通过 HttpOnly Cookie 维持)。</p>
-        <p>· POST/PUT 请求体为 JSON; 文献上传为 FormData; SSE 问答请使用流式读取。</p>
-        <p>· [id] 为路径参数; 4xx 返回 {`{error: string}`} 错误信息。</p>
-      </Card>
+              {/* 在线调试结果 */}
+              {selected.tryUrl && selectedResult && (
+                <div className="rounded-lg border">
+                  <div className="flex flex-wrap items-center gap-2 border-b bg-muted/40 px-3 py-2">
+                    <MethodTag method={selected.method} />
+                    <code className="min-w-0 flex-1 truncate font-mono text-[11px]">{selected.tryUrl}</code>
+                    <span
+                      className={cn(
+                        'num shrink-0 rounded-[3px] border px-1.5 py-px text-[9px] font-medium',
+                        selectedResult.ok ? 'border-primary/50 text-primary' : 'border-destructive/50 text-destructive'
+                      )}
+                    >
+                      HTTP {selectedResult.status}
+                    </span>
+                  </div>
+                  <pre className="max-h-72 overflow-auto custom-scrollbar p-3 font-mono text-[11px] leading-relaxed">
+                    {selectedResult.text}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* ===== 使用说明 ===== */}
+        <section className="rounded-lg border bg-card">
+          <div className="flex items-center gap-3 border-b px-4 py-2.5">
+            <span className="label-tech !text-[10px] text-foreground/75">使用说明 · Notes</span>
+          </div>
+          <div className="divide-y text-[11px] leading-relaxed text-muted-foreground">
+            <p className="px-4 py-2">所有请求均为同源相对路径, 无需额外鉴权头 (Session 经 HttpOnly Cookie 维持)。</p>
+            <p className="px-4 py-2">POST/PUT 请求体为 JSON; 文献上传为 FormData; SSE 问答请使用流式读取。</p>
+            <p className="px-4 py-2">[id] 为路径参数; 4xx 返回 {`{error: string}`} 错误信息。</p>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

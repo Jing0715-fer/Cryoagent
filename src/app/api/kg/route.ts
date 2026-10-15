@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const view = searchParams.get('view') || 'global';
-    const limit = Math.min(parseInt(searchParams.get('limit') || '150'), 400);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '150') || 150, 400);
 
     if (view === 'stats') {
       const [structureCount, litCount, linkCount, popular] = await Promise.all([

@@ -50,9 +50,13 @@ export async function POST(request: Request) {
 
 /** DELETE /api/notes?id= — 删除笔记 */
 export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-  if (!id) return NextResponse.json({ error: '缺少 id' }, { status: 400 });
-  await db.note.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: '缺少 id' }, { status: 400 });
+    await db.note.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : '删除失败' }, { status: 500 });
+  }
 }

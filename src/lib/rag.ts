@@ -80,9 +80,10 @@ export async function ragSearch(query: string, mode: SearchMode = 'hybrid', limi
     const bm25Hits = idx.bm25.search(query, fetchLimit);
     const vecHits = idx.vector.search(query, fetchLimit);
     hits = rrfFuse([bm25Hits, vecHits], limit);
-    // 标记来源分数
+    // 标记来源分数 (复用已检索的 bm25Hits, 避免循环内重复全量检索)
+    const bm25ScoreMap = new Map(bm25Hits.map((b) => [b.id, b.bm25Score]));
     for (const h of hits) {
-      h.bm25Score = idx.bm25.search(query, fetchLimit).find((b) => b.id === h.id)?.bm25Score;
+      h.bm25Score = bm25ScoreMap.get(h.id);
       h.vectorScore = vecHits.find((v) => v.id === h.id)?.vectorScore;
     }
   }

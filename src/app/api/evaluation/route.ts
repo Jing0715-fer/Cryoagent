@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const view = searchParams.get('view') || 'all';
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50') || 50, 200);
 
     if (view === 'ground-truth' || view === 'all') {
       const groundTruths = await db.groundTruth.findMany({ orderBy: { createdAt: 'desc' }, take: limit });

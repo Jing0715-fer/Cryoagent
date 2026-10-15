@@ -22,7 +22,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
 /** DELETE /api/qa/history/[id] */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  await db.qaHistory.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  try {
+    const { id } = await params;
+    await db.qaHistory.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : '删除失败' }, { status: 500 });
+  }
 }

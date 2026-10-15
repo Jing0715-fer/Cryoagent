@@ -1,30 +1,24 @@
 'use client';
 
 /**
- * CryoAgent Pro — 结构详情页 (含 3Dmol.js 3D 查看器)
- * 头部元数据 / 3D 查看器 / 概览 / 实体序列 / 关联文献 / 相关结构
+ * CryoAgent Pro — 结构详情 (BENCH 设计系统)
+ * masthead(PDB ID 编辑性标题) + 3D 查看器主区 + 侧栏 mono 元数据 + 仪器表格/密集列表
+ * 功能不变: 3Dmol.js 渲染 / AlphaFold 切换 / 序列操作 / 关联文献与相关结构
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useAppStore, api } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Boxes, Calendar, Copy, Dna, ExternalLink, FileText, FlaskConical,
-  GitCompareArrows, Layers, Link2, Loader2, Microscope, RefreshCw, RotateCcw,
-  Sparkles, TriangleAlert,
+  ArrowLeft, Copy, ExternalLink, FlaskConical, GitCompareArrows, Loader2,
+  RefreshCw, RotateCcw, TriangleAlert,
 } from 'lucide-react';
 
 // ============ 类型定义 (API 契约) ============
@@ -169,29 +163,59 @@ async function fetchPdbText(url: string): Promise<string> {
   return text;
 }
 
-// ============ 通用组件 ============
+// ============ BENCH 基础组件 ============
 
-function MethodBadge({ method }: { method: string | null }) {
-  const m = (method || '').toUpperCase();
-  let cls = 'border-border bg-muted text-muted-foreground';
-  let label = method || '未知方法';
-  if (m.includes('X-RAY')) {
-    cls = 'border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300';
-    label = 'X-RAY';
-  } else if (m.includes('ELECTRON MICROSCOPY')) {
-    cls = 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
-    label = 'Cryo-EM';
-  } else if (m.includes('NMR')) {
-    cls = 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300';
-    label = 'NMR';
-  } else if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) {
-    cls = 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300';
-    label = '预测模型';
-  }
+function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <section className={cn('rounded-lg border bg-card', className)}>{children}</section>;
+}
+
+function PanelHead({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
   return (
-    <Badge variant="outline" className={cn('shrink-0 text-[11px]', cls)}>
-      {label}
-    </Badge>
+    <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
+      <span className="label-tech !text-[10px] text-foreground/75">{title}</span>
+      {hint && <span className="label-tech ml-auto !text-[9px]">{hint}</span>}
+      {action && <div className={cn('flex items-center gap-1.5', !hint && 'ml-auto')}>{action}</div>}
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="label-tech flex h-full min-h-[96px] items-center justify-center px-4 py-10 text-center !text-[10px] normal-case !tracking-[0.06em]">
+      {text}
+    </div>
+  );
+}
+
+/** 实验方法短码标签 — 分类编码走 chart 色系 */
+function methodShort(method: string | null): string {
+  const m = (method || '').toUpperCase();
+  if (m.includes('X-RAY')) return 'X-RAY';
+  if (m.includes('ELECTRON MICROSCOPY')) return 'CRYO-EM';
+  if (m.includes('NMR')) return 'NMR';
+  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'PRED';
+  return method ? method.slice(0, 8).toUpperCase() : '—';
+}
+
+function methodTone(method: string | null): string {
+  const m = (method || '').toUpperCase();
+  if (m.includes('X-RAY')) return 'border-chart-1/45 text-chart-1';
+  if (m.includes('ELECTRON MICROSCOPY')) return 'border-chart-3/45 text-chart-3';
+  if (m.includes('NMR')) return 'border-chart-2/45 text-chart-2';
+  if (m.includes('ALPHAFOLD') || m.includes('PREDICT')) return 'border-chart-4/45 text-chart-4';
+  return 'border-border text-muted-foreground';
+}
+
+function MethodTag({ method }: { method: string | null }) {
+  return (
+    <span
+      className={cn(
+        'shrink-0 rounded-[3px] border px-1.5 py-px font-mono text-[9px] font-medium tracking-wide',
+        methodTone(method)
+      )}
+    >
+      {methodShort(method)}
+    </span>
   );
 }
 
@@ -202,6 +226,16 @@ function formatDate(iso: string | null): string {
   } catch {
     return iso;
   }
+}
+
+/** 侧栏 mono 键值行 */
+function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 px-4 py-[7px]">
+      <span className="label-tech shrink-0 !text-[9px]">{label}</span>
+      <span className="min-w-0 truncate text-right text-[11px] font-medium">{children}</span>
+    </div>
+  );
 }
 
 // ============ 3D 查看器 ============
@@ -331,16 +365,13 @@ function StructureViewer3D({
   const showError = Boolean(molError || pdbErrorShown);
 
   return (
-    <Card className="gap-4 p-4 md:p-6">
-      {/* 工具栏 */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2">
-          <Boxes className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-          <h3 className="text-base font-semibold">3D 结构查看器</h3>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+    <Panel>
+      {/* 工具栏 — 面板头内嵌渲染控制 */}
+      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
+        <span className="label-tech !text-[10px] text-foreground/75">3D Viewer · 三维结构</span>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <Select value={style} onValueChange={(v) => setStyle(v as ViewerStyle)}>
-            <SelectTrigger size="sm" className="w-[100px]" aria-label="显示样式">
+            <SelectTrigger size="sm" className="h-8 w-[92px] rounded-[5px] text-xs" aria-label="显示样式">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -351,7 +382,7 @@ function StructureViewer3D({
             </SelectContent>
           </Select>
           <Select value={color} onValueChange={(v) => setColor(v as ViewerColor)}>
-            <SelectTrigger size="sm" className="w-[112px]" aria-label="着色方式">
+            <SelectTrigger size="sm" className="h-8 w-[104px] rounded-[5px] text-xs" aria-label="着色方式">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -360,82 +391,79 @@ function StructureViewer3D({
               <SelectItem value="chain">按链</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={resetView} className="gap-1.5">
-            <RotateCcw className="h-3.5 w-3.5" />
+          <Button variant="outline" size="sm" onClick={resetView} className="h-8 gap-1.5 text-xs">
+            <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.75} />
             重置视角
           </Button>
         </div>
       </div>
 
       {/* 查看器画布 */}
-      <div className="relative overflow-hidden rounded-lg border bg-[#fafafa]">
-        <div ref={containerRef} className="h-[420px] w-full" data-testid="mol-viewer" />
+      <div className="p-2">
+        <div className="relative overflow-hidden rounded-md border bg-[#fafafa]">
+          <div ref={containerRef} className="h-[420px] w-full" data-testid="mol-viewer" />
 
-        {showOverlay && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/70 backdrop-blur-[1px]">
-            <Loader2 className="h-6 w-6 animate-spin text-teal-600" />
-            <p className="text-xs text-muted-foreground">
-              {!molReady ? '正在加载 3Dmol.js 渲染引擎…' : '正在获取 PDB 坐标数据…'}
-            </p>
-          </div>
-        )}
-
-        {showError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background p-6 text-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-500/10">
-              <TriangleAlert className="h-5 w-5 text-rose-500" />
+          {showOverlay && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/70">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" strokeWidth={1.75} />
+              <p className="label-tech !text-[10px] normal-case !tracking-normal">
+                {!molReady ? '正在加载 3Dmol.js 渲染引擎…' : '正在获取 PDB 坐标数据…'}
+              </p>
             </div>
-            <p className="text-sm font-medium">3D 查看器不可用</p>
-            <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-              {molError || pdbErrorShown}
-            </p>
-            <Button variant="outline" size="sm" onClick={retry} className="gap-1.5">
-              <RefreshCw className="h-3.5 w-3.5" />
-              重试
-            </Button>
-          </div>
-        )}
+          )}
 
-        <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-          {source === 'alphafold' ? `AlphaFold · ${alphaFold.uniprotId}` : `RCSB · ${pdbId}`}
+          {showError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background p-6 text-center">
+              <TriangleAlert className="h-5 w-5 text-destructive" strokeWidth={1.75} />
+              <div>
+                <p className="label-tech !text-[10px] !text-destructive">VIEWER UNAVAILABLE</p>
+                <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                  {molError || pdbErrorShown}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={retry} className="h-8 gap-1.5 text-xs">
+                <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
+                重试
+              </Button>
+            </div>
+          )}
+
+          <div className="pointer-events-none absolute bottom-2 right-2 rounded-[3px] border bg-card/90 px-1.5 py-px font-mono text-[9px] tracking-wide text-muted-foreground">
+            {source === 'alphafold' ? `ALPHAFOLD · ${alphaFold.uniprotId}` : `RCSB · ${pdbId}`}
+          </div>
         </div>
       </div>
 
-      {/* AlphaFold 切换 */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* 数据源切换 — 底部条 */}
+      <div className="flex flex-wrap items-center gap-2.5 border-t px-4 py-2.5">
         {alphaFold.available ? (
           source === 'alphafold' ? (
-            <Button variant="outline" size="sm" onClick={() => setSource('rcsb')} className="gap-1.5">
-              <Boxes className="h-3.5 w-3.5" />
+            <Button variant="outline" size="sm" onClick={() => setSource('rcsb')} className="h-8 gap-1.5 text-xs">
               返回实验结构
             </Button>
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSource('alphafold')}
-              className="gap-1.5 border-teal-500/50 text-teal-700 hover:bg-teal-500/10 dark:text-teal-300"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
+            <Button variant="outline" size="sm" onClick={() => setSource('alphafold')} className="h-8 gap-1.5 text-xs">
               查看 AlphaFold 模型
             </Button>
           )
         ) : (
-          <Badge variant="secondary">暂无 AlphaFold 预测模型</Badge>
+          <span className="rounded-[3px] border border-border px-1.5 py-px font-mono text-[9px] text-muted-foreground">
+            NO ALPHAFOLD MODEL
+          </span>
         )}
-        <p className="text-[11px] text-muted-foreground">
+        <p className="label-tech !text-[9px] normal-case !tracking-normal">
           {source === 'alphafold'
-            ? `当前展示 AlphaFold 预测模型 (UniProt: ${alphaFold.uniprotId})`
+            ? `当前展示 AlphaFold 预测模型 · UNIPROT ${alphaFold.uniprotId}`
             : '当前展示 RCSB 实验结构 · 可拖拽旋转 / 滚轮缩放'}
         </p>
       </div>
-    </Card>
+    </Panel>
   );
 }
 
-// ============ 实体序列卡片 ============
+// ============ 实体序列面板 ============
 
-function SequenceCard({
+function SequencePanel({
   seq,
   onCopy,
   onAlign,
@@ -447,49 +475,57 @@ function SequenceCard({
   onAnalyze: (sequence: string) => void;
 }) {
   return (
-    <Card className="gap-3 p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-semibold">实体 {seq.entityId}</span>
-        <Badge variant="secondary">{seq.length} aa</Badge>
-        {seq.chains.map((c) => (
-          <Badge key={c} variant="outline" className="font-mono text-[10px]">
-            链 {c}
-          </Badge>
-        ))}
-        {seq.uniprotIds.map((u) => (
-          <a key={u} href={`https://www.uniprot.org/uniprotkb/${u}`} target="_blank" rel="noreferrer">
-            <Badge
-              variant="outline"
-              className="font-mono text-[10px] text-teal-700 hover:border-teal-500/50 dark:text-teal-300"
-            >
-              {u}
-              <ExternalLink className="h-2.5 w-2.5" />
-            </Badge>
-          </a>
-        ))}
-      </div>
+    <Panel>
+      <PanelHead
+        title={`Entity ${seq.entityId} · 实体序列`}
+        hint={`${seq.length} AA`}
+        action={
+          <span className="flex flex-wrap items-center gap-1.5">
+            {seq.chains.map((c) => (
+              <span key={c} className="rounded-[3px] border border-border px-1.5 py-px font-mono text-[9px] text-muted-foreground">
+                CHAIN {c}
+              </span>
+            ))}
+            {seq.uniprotIds.map((u) => (
+              <a
+                key={u}
+                href={`https://www.uniprot.org/uniprotkb/${u}`}
+                target="_blank"
+                rel="noreferrer"
+                className="num inline-flex items-center gap-1 rounded-[3px] border border-primary/35 px-1.5 py-px text-[9px] font-medium text-primary transition-colors hover:bg-accent"
+              >
+                {u}
+                <ExternalLink className="h-2.5 w-2.5" strokeWidth={1.75} />
+              </a>
+            ))}
+          </span>
+        }
+      />
+      <div className="space-y-3 p-4">
+        {seq.description && (
+          <p className="text-xs leading-relaxed text-muted-foreground">{seq.description}</p>
+        )}
 
-      {seq.description && <p className="text-xs text-muted-foreground">{seq.description}</p>}
+        <div className="max-h-40 overflow-y-auto custom-scrollbar rounded-md border bg-muted/40 p-3">
+          <p className="seq-mono text-xs leading-relaxed">{seq.sequence}</p>
+        </div>
 
-      <div className="max-h-40 overflow-y-auto custom-scrollbar rounded-lg bg-muted/50 p-3">
-        <p className="break-all font-mono text-xs leading-relaxed">{seq.sequence}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => onCopy(seq.sequence)} className="h-8 gap-1.5 text-xs">
+            <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
+            复制序列
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => onAlign(seq.sequence)} className="h-8 gap-1.5 text-xs">
+            <GitCompareArrows className="h-3.5 w-3.5" strokeWidth={1.75} />
+            发送到比对
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => onAnalyze(seq.sequence)} className="h-8 gap-1.5 text-xs">
+            <FlaskConical className="h-3.5 w-3.5" strokeWidth={1.75} />
+            理化分析
+          </Button>
+        </div>
       </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={() => onCopy(seq.sequence)} className="gap-1.5">
-          <Copy className="h-3.5 w-3.5" />
-          复制序列
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => onAlign(seq.sequence)} className="gap-1.5">
-          <GitCompareArrows className="h-3.5 w-3.5" />
-          发送到比对
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => onAnalyze(seq.sequence)} className="gap-1.5">
-          <FlaskConical className="h-3.5 w-3.5" />
-          理化分析
-        </Button>
-      </div>
-    </Card>
+    </Panel>
   );
 }
 
@@ -570,7 +606,7 @@ export function StructureDetailView() {
   // ===== 加载 / 错误态 =====
   if (!id) {
     return (
-      <div className="mx-auto w-full max-w-3xl p-4 md:p-6">
+      <div className="p-4 md:p-6">
         <StructureError
           title="缺少结构 ID"
           description="请从结构浏览器或文献关联结构进入详情页"
@@ -582,26 +618,31 @@ export function StructureDetailView() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-6xl space-y-4 p-4 md:p-6">
-        <Skeleton className="h-8 w-40" />
-        <Card className="gap-3 p-6">
-          <Skeleton className="h-8 w-36" />
-          <Skeleton className="h-5 w-3/4" />
-          <div className="flex gap-2">
-            <Skeleton className="h-5 w-16" />
-            <Skeleton className="h-5 w-14" />
-            <Skeleton className="h-5 w-20" />
+      <div className="animate-fade-in-up">
+        <div className="grid-bg border-b">
+          <div className="space-y-3 px-4 py-6 md:px-6">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <Skeleton className="h-8 w-44" />
+            <Skeleton className="h-3 w-full max-w-lg" />
           </div>
-        </Card>
-        <Skeleton className="h-[500px] w-full" />
-        <Skeleton className="h-64 w-full" />
+        </div>
+        <div className="space-y-4 p-4 md:p-6">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Skeleton className="h-[520px] rounded-lg lg:col-span-2" />
+            <Skeleton className="h-[520px] rounded-lg" />
+          </div>
+          <Skeleton className="h-40 rounded-lg" />
+        </div>
       </div>
     );
   }
 
   if (error || !detail) {
     return (
-      <div className="mx-auto w-full max-w-3xl p-4 md:p-6">
+      <div className="p-4 md:p-6">
         <StructureError
           title="结构加载失败"
           description={error || '未找到该结构'}
@@ -615,320 +656,342 @@ export function StructureDetailView() {
   const s = detail.structure;
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-4 md:p-6">
-      {/* 顶部操作栏 */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate('structures')} className="gap-1.5">
-          <ArrowLeft className="h-4 w-4" />
-          返回结构浏览器
-        </Button>
-        <Badge variant={detail.fromCache ? 'secondary' : 'outline'}>
-          {detail.fromCache ? '本地缓存' : '实时数据'}
-        </Badge>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void doRefresh()}
-          disabled={refreshing}
-          className="ml-auto gap-1.5"
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-          {refreshing ? '正在从 RCSB 刷新…' : '刷新数据'}
-        </Button>
-      </div>
+    <div className="animate-fade-in-up">
+      {/* ===== Masthead — PDB ID 编辑性标题 + 数据源状态 ===== */}
+      <div className="grid-bg border-b">
+        <div className="px-4 py-5 md:px-6">
+          {/* 导航行 */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('structures')}
+              className="label-tech flex items-center gap-1.5 !text-[10px] transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
+              PDB LIBRARY · 返回结构浏览器
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void doRefresh()}
+                disabled={refreshing}
+                className="label-tech flex h-8 items-center gap-1.5 rounded-[5px] border bg-card px-2.5 !text-[10px] transition-colors hover:border-foreground/25 disabled:opacity-50"
+              >
+                <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} strokeWidth={1.75} />
+                {refreshing ? 'RCSB SYNC…' : '刷新数据'}
+              </button>
+              <a
+                href={`https://www.rcsb.org/structure/${s.pdbId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="label-tech flex h-8 items-center gap-1.5 rounded-[5px] border bg-card px-2.5 !text-[10px] transition-colors hover:border-foreground/25"
+              >
+                <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.75} />
+                RCSB 页面
+              </a>
+            </div>
+          </div>
 
-      {/* 头部信息卡 */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <Card className="gap-4 p-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          {/* 标题块 */}
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="font-mono text-2xl font-bold tracking-wider text-teal-700 dark:text-teal-300">
-                  {s.pdbId}
-                </span>
+              <div className="label-tech !text-[10px]">PDB Entry · 结构详情</div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
+                <h1 className="font-display text-[30px] leading-none tracking-tight md:text-[34px]">{s.pdbId}</h1>
+                <MethodTag method={s.method} />
+                {s.resolution != null && (
+                  <span className="num text-xs text-muted-foreground">{s.resolution.toFixed(1)}Å</span>
+                )}
                 {detail.alphaFold.available && (
-                  <Badge className="gap-1 border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                    <Sparkles className="h-3 w-3" />
-                    AlphaFold 可用
-                  </Badge>
+                  <span className="rounded-[3px] border border-primary/40 px-1.5 py-px font-mono text-[9px] font-medium text-primary">
+                    ALPHAFOLD
+                  </span>
                 )}
               </div>
-              <h2 className="mt-2 text-lg font-semibold leading-snug">{s.title}</h2>
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <MethodBadge method={s.method} />
-                {s.resolution != null && <Badge variant="secondary">{s.resolution} Å</Badge>}
+              <p className="mt-2.5 max-w-xl text-xs leading-relaxed text-muted-foreground">{s.title}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                 {s.organism && (
-                  <Badge variant="outline" className="max-w-64 gap-1 truncate">
-                    <Dna className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{s.organism}</span>
-                  </Badge>
+                  <span className="truncate text-[11px] text-muted-foreground">{s.organism}</span>
                 )}
-                {s.entityCount != null && <Badge variant="secondary">{s.entityCount} 实体</Badge>}
-                {s.residueCount != null && <Badge variant="secondary">{s.residueCount} 残基</Badge>}
                 {s.emdbIds.map((e) => (
-                  <a key={e} href={`https://www.ebi.ac.uk/emdb/${e}`} target="_blank" rel="noreferrer">
-                    <Badge
-                      variant="outline"
-                      className="cursor-pointer gap-1 hover:border-teal-500/50 hover:text-teal-700 dark:hover:text-teal-300"
-                    >
-                      EMDB {e}
-                      <ExternalLink className="h-3 w-3" />
-                    </Badge>
+                  <a
+                    key={e}
+                    href={`https://www.ebi.ac.uk/emdb/${e}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="num text-[10px] text-primary transition-opacity hover:opacity-70"
+                  >
+                    EMDB {e}
                   </a>
                 ))}
               </div>
             </div>
-            <Button asChild variant="outline" size="sm" className="w-fit gap-1.5">
-              <a href={`https://www.rcsb.org/structure/${s.pdbId}`} target="_blank" rel="noreferrer">
-                <ExternalLink className="h-3.5 w-3.5" />
-                RCSB 页面
-              </a>
-            </Button>
-          </div>
-        </Card>
-      </motion.div>
 
-      {/* 3D 查看器 */}
-      <div className="my-4">
-        <StructureViewer3D key={s.pdbId} pdbId={s.pdbId} alphaFold={detail.alphaFold} />
+            {/* 状态铭牌 */}
+            <div className="label-tech space-y-1.5 text-right !text-[10px]">
+              <div className="flex items-center justify-end gap-2">
+                <span className="status-dot" data-tone={detail.fromCache ? undefined : 'amber'} aria-hidden />
+                {detail.fromCache ? 'CACHED · 本地缓存' : 'LIVE · RCSB 实时'}
+              </div>
+              <div className="num text-muted-foreground/60">
+                DEPOSIT {formatDate(s.depositDate)} · RELEASE {formatDate(s.releaseDate)}
+              </div>
+              <div className="num text-muted-foreground/60">
+                {s.entityCount ?? '—'} ENT · {s.residueCount ?? '—'} RES · {s.uniprotIds.length} UNIPROT
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* 主体 Tabs */}
-      <Tabs defaultValue="overview" className="gap-4">
-        <TabsList className="grid h-auto w-full grid-cols-2 sm:inline-flex sm:w-auto">
-          <TabsTrigger value="overview" className="px-3 py-1.5 text-xs sm:text-sm">概览</TabsTrigger>
-          <TabsTrigger value="sequences" className="px-3 py-1.5 text-xs sm:text-sm">实体序列</TabsTrigger>
-          <TabsTrigger value="literature" className="px-3 py-1.5 text-xs sm:text-sm">关联文献</TabsTrigger>
-          <TabsTrigger value="related" className="px-3 py-1.5 text-xs sm:text-sm">相关结构</TabsTrigger>
-        </TabsList>
-
-        {/* ======== 概览 ======== */}
-        <TabsContent value="overview">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {s.citation && (
-              <Card className="gap-3 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <FileText className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                  结构引文
-                </div>
-                <p className="text-sm leading-relaxed">{s.citation.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {s.citation.authors.slice(0, 8).join(', ')}
-                  {s.citation.authors.length > 8 ? ' 等' : ''}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {[s.citation.journal, s.citation.year].filter(Boolean).join(' · ') || '—'}
-                </p>
-              </Card>
-            )}
-
-            <Card className="gap-3 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Calendar className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                基本信息
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">沉积日期</p>
-                  <p className="mt-0.5 font-medium">{formatDate(s.depositDate)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">释放日期</p>
-                  <p className="mt-0.5 font-medium">{formatDate(s.releaseDate)}</p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">实体数</p>
-                  <p className="mt-0.5 font-medium">{s.entityCount ?? '—'}</p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">残基数</p>
-                  <p className="mt-0.5 font-medium">{s.residueCount ?? '—'}</p>
-                </div>
-              </div>
-            </Card>
-
-            {s.uniprotIds.length > 0 && (
-              <Card className="gap-3 p-4 lg:col-span-2">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <Dna className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                  UniProt 注释 ({s.uniprotIds.length})
-                </div>
-                <div className="overflow-x-auto custom-scrollbar">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-32">Accession</TableHead>
-                        <TableHead>蛋白名称</TableHead>
-                        <TableHead className="w-40">链</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {s.uniprotIds.map((u) => (
-                        <TableRow key={u.uniprotId}>
-                          <TableCell className="font-mono text-xs">
-                            <a
-                              href={`https://www.uniprot.org/uniprotkb/${u.uniprotId}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-teal-600 hover:underline dark:text-teal-400"
-                            >
-                              {u.uniprotId}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </TableCell>
-                          <TableCell className="text-xs">{u.proteinName || '—'}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {u.chains.map((c) => (
-                                <Badge key={c} variant="secondary" className="font-mono text-[10px]">
-                                  {c}
-                                </Badge>
-                              ))}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </Card>
-            )}
-
-            <Card className="gap-3 p-4 lg:col-span-2">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Microscope className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                配体 ({s.ligands.length})
-              </div>
-              {s.ligands.length === 0 ? (
-                <p className="text-xs text-muted-foreground">暂无配体信息</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {s.ligands.map((l, i) => (
-                    <Badge
-                      key={`${l.name}-${i}`}
-                      variant="outline"
-                      title={[l.formula, l.description].filter(Boolean).join(' · ')}
-                      className="gap-1 font-mono text-[11px]"
-                    >
-                      {l.name}
-                      {l.formula && <span className="text-muted-foreground">{l.formula}</span>}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </Card>
+      <div className="space-y-4 p-4 md:p-6">
+        {/* ===== 主区: 3D 查看器 (2/3) + 元数据侧栏 (1/3) ===== */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <StructureViewer3D key={s.pdbId} pdbId={s.pdbId} alphaFold={detail.alphaFold} />
           </div>
-        </TabsContent>
 
-        {/* ======== 实体序列 ======== */}
-        <TabsContent value="sequences">
-          {s.sequences.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-12 text-center">
-              <Layers className="h-6 w-6 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">暂无实体序列数据, 可尝试刷新获取 RCSB 实时数据</p>
+          <Panel className="flex flex-col">
+            <PanelHead title="Metadata · 元数据" hint={detail.fromCache ? 'CACHED' : 'LIVE'} />
+            <div className="divide-y text-muted-foreground/40 [&>*]:divide-x-0">
+              <MetaRow label="实验方法">
+                <span className="flex items-center gap-2">
+                  <MethodTag method={s.method} />
+                  <span className="num text-[10px] text-muted-foreground">{s.method || '—'}</span>
+                </span>
+              </MetaRow>
+              <MetaRow label="分辨率">
+                <span className="num">{s.resolution != null ? `${s.resolution.toFixed(2)} Å` : '—'}</span>
+              </MetaRow>
+              <MetaRow label="生物体">{s.organism || '—'}</MetaRow>
+              <MetaRow label="实体数">
+                <span className="num">{s.entityCount ?? '—'}</span>
+              </MetaRow>
+              <MetaRow label="残基数">
+                <span className="num">{s.residueCount ?? '—'}</span>
+              </MetaRow>
+              <MetaRow label="沉积日期">
+                <span className="num">{formatDate(s.depositDate)}</span>
+              </MetaRow>
+              <MetaRow label="释放日期">
+                <span className="num">{formatDate(s.releaseDate)}</span>
+              </MetaRow>
+              <MetaRow label="EMDB">
+                {s.emdbIds.length > 0 ? (
+                  <span className="flex flex-wrap justify-end gap-x-2">
+                    {s.emdbIds.map((e) => (
+                      <a
+                        key={e}
+                        href={`https://www.ebi.ac.uk/emdb/${e}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="num text-primary transition-opacity hover:opacity-70"
+                      >
+                        {e}
+                      </a>
+                    ))}
+                  </span>
+                ) : (
+                  '—'
+                )}
+              </MetaRow>
+              <MetaRow label="AlphaFold">
+                <span className="num">{detail.alphaFold.available ? detail.alphaFold.uniprotId || 'AVAILABLE' : '—'}</span>
+              </MetaRow>
+              <MetaRow label="配体">
+                <span className="num">{s.ligands.length > 0 ? `${s.ligands.length} 项` : '—'}</span>
+              </MetaRow>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {s.sequences.map((seq) => (
-                <SequenceCard
+          </Panel>
+        </div>
+
+        {/* ===== 主体 Tabs ===== */}
+        <Tabs defaultValue="overview" className="gap-4">
+          <TabsList className="h-9 w-full gap-0 rounded-[5px] border bg-card p-[3px] shadow-none sm:w-auto">
+            {(
+              [
+                ['overview', `概览`],
+                ['sequences', `实体序列${s.sequences.length ? ` ${s.sequences.length}` : ''}`],
+                ['literature', `关联文献${detail.literature.length ? ` ${detail.literature.length}` : ''}`],
+                ['related', `相关结构${detail.relatedStructures.length ? ` ${detail.relatedStructures.length}` : ''}`],
+              ] as const
+            ).map(([value, label]) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="flex-1 gap-1.5 rounded-[4px] px-3.5 py-1.5 text-xs data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:flex-none"
+              >
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {/* ======== 概览 ======== */}
+          <TabsContent value="overview" className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {s.citation && (
+                <Panel>
+                  <PanelHead
+                    title="Citation · 结构引文"
+                    hint={[s.citation.journal, s.citation.year].filter(Boolean).join(' · ') || undefined}
+                  />
+                  <div className="space-y-2 p-4">
+                    <p className="text-[13px] font-medium leading-relaxed">{s.citation.title}</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {s.citation.authors.slice(0, 8).join(', ')}
+                      {s.citation.authors.length > 8 ? ' 等' : ''}
+                    </p>
+                    <p className="num text-[10px] text-muted-foreground/70">
+                      {[s.citation.journal, s.citation.year].filter(Boolean).join(' · ') || '—'}
+                    </p>
+                  </div>
+                </Panel>
+              )}
+
+              <Panel className={cn(!s.citation && 'lg:col-span-2')}>
+                <PanelHead title="UniProt · 蛋白质注释" hint={`${s.uniprotIds.length} 条映射`} />
+                {s.uniprotIds.length === 0 ? (
+                  <Empty text="NO MAPPING — 该结构暂无 UniProt 交叉引用" />
+                ) : (
+                  <div className="overflow-x-auto custom-scrollbar">
+                    <table className="bench">
+                      <thead>
+                        <tr>
+                          <th>ACCESSION</th>
+                          <th>蛋白名称</th>
+                          <th>链</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {s.uniprotIds.map((u) => (
+                          <tr key={u.uniprotId}>
+                            <td className="num">
+                              <a
+                                href={`https://www.uniprot.org/uniprotkb/${u.uniprotId}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 font-medium text-primary transition-opacity hover:opacity-70"
+                              >
+                                {u.uniprotId}
+                                <ExternalLink className="h-3 w-3" strokeWidth={1.75} />
+                              </a>
+                            </td>
+                            <td className="text-xs">{u.proteinName || '—'}</td>
+                            <td className="num text-xs text-muted-foreground">{u.chains.join(' · ') || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Panel>
+
+              <Panel className="lg:col-span-2">
+                <PanelHead title="Ligands · 配体" hint={`${s.ligands.length} 项`} />
+                {s.ligands.length === 0 ? (
+                  <Empty text="NO LIGANDS — 该结构无配体记录" />
+                ) : (
+                  <div className="flex flex-wrap gap-2 p-4">
+                    {s.ligands.map((l, i) => (
+                      <span
+                        key={`${l.name}-${i}`}
+                        title={[l.formula, l.description].filter(Boolean).join(' · ')}
+                        className="inline-flex items-baseline gap-1.5 rounded-[3px] border px-1.5 py-px font-mono text-[10px]"
+                      >
+                        {l.name}
+                        {l.formula && <span className="text-muted-foreground">{l.formula}</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+            </div>
+          </TabsContent>
+
+          {/* ======== 实体序列 ======== */}
+          <TabsContent value="sequences" className="space-y-4">
+            {s.sequences.length === 0 ? (
+              <Panel>
+                <PanelHead title="Sequences · 实体序列" />
+                <Empty text="NO SEQUENCES — 暂无实体序列数据, 可尝试刷新获取 RCSB 实时数据" />
+              </Panel>
+            ) : (
+              s.sequences.map((seq) => (
+                <SequencePanel
                   key={seq.entityId}
                   seq={seq}
                   onCopy={(v) => void copySequence(v)}
                   onAlign={(v) => navigate('alignment', { seq: v })}
                   onAnalyze={(v) => navigate('sequence-analyzer', { seq: v })}
                 />
-              ))}
-            </div>
-          )}
-        </TabsContent>
+              ))
+            )}
+          </TabsContent>
 
-        {/* ======== 关联文献 ======== */}
-        <TabsContent value="literature">
-          {detail.literature.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-12 text-center">
-              <FileText className="h-6 w-6 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                暂无关联文献 — 上传提及该 PDB ID 的文献后会自动建立关联
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {detail.literature.map((l) => (
-                <Card
-                  key={l.id}
-                  role="button"
-                  tabIndex={0}
-                  className="cursor-pointer gap-3 p-4 transition-all hover:border-teal-500/50 hover:shadow-md"
-                  onClick={() => navigate('literature-detail', { id: l.id })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      navigate('literature-detail', { id: l.id });
-                    }
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="line-clamp-2 text-sm font-semibold leading-snug">{l.title}</p>
-                    <Badge variant="secondary" className="shrink-0 gap-1">
-                      <Link2 className="h-3 w-3" />
-                      提及 {l.mentionCount}
-                    </Badge>
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {l.authors.length > 0
-                      ? `${l.authors.slice(0, 3).join(', ')}${l.authors.length > 3 ? ' 等' : ''}`
-                      : '未知作者'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {[l.year, l.journal].filter(Boolean).join(' · ') || '—'}
-                  </p>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* ======== 相关结构 ======== */}
-        <TabsContent value="related">
-          {detail.relatedStructures.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-12 text-center">
-              <Boxes className="h-6 w-6 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">暂无相关结构 (基于共享文献计算)</p>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {detail.relatedStructures.map((r) => (
-                <Card
-                  key={r.id}
-                  role="button"
-                  tabIndex={0}
-                  className="cursor-pointer gap-3 p-4 transition-all hover:border-teal-500/50 hover:shadow-md"
-                  onClick={() => navigate('structure-detail', { id: r.id })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      navigate('structure-detail', { id: r.id });
-                    }
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-base font-bold text-teal-700 dark:text-teal-300">
-                      {r.id}
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className="border-teal-500/30 bg-teal-500/10 text-[11px] text-teal-700 dark:text-teal-300"
+          {/* ======== 关联文献 ======== */}
+          <TabsContent value="literature" className="space-y-4">
+            <Panel>
+              <PanelHead title="Related Literature · 关联文献" hint={`${detail.literature.length} 篇 · 提及计数`} />
+              {detail.literature.length === 0 ? (
+                <Empty text="NO LINKS — 上传提及该 PDB ID 的文献后会自动建立关联" />
+              ) : (
+                <div className="divide-y">
+                  {detail.literature.map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      aria-label={`查看文献 ${l.title}`}
+                      onClick={() => navigate('literature-detail', { id: l.id })}
+                      className="flex w-full items-baseline gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
                     >
-                      共享 {r.sharedLiterature} 篇文献
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">与当前结构在文献中共同出现</p>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                      <span className="num w-10 shrink-0 text-[10px] text-muted-foreground/60">LIT</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-medium leading-snug">{l.title}</span>
+                        <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                          {l.authors.length > 0
+                            ? `${l.authors.slice(0, 3).join(', ')}${l.authors.length > 3 ? ' 等' : ''}`
+                            : '未知作者'}
+                          {' · '}
+                          {[l.year, l.journal].filter(Boolean).join(' · ') || '—'}
+                        </span>
+                      </span>
+                      <span className="num shrink-0 text-[10px] text-muted-foreground">×{l.mentionCount}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          </TabsContent>
+
+          {/* ======== 相关结构 ======== */}
+          <TabsContent value="related" className="space-y-4">
+            <Panel>
+              <PanelHead title="Related Structures · 相关结构" hint="BY 共享文献" />
+              {detail.relatedStructures.length === 0 ? (
+                <Empty text="NO RELATED — 暂无相关结构 (基于共享文献计算)" />
+              ) : (
+                <div className="divide-y">
+                  {detail.relatedStructures.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      aria-label={`查看结构 ${r.id}`}
+                      onClick={() => navigate('structure-detail', { id: r.id })}
+                      className="flex w-full items-baseline gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+                    >
+                      <span className="num text-[13px] font-semibold tracking-tight">{r.id}</span>
+                      <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+                        与当前结构在文献中共同出现
+                      </span>
+                      <span className="num shrink-0 text-[10px] text-muted-foreground">SHARE {r.sharedLiterature}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
@@ -947,21 +1010,20 @@ function StructureError({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10">
-        <TriangleAlert className="h-6 w-6 text-rose-500" />
+    <div className="mx-auto w-full max-w-md rounded-lg border border-destructive/40 bg-destructive/5 p-5">
+      <div className="flex items-center gap-2 border-b border-destructive/30 pb-2.5">
+        <TriangleAlert className="h-4 w-4 text-destructive" strokeWidth={1.75} />
+        <span className="label-tech !text-[10px] !text-destructive">ENTRY LOAD FAILED</span>
       </div>
-      <div>
-        <p className="font-medium">{title}</p>
-        <p className="mt-1 max-w-md text-sm text-muted-foreground">{description}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onBack} className="gap-1.5">
-          <Boxes className="h-3.5 w-3.5" />
+      <p className="mt-3 text-sm font-medium">{title}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
+      <div className="mt-4 flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onBack} className="h-8 gap-1.5 text-xs">
+          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
           返回结构浏览器
         </Button>
         {onRetry && (
-          <Button variant="outline" size="sm" onClick={onRetry}>
+          <Button variant="outline" size="sm" onClick={onRetry} className="h-8 text-xs">
             重试
           </Button>
         )}
